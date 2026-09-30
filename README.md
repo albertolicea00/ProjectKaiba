@@ -71,13 +71,16 @@ It is a personal development project created for experimentation, learning, and 
 
 ---
 
-## ⚖️ Disclaimer
+## ⚖️ Legal Disclaimer
 
-Project Kaiba is an unofficial fan-made project.
+Project Kaiba is an unofficial fan-made project and is **not affiliated with, sponsored by, or endorsed by Konami**.
 
-**Yu-Gi-Oh!** and all related names, characters, cards, artwork, trademarks, and intellectual property belong to their respective owners.
-
-Project Kaiba is **not affiliated with, sponsored by, or endorsed by Konami**.
+> [!WARNING]
+> **Yu-Gi-Oh!** and all rights to the original game — including characters, story, images, audio, cards, artwork, trademarks, and assets — belong to Konami and their respective owners.
+> 
+> This repository is strictly for personal use, learning, and playing with friends. It is not intended for public distribution. Do not publish or distribute this repository, as it may contain copyrighted assets.
+> 
+> For more details, please read the full [Disclaimer & Copyright Notice](disclaimer.md).
 
 ---
 
