@@ -15,43 +15,39 @@
 
 ## 🎯 Goals
 
-- 📱 **Mobile-first experience** — Designed with phones and tablets in mind.
-- 🎥 **Dynamic camera system** — Make duels feel more dynamic and immersive.
-- 👆 **Touch-friendly controls** — Controls designed specifically for mobile devices.
-- 👥 **Play with friends** — Private multiplayer duels with friends.
-- ▶️ **Duel replays** — Save and replay previous duels.
-- 📖 **Yu-Gi-Oh! rules support** — Implement the rules and mechanics required for playing duels.
-- 🖥️ **Cross-platform support** — Explore support for multiple platforms.
+- 🏠 **Local First** — Everything works completely offline (cards, images, scripts, decks, replays). No mandatory login or servers.
+- ⚙️ **Total Compatibility** — Reusing EDOPro/YGOPro and existing Lua scripts to avoid reimplementing Yu-Gi-Oh! rules.
+- 📱 **Mobile First** — The core experience is designed for Android, focusing on touch controls, mid-range mobile performance, and battery efficiency.
+- 👥 **LAN & Direct Play** — Host and join private duels with friends locally or via direct IP connection, without relying on central matchmaking servers.
+- 🏗️ **Decoupled Architecture** — Clean separation between the rule engine (EDOPro/YGOPro Core), Networking Layer, Game Adapter, and Visual Layer.
+- 🐉 **3D Monsters & Assets** — Modular system for 3D monster models without tying game logic to visuals.
+- 🖥️ **Future Platforms** — Architecture ready for PC and VR expansion.
 
 ---
 
-## 🗺️ Roadmap
+## 🗺️ Roadmap (MVP)
 
-### Duel System
-- [ ] Duel field
-- [ ] Card interactions
-- [ ] Turn and phase system
-- [ ] Chain resolution
-- [ ] Life Points
-- [ ] Card effects
-- [ ] Rules implementation
+### Core System & Rules
+- [ ] Complete EDOPro/YGOPro integration
+- [ ] Local Offline Mode support
+- [ ] Deck Editor
+- [ ] Preconstructed Anime Decks (Classic DM / Kaiba era movies)
+- [ ] Basic Local AI (strictly for development and testing purposes)
+
+### Visuals & Gameplay
+- [ ] 3D Field implementation
+- [ ] Dynamic Camera system
+- [ ] Card animations (Summon/Attack)
+- [ ] *(Future)* Implement 3D Monsters (mostly AI-generated)
+- [ ] *(Future / Not Planned)* VR-ready system foundations
 
 ### Multiplayer
-- [ ] Private games
-- [ ] Invite friends
-- [ ] Connection handling
-- [ ] Reconnection support
+- [ ] LAN Multiplayer support
+- [ ] Direct IP Host & Join system
+- [ ] Compatibility with existing EDOPro, YGOPro, and YDXPro servers
 
-### Replays
-- [ ] Record duels
-- [ ] Save replays
-- [ ] Replay playback
-
-### Mobile
-- [ ] Touch controls
-- [ ] Mobile UI
-- [ ] Dynamic camera
-- [ ] Performance optimization
+### AI System (Future)
+- [ ] Remote AI integration (e.g., Jev or advanced remote AI) for complex decision making
 
 ---
 
