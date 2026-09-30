@@ -2,10 +2,15 @@
 
 > **It's Time to D-D-D-D-D-D-Duel!**
 
+<img src="https://img.shields.io/badge/Unofficial-Project-blueviolet" alt="Unofficial Project">
+<img src="https://img.shields.io/badge/Fanmade-Project-orange" alt="Fanmade">
+<img src="https://img.shields.io/badge/Purpose-Learning-green" alt="Purpose">
+<img src="https://img.shields.io/badge/Distribution-Prohibited-red" alt="Not for Distribution">
+
 **Project Kaiba** is a personal, fan-made mobile Yu-Gi-Oh! project created for my own use and to play duels with friends.
 
 *This project is not intended for public distribution, commercial use, or release.*
-
+<!-- Not affiliated with Konami. Not for distribution or monetization. -->
 ---
 
 ## 🎯 Goals
