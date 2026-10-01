@@ -38,8 +38,8 @@ Verified against EDOPro's own source (`gframe/game.cpp:206`, `README.md`):
 core and use a different Lua API; they will fail at load or behave incorrectly.
 
 `BabelCDB` ships many `.cdb` files (one per set/era) rather than a single `cards.cdb`. They are
-plain SQLite and can be merged. `tools/cdb_check.py` should verify the merged result before it is
-used.
+plain SQLite and can be merged. `tools/cdb_check.py` (not written yet) should verify the merged
+result before it is used.
 
 Artwork is not distributed by any of these projects and must be sourced separately.
 

@@ -142,7 +142,8 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
 - `edopro/gframe/duelclient.cpp` is **reference documentation, not portable code**. It is coupled to
   Irrlicht. `core_utils.cpp` and `bufferio.h` from the same tree *are* portable — port those directly.
 - When touching `native/vendor/ocgcore`, record the new pinned SHA in `CHANGELOG.md`. A core bump can
-  break replay determinism (ARCHITECTURE.md R5); run `tools/replay_verify.py` before committing it.
+  break replay determinism (ARCHITECTURE.md R5). `tools/replay_verify.py` does not exist yet — it
+  arrives with replays in Phase 3. Until then, bump the core only deliberately.
 - Do not commit anything under `data/`. Card data and art are copyrighted.
 - State assumptions explicitly. Prefer saying "I don't know" over inventing engine behavior — the
   authority for ocgcore semantics is the source in `native/vendor/ocgcore/`, not memory.

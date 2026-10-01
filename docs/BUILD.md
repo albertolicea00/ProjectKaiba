@@ -142,4 +142,6 @@ bumping it can change duel behaviour and invalidate stored replays
 git submodule status
 ```
 
-When bumping ocgcore, record the new SHA in `CHANGELOG.md` and run `tools/replay_verify.py` first.
+When bumping ocgcore, record the new SHA in `CHANGELOG.md`. Once replays exist (Phase 3),
+`tools/replay_verify.py` must re-simulate the stored replay library before the bump is accepted.
+That tool is not written yet.
