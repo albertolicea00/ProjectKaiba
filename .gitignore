@@ -1,13 +1,18 @@
-# Godot 4+ specific ignores
+# ---------------------------------------------------------------------------
+# Godot
+# ---------------------------------------------------------------------------
+# .godot/ is entirely generated; extension_list.cfg included. Godot rebuilds it on open.
 .godot/
-!.godot/extension_list.cfg
-
-# Godot-specific ignores
 *.translation
-*.import
 
-# C++ Build outputs / GDExtension
+# NOTE: *.import files are intentionally NOT ignored. In Godot 4 they carry the resource UID.
+# Dropping them makes every clone regenerate new UIDs and breaks uid:// references in scenes.
+
+# ---------------------------------------------------------------------------
+# Native build artefacts
+# ---------------------------------------------------------------------------
 *.o
+*.os
 *.obj
 *.dll
 *.so
@@ -15,23 +20,47 @@
 *.a
 *.lib
 *.exp
-bin/
+*.pdb
 build/
-.scons_classes.json
+native/build/
 .sconsign.dblite
+.sconf_temp/
+config.log
+compile_commands.json
 
-# Android / Export
+# Built libraries live in game/bin/ and are not versioned, but the extension manifest is.
+bin/
+!game/bin/
+game/bin/*
+!game/bin/kaiba.gdextension
+
+# ---------------------------------------------------------------------------
+# Game data - never commit. Card data and artwork are copyrighted (see DISCLAIMER.md).
+# ---------------------------------------------------------------------------
+data/
+*.cdb
+*.pck
+*.ydk
+
+# ---------------------------------------------------------------------------
+# Android / export
+# ---------------------------------------------------------------------------
 *.apk
 *.aab
 *.keystore
 export_presets.cfg
+game/android/
 
-# Logs and databases
+# ---------------------------------------------------------------------------
+# Logs and scratch
+# ---------------------------------------------------------------------------
 *.log
 *.sqlite
 *.db
 
-# OS generated files
+# ---------------------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------------------
 .DS_Store
 .DS_Store?
 ._*
@@ -40,7 +69,9 @@ export_presets.cfg
 ehthumbs.db
 Thumbs.db
 
-# IDEs / Editor
+# ---------------------------------------------------------------------------
+# IDEs
+# ---------------------------------------------------------------------------
 .idea/
 .vscode/
 *.swp
@@ -52,5 +83,7 @@ Thumbs.db
 *.user
 *.userprefs
 
+# ---------------------------------------------------------------------------
 # Custom
+# ---------------------------------------------------------------------------
 .workspace/*
