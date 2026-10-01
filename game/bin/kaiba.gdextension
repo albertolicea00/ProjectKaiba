@@ -1,0 +1,34 @@
+; Entry symbol must match kaiba_library_init in native/src/register_types.cpp.
+;
+; compatibility_minimum is 4.5 because godot-cpp has no 4.6 branch yet. GDExtension is forward
+; compatible, so a 4.5-built extension runs on Godot 4.6.x. Bump both this and the godot-cpp
+; submodule branch together when upstream ships 4.6. See AGENTS.md section 8.8.
+;
+; reloadable is false on purpose: this library will own a worker thread and a Lua VM from
+; Phase 1 onward, and hot-reloading native state like that crashes the editor.
+
+[configuration]
+
+entry_symbol = "kaiba_library_init"
+compatibility_minimum = "4.5"
+reloadable = false
+
+[libraries]
+
+macos.debug.arm64 = "res://bin/libkaiba_core.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "res://bin/libkaiba_core.macos.template_release.arm64.dylib"
+macos.debug.x86_64 = "res://bin/libkaiba_core.macos.template_debug.x86_64.dylib"
+macos.release.x86_64 = "res://bin/libkaiba_core.macos.template_release.x86_64.dylib"
+
+linux.debug.x86_64 = "res://bin/libkaiba_core.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://bin/libkaiba_core.linux.template_release.x86_64.so"
+
+windows.debug.x86_64 = "res://bin/libkaiba_core.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://bin/libkaiba_core.windows.template_release.x86_64.dll"
+
+android.debug.arm64 = "res://bin/libkaiba_core.android.template_debug.arm64.so"
+android.release.arm64 = "res://bin/libkaiba_core.android.template_release.arm64.so"
+android.debug.arm32 = "res://bin/libkaiba_core.android.template_debug.arm32.so"
+android.release.arm32 = "res://bin/libkaiba_core.android.template_release.arm32.so"
+android.debug.x86_64 = "res://bin/libkaiba_core.android.template_debug.x86_64.so"
+android.release.x86_64 = "res://bin/libkaiba_core.android.template_release.x86_64.so"
