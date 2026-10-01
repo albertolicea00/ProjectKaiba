@@ -129,6 +129,9 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
 7. **`OCG_CreateDuel` rejects an all-zero `seed[4]`** with `OCG_DUEL_CREATION_NULL_RNG_SEED`.
 8. **godot-cpp has no 4.6 branch.** We build against `4.5` and set `compatibility_minimum = "4.5"`.
    GDExtension is forward-compatible, so this runs on Godot 4.6.3. Bump when upstream ships 4.6.
+9. **Godot 4.6.3 segfaults on the first `--import` of a project with a GDExtension**, inside
+   `EditorHelp::_gen_extensions_docs()` at shutdown. The import completes regardless; only the
+   first one crashes. `make bootstrap-import` absorbs it. Upstream bug, not ours.
 
 ---
 

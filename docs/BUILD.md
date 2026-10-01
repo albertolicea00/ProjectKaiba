@@ -120,6 +120,12 @@ Run `make deps`.
 Something passed `disable_exceptions=yes`, or built SCons directly without the flag. Always build
 through `make`, or pass `disable_exceptions=no` by hand.
 
+**Godot segfaults on the very first `--import`**
+Known Godot 4.6.3 bug, not a project defect. `EditorHelp::_gen_extensions_docs()` crashes during
+`Main::cleanup` the first time Godot scans a project that declares a GDExtension. The import has
+already finished by then: `.godot/extension_list.cfg` is written correctly, the second import is
+clean, and the runtime is unaffected. `make bootstrap-import` absorbs it.
+
 **macOS: crashes or miscompiles inside the process dispatcher**
 `processor_visit.cpp` must be compiled with `-fno-exceptions` on macOS only. The SConstruct does
 this; upstream `premake5.lua` does the same.

@@ -30,7 +30,7 @@ endif
 # disable_exceptions=no is mandatory: ocgcore raises Lua errors as C++ exceptions.
 SCONS_COMMON := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -100,6 +100,17 @@ distclean: clean
 # build unless it reports PASS. This is the Phase 0 exit criterion.
 verify:
 	$(MAKE) selftest
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	@$(GODOT) --headless --path $(GAME_DIR) --quit-after 5 2>&1 | tee /tmp/kaiba_verify.log
 	@grep -q "selftest : PASS" /tmp/kaiba_verify.log || (echo "FAIL: Godot did not report selftest PASS"; exit 1)
 	@echo "Phase 0 verified: GDExtension loads and ocgcore runs inside Godot."
+
+# Godot 4.6.3 segfaults in EditorHelp::_gen_extensions_docs() at shutdown the first time it
+# scans a project that declares a GDExtension. The import itself completes and writes
+# .godot/extension_list.cfg correctly, so the exit code is deliberately ignored.
+# Only the first import crashes; later ones are clean. See docs/BUILD.md.
+bootstrap-import:
+	@$(GODOT) --headless --path $(GAME_DIR) --import >/dev/null 2>&1 || true
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg \
+		&& echo "Godot project imported; extension registered." \
+		|| (echo "FAIL: import did not register the extension"; exit 1)
