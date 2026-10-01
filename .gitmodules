@@ -2,3 +2,6 @@
 	path = native/godot-cpp
 	url = https://github.com/godotengine/godot-cpp.git
 	branch = 4.5
+[submodule "native/vendor/ocgcore"]
+	path = native/vendor/ocgcore
+	url = https://github.com/edo9300/ygopro-core.git
