@@ -1,0 +1,194 @@
+#!/usr/bin/env python
+"""Project Kaiba - native build.
+
+Produces ../game/bin/libkaiba_core.<platform>.<target>.<arch>.<ext>: a GDExtension that
+statically links ocgcore (the EDOPro rules engine) and Lua 5.4.
+
+    scons platform=macos   target=template_debug arch=arm64
+    scons platform=android target=template_debug arch=arm64
+    scons platform=macos   target=template_debug arch=arm64 selftest=yes
+
+Compiler flags here are not arbitrary. Read AGENTS.md section 8 before changing any of them.
+"""
+
+import os
+
+# ocgcore propagates Lua errors as C++ exceptions. godot-cpp disables exceptions by default,
+# which makes ocgcore unbuildable, so force them on before godot-cpp parses its options.
+# (AGENTS.md 8.1)
+ARGUMENTS.setdefault("disable_exceptions", "no")
+
+env = SConscript("godot-cpp/SConstruct")
+
+OCGCORE_DIR = "vendor/ocgcore"
+LUA_DIR = os.path.join(OCGCORE_DIR, "lua")
+LUA_SRC_DIR = os.path.join(LUA_DIR, "src")
+
+# --------------------------------------------------------------------------------------
+# Preconditions
+# --------------------------------------------------------------------------------------
+
+if not os.path.isfile(os.path.join(OCGCORE_DIR, "ocgapi.h")):
+    raise SystemExit("ocgcore submodule is missing or empty. Run: make deps")
+
+if not os.path.isfile(os.path.join(LUA_SRC_DIR, "lua.h")):
+    raise SystemExit("Lua submodule (inside ocgcore) is missing or empty. Run: make deps")
+
+if env.get("disable_exceptions", False):
+    raise SystemExit("ocgcore requires C++ exceptions. Build with disable_exceptions=no.")
+
+if env.get("is_msvc", False):
+    raise SystemExit("MSVC is not supported yet: the ocgcore/Lua flags below are GCC/Clang style.")
+
+# --------------------------------------------------------------------------------------
+# Shared configuration
+# --------------------------------------------------------------------------------------
+
+env.Append(CPPPATH=["src", OCGCORE_DIR])
+
+if env["platform"] == "android" and env["arch"] == "arm64":
+    # Android 15+ ships 16 KB memory pages. Mirrors ocgcore's own Android.mk.
+    env.Append(LINKFLAGS=["-Wl,-z,max-page-size=16384", "-Wl,-z,common-page-size=16384"])
+
+if env["platform"] == "linux":
+    env.Append(LINKFLAGS=["-Wl,--no-undefined"])
+
+OBJ_ROOT = os.path.join("build", env["suffix"].lstrip("."))
+
+
+def build_objects(build_env, sources, subdir, per_file_cxxflags=None):
+    """Compile sources into position-independent objects under build/<config>/<subdir>/.
+
+    Keeps object files out of the vendored submodule trees so they stay clean for `git status`.
+    """
+    per_file_cxxflags = per_file_cxxflags or {}
+    objects = []
+    for source in sources:
+        source_path = str(source)
+        stem = os.path.splitext(os.path.basename(source_path))[0]
+        target = os.path.join(OBJ_ROOT, subdir, stem)
+        extra = per_file_cxxflags.get(os.path.normpath(source_path))
+        if extra:
+            file_env = build_env.Clone()
+            file_env.Append(CXXFLAGS=extra)
+            objects.append(file_env.SharedObject(target=target, source=source_path))
+        else:
+            objects.append(build_env.SharedObject(target=target, source=source_path))
+    return objects
+
+
+# --------------------------------------------------------------------------------------
+# Lua 5.4 - compiled as C++, not C
+# --------------------------------------------------------------------------------------
+#
+# ocgcore raises Lua errors through the C++ exception machinery. If Lua is compiled as C,
+# lua_error() longjmps past ocgcore's destructors and corrupts the heap. ocgcore detects
+# this at runtime and OCG_CreateDuel returns OCG_DUEL_CREATION_INCOMPATIBLE_LUA_API.
+# Upstream does the same thing (lua/premake5.lua: compileas "C++").
+
+LUA_EXCLUDED = {
+    "lbitlib.c",    # deprecated bit library
+    "lcorolib.c",   # coroutines are driven by ocgcore itself
+    "ldblib.c",     # debug library: unsafe for card scripts
+    "linit.c",      # ocgcore opens the libraries it wants, one by one
+    "loadlib.c",    # dynamic library loading: unsafe
+    "loslib.c",     # os.*: unsafe
+    "ltests.c",     # Lua's own test harness
+    "lua.c",        # has main()
+    "luac.c",       # has main()
+    "lutf8lib.c",   # unused
+    "onelua.c",     # single-translation-unit amalgamation; would duplicate everything
+}
+
+lua_env = env.Clone()
+lua_env["CC"] = lua_env["CXX"]
+lua_env.Append(
+    CFLAGS=[
+        "-x", "c++",
+        "-std=c++17",
+        "-fexceptions",
+        "-fno-rtti",
+        # Fixes lua_getlocaledecpoint() on Android; ships with ocgcore.
+        "-include", os.path.join(LUA_DIR, "luaconf-customize.h"),
+        "-Wno-deprecated",
+        "-Wno-unused-parameter",
+    ]
+)
+lua_env.Append(CPPPATH=[LUA_DIR, LUA_SRC_DIR])
+
+lua_sources = [
+    source for source in Glob(os.path.join(LUA_SRC_DIR, "*.c"))
+    if os.path.basename(str(source)) not in LUA_EXCLUDED
+]
+if not lua_sources:
+    raise SystemExit("No Lua sources found in %s. Run: make deps" % LUA_SRC_DIR)
+
+lua_objects = build_objects(lua_env, lua_sources, "lua")
+
+# --------------------------------------------------------------------------------------
+# ocgcore
+# --------------------------------------------------------------------------------------
+#
+# OCGCORE_EXPORT_FUNCTIONS is deliberately NOT defined: ocgcore is linked statically into
+# libkaiba_core and called from C++. Exporting its symbols would only widen our ABI surface.
+
+ocg_env = env.Clone()
+ocg_env.Append(CXXFLAGS=["-std=c++17", "-fexceptions", "-fno-rtti", "-Wno-unused-parameter"])
+ocg_env.Append(CPPPATH=[LUA_DIR, LUA_SRC_DIR])
+
+if env["target"] == "template_release":
+    ocg_env.Append(CPPDEFINES=["NDEBUG"])
+
+ocg_per_file = {}
+if env["platform"] == "macos":
+    # Upstream premake5.lua builds exactly this file without exceptions on macOS:
+    #   filter { "system:macosx", "files:processor_visit.cpp" } buildoptions { "-fno-exceptions" }
+    # Deviating here risks a macOS-only miscompile in the process dispatcher.
+    ocg_per_file[os.path.normpath(os.path.join(OCGCORE_DIR, "processor_visit.cpp"))] = [
+        "-fno-exceptions"
+    ]
+
+ocg_sources = sorted(str(source) for source in Glob(os.path.join(OCGCORE_DIR, "*.cpp")))
+if not ocg_sources:
+    raise SystemExit("No ocgcore sources found in %s. Run: make deps" % OCGCORE_DIR)
+
+ocg_objects = build_objects(ocg_env, ocg_sources, "ocgcore", ocg_per_file)
+
+# --------------------------------------------------------------------------------------
+# Project Kaiba sources
+# --------------------------------------------------------------------------------------
+
+kaiba_env = env.Clone()
+kaiba_env.Append(CXXFLAGS=["-fexceptions"])
+kaiba_sources = sorted(str(source) for source in Glob("src/*.cpp"))
+kaiba_objects = build_objects(kaiba_env, kaiba_sources, "kaiba")
+
+library = env.SharedLibrary(
+    target=os.path.join("..", "game", "bin", "libkaiba_core%s%s" % (env["suffix"], env["SHLIBSUFFIX"])),
+    source=kaiba_objects + ocg_objects + lua_objects,
+)
+Default(library)
+
+# --------------------------------------------------------------------------------------
+# Optional: standalone headless selftest
+# --------------------------------------------------------------------------------------
+#
+# Links ocgcore + Lua without Godot. If this passes but the GDExtension fails, the problem
+# is in the Godot binding; if this fails, the problem is in the core build itself.
+
+if ARGUMENTS.get("selftest", "no") == "yes":
+    if env["platform"] == "android":
+        raise SystemExit("selftest=yes builds a host executable; drop platform=android.")
+    selftest_env = env.Clone()
+    selftest_env["LIBS"] = []
+    selftest_env.Append(CXXFLAGS=["-fexceptions"])
+    if env["platform"] != "windows":
+        selftest_env.Append(LIBS=["m"])
+    selftest_objects = build_objects(
+        selftest_env, ["tools/selftest_main.cpp", "src/core_selftest.cpp"], "selftest"
+    )
+    selftest = selftest_env.Program(
+        target=os.path.join(OBJ_ROOT, "kaiba_selftest"),
+        source=selftest_objects + ocg_objects + lua_objects,
+    )
+    Default(selftest)
