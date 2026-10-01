@@ -27,8 +27,14 @@ ifeq ($(HOST_ARCH),aarch64)
   HOST_ARCH := arm64
 endif
 
+# Pinned, not auto-detected. godot-cpp 4.5 defaults to NDK 28.1.13356709; we build with the
+# version actually installed here. Keep this an explicit pin so a future NDK install cannot
+# silently change the produced binaries. `make doctor` reports a mismatch.
+NDK_VERSION ?= 28.2.13676358
+
 # disable_exceptions=no is mandatory: ocgcore raises Lua errors as C++ exceptions.
-SCONS_COMMON := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
+SCONS_COMMON  := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
+SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 
 .PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify bootstrap-import run editor clean distclean
 
@@ -49,11 +55,13 @@ help:
 
 doctor:
 	@echo "host platform : $(HOST_PLATFORM) $(HOST_ARCH)"
-	@printf "scons         : "; $(SCONS) --version 2>/dev/null | sed -n 's/.*engine: v\([0-9.]*\).*/\1/p' | head -1 || echo "NOT INSTALLED - run: make deps"
+	@printf "scons         : "; $(SCONS) --version 2>/dev/null | sed -n 's/.*SCons: v\([0-9.]*\).*/\1/p' | head -1 | grep . || echo "NOT INSTALLED - run: make deps"
 	@printf "godot         : "; $(GODOT) --version 2>/dev/null || echo "not on PATH"
 	@printf "python        : "; python3 --version
 	@echo "ANDROID_HOME  : $(ANDROID_HOME)"
-	@printf "ndk           : "; ls $(ANDROID_HOME)/ndk 2>/dev/null | tail -1 || echo "NOT FOUND"
+	@printf "ndk pinned    : "; test -d "$(ANDROID_HOME)/ndk/$(NDK_VERSION)" \
+		&& echo "$(NDK_VERSION) (present)" \
+		|| echo "$(NDK_VERSION) MISSING - installed: $$(ls $(ANDROID_HOME)/ndk 2>/dev/null | tr '\n' ' ')"
 	@echo "submodules    :"
 	@git submodule status | sed 's/^/                /'
 
@@ -68,13 +76,13 @@ host:
 android: android-arm64 android-arm32 android-x86_64
 
 android-arm64:
-	$(SCONS) $(SCONS_COMMON) platform=android arch=arm64
+	$(SCONS) $(SCONS_ANDROID) arch=arm64
 
 android-arm32:
-	$(SCONS) $(SCONS_COMMON) platform=android arch=arm32
+	$(SCONS) $(SCONS_ANDROID) arch=arm32
 
 android-x86_64:
-	$(SCONS) $(SCONS_COMMON) platform=android arch=x86_64
+	$(SCONS) $(SCONS_ANDROID) arch=x86_64
 
 # Builds and runs the standalone probe. A failure here points at the ocgcore build itself;
 # a pass here plus a failure in Godot points at the GDExtension binding.
