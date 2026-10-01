@@ -1,0 +1,27 @@
+; Project Kaiba - Godot project configuration.
+;
+; Phase 0: boots straight into scenes/main.tscn, which runs the native toolchain selftest.
+; Replaced by MainMenu -> SceneRouter in Phase 2 (docs/ARCHITECTURE.md section 4).
+
+config_version=5
+
+[application]
+
+config/name="Project Kaiba"
+config/description="Fan-made Yu-Gi-Oh! client built on the EDOPro rules engine (ocgcore)."
+run/main_scene="res://scenes/main.tscn"
+config/features=PackedStringArray("4.6", "Mobile")
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+; 0 = landscape. A card field is landscape on every target platform.
+window/handheld/orientation=0
+
+[rendering]
+
+; Vulkan Mobile renderer: the right trade-off for mid-range Android (ARCHITECTURE.md section 9).
+renderer/rendering_method="mobile"
