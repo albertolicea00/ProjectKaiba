@@ -27,29 +27,41 @@
 
 ---
 
-## 🗺️ Roadmap (MVP)
+## 🗺️ Roadmap
 
-### Core System & Rules
-- [ ] Complete EDOPro/YGOPro integration
+Full technical plan, phase breakdown and estimates: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+### MVP — Core System & Rules
+- [ ] Phase 0 — Toolchain: GDExtension wrapper around `ocgcore`, Android + host builds
+- [ ] Phase 0 — Card database and Lua script pipeline (`base.pck`)
+- [ ] Phase 1 — Headless duel: full duel to `MSG_WIN` with no UI
 - [ ] Local Offline Mode support
-- [ ] Deck Editor
+- [ ] Deck Editor with `.ydk` import/export
 - [ ] Preconstructed Anime Decks (Classic DM / Kaiba era movies)
 - [ ] Basic Local AI (strictly for development and testing purposes)
 
-### Visuals & Gameplay
-- [ ] 3D Field implementation
+### MVP — Visuals & Gameplay
+- [ ] 3D Field implementation (real-world scale)
 - [ ] Dynamic Camera system
 - [ ] Card animations (Summon/Attack)
-- [ ] *(Future)* Implement 3D Monsters (mostly AI-generated)
-- [ ] *(Future / Not Planned)* VR-ready system foundations
+- [ ] 3D Monsters via optional asset packs, always with 2D fallback
+- [ ] VR-ready foundations (abstractions only — no VR build in the MVP)
 
-### Multiplayer
-- [ ] LAN Multiplayer support
+### MVP — Multiplayer (LAN only)
+- [ ] LAN Multiplayer support over TCP
 - [ ] Direct IP Host & Join system
-- [ ] Compatibility with existing EDOPro, YGOPro, and YDXPro servers
+- [ ] LAN host discovery via UDP broadcast
+- [ ] Replay recording and playback
 
-### AI System (Future)
-- [ ] Remote AI integration (e.g., Jev or advanced remote AI) for complex decision making
+---
+
+### Post-MVP (not scheduled)
+- [ ] PC client (mouse/keyboard camera rig)
+- [ ] Compatibility with existing EDOPro, YGOPro and YDXPro servers *(isolated CTOS/STOC adapter — expect breakage on every EDOPro release)*
+- [ ] EDOPro `.yrp` / `.yrpX` replay import/export
+- [ ] Remote AI integration for complex decision making
+- [ ] Downloadable asset packs
+- [ ] VR client
 
 ---
 
