@@ -43,6 +43,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | `native/vendor/ocgcore` | `efc21aa433b88cd35b7c37db4072a35c58d9d435` | OCG core v11.0. **Bumping this can change duel behaviour and invalidate stored replays** (ARCHITECTURE.md R5) |
 | `native/vendor/ocgcore/lua/src` | `6e22fedb74cf0c9b6656e9fce8b7331db847c605` | Lua 5.4, compiled as C++ |
 
+### Verified
+- macOS arm64 host build passes `make verify` end to end: the GDExtension loads inside Godot
+  4.6.3, `OCG_CreateDuel` succeeds, a Lua chunk runs inside the duel's own state, and the duel is
+  destroyed cleanly. ocgcore reports 11.0.
+
 ### Known blockers
 - No `cards.cdb` and no card scripts are present yet. See `docs/DATA.md`. Until these exist, only
   the toolchain can be exercised, not a duel.
+- **Android does not build yet.** `$ANDROID_HOME/ndk/28.2.13676358/` exists but is empty: the NDK
+  was never fully installed. The Makefile pins `NDK_VERSION` (godot-cpp 4.5 defaults to
+  `28.1.13356709`, which is also absent). `make doctor` reports the mismatch.
+
+### Upstream bugs worked around
+- Godot 4.6.3 segfaults in `EditorHelp::_gen_extensions_docs()` during `Main::cleanup` on the
+  first `--import` of a project declaring a GDExtension. The import completes correctly and later
+  imports are clean. `make bootstrap-import` absorbs it.
