@@ -18,6 +18,10 @@ import os
 # (AGENTS.md 8.1)
 ARGUMENTS.setdefault("disable_exceptions", "no")
 
+# Consumed here, not by godot-cpp. Popping it keeps godot-cpp from warning about an unknown
+# variable when the standalone probe is requested.
+BUILD_SELFTEST = ARGUMENTS.pop("selftest", "no") == "yes"
+
 env = SConscript("godot-cpp/SConstruct")
 
 OCGCORE_DIR = "vendor/ocgcore"
@@ -176,7 +180,7 @@ Default(library)
 # Links ocgcore + Lua without Godot. If this passes but the GDExtension fails, the problem
 # is in the Godot binding; if this fails, the problem is in the core build itself.
 
-if ARGUMENTS.get("selftest", "no") == "yes":
+if BUILD_SELFTEST:
     if env["platform"] == "android":
         raise SystemExit("selftest=yes builds a host executable; drop platform=android.")
     selftest_env = env.Clone()

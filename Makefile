@@ -30,7 +30,7 @@ endif
 # disable_exceptions=no is mandatory: ocgcore raises Lua errors as C++ exceptions.
 SCONS_COMMON := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -95,3 +95,11 @@ clean:
 distclean: clean
 	rm -f $(GAME_DIR)/bin/libkaiba_core.*
 	rm -rf $(NATIVE_DIR)/godot-cpp/bin
+
+# Headless end-to-end check: boots the Godot project, runs the native selftest and fails the
+# build unless it reports PASS. This is the Phase 0 exit criterion.
+verify:
+	$(MAKE) selftest
+	@$(GODOT) --headless --path $(GAME_DIR) --quit-after 5 2>&1 | tee /tmp/kaiba_verify.log
+	@grep -q "selftest : PASS" /tmp/kaiba_verify.log || (echo "FAIL: Godot did not report selftest PASS"; exit 1)
+	@echo "Phase 0 verified: GDExtension loads and ocgcore runs inside Godot."
