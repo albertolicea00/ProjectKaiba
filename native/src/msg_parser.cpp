@@ -62,6 +62,26 @@ static_assert(static_cast<int32_t>(EV::ATTACK) == MSG_ATTACK, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::BATTLE) == MSG_BATTLE, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::ATTACK_DISABLED) == MSG_ATTACK_DISABLED, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::START) == MSG_START, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CHAIN_NEGATED) == MSG_CHAIN_NEGATED, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CHAIN_DISABLED) == MSG_CHAIN_DISABLED, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CONFIRM_DECKTOP) == MSG_CONFIRM_DECKTOP, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::SWAP) == MSG_SWAP, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::RANDOM_SELECTED) == MSG_RANDOM_SELECTED, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::BECOME_TARGET) == MSG_BECOME_TARGET, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::EQUIP) == MSG_EQUIP, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CARD_TARGET) == MSG_CARD_TARGET, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CANCEL_TARGET) == MSG_CANCEL_TARGET, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::PAY_LPCOST) == MSG_PAY_LPCOST, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::ADD_COUNTER) == MSG_ADD_COUNTER, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::REMOVE_COUNTER) == MSG_REMOVE_COUNTER, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::DAMAGE_STEP_START) == MSG_DAMAGE_STEP_START, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::DAMAGE_STEP_END) == MSG_DAMAGE_STEP_END, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::MISSED_EFFECT) == MSG_MISSED_EFFECT, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::TOSS_COIN) == MSG_TOSS_COIN, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::TOSS_DICE) == MSG_TOSS_DICE, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::CARD_HINT) == MSG_CARD_HINT, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::PLAYER_HINT) == MSG_PLAYER_HINT, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::REMOVE_CARDS) == MSG_REMOVE_CARDS, "EV/MSG drift");
 
 namespace {
 
@@ -517,6 +537,117 @@ Dictionary parse_shuffle_set_card(Cursor& cursor) {
 	return event;
 }
 
+
+// ---------------------------------------------------------------------------------------
+// Batch 2. Same rule as batch 1: every layout below is read off a write site in
+// vendor/ocgcore. Opcodes whose layout could not be pinned down with certainty are left out
+// entirely and fall through to EV::UNHANDLED rather than being guessed at.
+// ---------------------------------------------------------------------------------------
+
+/// A bare list of loc_info, length-prefixed with a uint32.
+Array read_loc_list32(Cursor& cursor) {
+	Array list;
+	const uint32_t count = cursor.read<uint32_t>();
+	for (uint32_t i = 0; i < count && cursor.ok(); ++i) {
+		list.push_back(loc_dict(cursor.read_loc()));
+	}
+	return list;
+}
+
+/// MSG_BECOME_TARGET, MSG_RANDOM_SELECTED (minus its leading player), MSG_REMOVE_CARDS.
+Dictionary parse_loc_list(Cursor& cursor, EV type) {
+	Dictionary event = make_event(type);
+	event["cards"] = read_loc_list32(cursor);
+	return event;
+}
+
+Dictionary parse_random_selected(Cursor& cursor) {
+	Dictionary event = make_event(EV::RANDOM_SELECTED);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["cards"] = read_loc_list32(cursor);
+	return event;
+}
+
+/// MSG_EQUIP, MSG_CARD_TARGET, MSG_CANCEL_TARGET: two packed loc_infos, source then target.
+Dictionary parse_loc_pair(Cursor& cursor, EV type) {
+	Dictionary event = make_event(type);
+	event["from"] = loc_dict(cursor.read_loc());
+	event["to"] = loc_dict(cursor.read_loc());
+	return event;
+}
+
+Dictionary parse_swap(Cursor& cursor) {
+	Dictionary event = make_event(EV::SWAP);
+	event["card"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["from"] = loc_dict(cursor.read_loc());
+	event["card2"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["to"] = loc_dict(cursor.read_loc());
+	return event;
+}
+
+Dictionary parse_pay_lpcost(Cursor& cursor) {
+	Dictionary event = make_event(EV::PAY_LPCOST);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["amount"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	return event;
+}
+
+/// MSG_ADD_COUNTER and MSG_REMOVE_COUNTER. Note the widths: the counter type and the count
+/// are uint16, and the sequence is a single byte rather than part of a loc_info.
+Dictionary parse_counter(Cursor& cursor, EV type) {
+	Dictionary event = make_event(type);
+	event["counter_type"] = static_cast<int32_t>(cursor.read<uint16_t>());
+	const uint8_t controler = cursor.read<uint8_t>();
+	const uint8_t location = cursor.read<uint8_t>();
+	const uint8_t sequence = cursor.read<uint8_t>();
+	event["at"] = loc_dict(make_loc(controler, location, sequence));
+	event["count"] = static_cast<int32_t>(cursor.read<uint16_t>());
+	return event;
+}
+
+Dictionary parse_missed_effect(Cursor& cursor) {
+	Dictionary event = make_event(EV::MISSED_EFFECT);
+	event["at"] = loc_dict(cursor.read_loc());
+	event["card"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	return event;
+}
+
+/// MSG_TOSS_COIN and MSG_TOSS_DICE: owner, count, then one byte per result.
+Dictionary parse_toss(Cursor& cursor, EV type) {
+	Dictionary event = make_event(type);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	Array results;
+	const uint8_t count = cursor.read<uint8_t>();
+	for (uint8_t i = 0; i < count && cursor.ok(); ++i) {
+		results.push_back(static_cast<int32_t>(cursor.read<uint8_t>()));
+	}
+	event["results"] = results;
+	return event;
+}
+
+Dictionary parse_card_hint(Cursor& cursor) {
+	Dictionary event = make_event(EV::CARD_HINT);
+	event["at"] = loc_dict(cursor.read_loc());
+	event["hint_type"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["data"] = static_cast<int64_t>(cursor.read<uint64_t>());
+	return event;
+}
+
+Dictionary parse_player_hint(Cursor& cursor) {
+	Dictionary event = make_event(EV::PLAYER_HINT);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["hint_type"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["data"] = static_cast<int64_t>(cursor.read<uint64_t>());
+	return event;
+}
+
+Dictionary parse_confirm_decktop(Cursor& cursor) {
+	Dictionary event = make_event(EV::CONFIRM_DECKTOP);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["cards"] = read_card_list32(cursor);
+	return event;
+}
+
 } // namespace
 
 godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
@@ -573,6 +704,36 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		case MSG_SELECT_CHAIN:      event = parse_select_chain(cursor); break;
 		case MSG_SELECT_PLACE:      event = parse_select_place(cursor); break;
 		case MSG_SELECT_POSITION:   event = parse_select_position(cursor); break;
+
+		// --- batch 2 -------------------------------------------------------------------
+		case MSG_CHAIN_NEGATED:     event = parse_chain_index(cursor, EV::CHAIN_NEGATED); break;
+		case MSG_CHAIN_DISABLED:    event = parse_chain_index(cursor, EV::CHAIN_DISABLED); break;
+		case MSG_CONFIRM_DECKTOP:   event = parse_confirm_decktop(cursor); break;
+		case MSG_SWAP:              event = parse_swap(cursor); break;
+		case MSG_RANDOM_SELECTED:   event = parse_random_selected(cursor); break;
+		case MSG_BECOME_TARGET:     event = parse_loc_list(cursor, EV::BECOME_TARGET); break;
+		case MSG_REMOVE_CARDS:      event = parse_loc_list(cursor, EV::REMOVE_CARDS); break;
+		case MSG_EQUIP:             event = parse_loc_pair(cursor, EV::EQUIP); break;
+		case MSG_CARD_TARGET:       event = parse_loc_pair(cursor, EV::CARD_TARGET); break;
+		case MSG_CANCEL_TARGET:     event = parse_loc_pair(cursor, EV::CANCEL_TARGET); break;
+		case MSG_PAY_LPCOST:        event = parse_pay_lpcost(cursor); break;
+		case MSG_ADD_COUNTER:       event = parse_counter(cursor, EV::ADD_COUNTER); break;
+		case MSG_REMOVE_COUNTER:    event = parse_counter(cursor, EV::REMOVE_COUNTER); break;
+		case MSG_MISSED_EFFECT:     event = parse_missed_effect(cursor); break;
+		case MSG_TOSS_COIN:         event = parse_toss(cursor, EV::TOSS_COIN); break;
+		case MSG_TOSS_DICE:         event = parse_toss(cursor, EV::TOSS_DICE); break;
+		case MSG_CARD_HINT:         event = parse_card_hint(cursor); break;
+		case MSG_PLAYER_HINT:       event = parse_player_hint(cursor); break;
+		case MSG_DAMAGE_STEP_START: event = parse_empty(EV::DAMAGE_STEP_START); break;
+		case MSG_DAMAGE_STEP_END:   event = parse_empty(EV::DAMAGE_STEP_END); break;
+
+		// TODO(batch3): MSG_UNEQUIP, MSG_FIELD_DISABLED, MSG_CARD_SELECTED,
+		// MSG_SWAP_GRAVE_DECK, MSG_REVERSE_DECK, MSG_DECK_TOP, MSG_MATCH_KILL,
+		// MSG_BE_CHAIN_TARGET, MSG_ANNOUNCE_*, MSG_SELECT_COUNTER,
+		// MSG_SELECT_UNSELECT_CARD, MSG_SORT_CARD, MSG_SELECT_SUM, MSG_TAG_SWAP,
+		// MSG_RELOAD_FIELD. Their write sites are conditional or share a buffer with another
+		// message, so the layout was not certain enough to implement. They fall through to
+		// EV::UNHANDLED below, which is the correct behaviour until each is pinned down.
 
 		default:
 			// Invariant V13: an opcode this batch does not cover is reported, not fatal.
