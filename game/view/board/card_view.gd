@@ -36,12 +36,23 @@ extends Node3D
 ## -------------------------------------------------------------------------------------------
 ## Art
 ## -------------------------------------------------------------------------------------------
-## No artwork yet - `data/base/pics/` exists but wiring textures is Phase 4 work. A face-up card
-## is a flat colour derived from its `card_id`; a face-down card shows the shared back colour.
-## `_front_colour()` is the stand-in for `VisualRegistry.resolve()` (ARCHITECTURE.md section 9):
-## **the visual is resolved from `card_id` at the moment of use and never stored anywhere below
-## this layer** (V11, V12). Replacing it with a real texture lookup touches this function and
-## nothing else.
+## A face-up card wears its real face from `data/base/pics/` when `CardArt` has one cached, and
+## a flat colour derived from its `card_id` when it does not. Both paths are normal: `CardArt`
+## never blocks on disk, so the first look-up of a card almost always answers `null` and the
+## face arrives a frame or two later through `refresh_art()`. The placeholder colour is what
+## stands in meanwhile, and it is also the permanent answer for a token or any other card with
+## no file on disk.
+##
+## The visual is still resolved from `card_id` at the moment of use and stored nowhere below
+## this layer (V11, V12) - `CardArt` is a cache keyed by `card_id`, not a visual bound to a
+## model card. `art_source` is where a `CardArt` is handed in without changing `set_card_id()`,
+## whose callers sit in files this change does not own.
+##
+## **A face-down card never carries a face.** Not "its face is rotated away from the camera" -
+## the texture is taken off the material entirely whenever `face_up` is false or `card_id` is 0.
+## Relying on the geometry would mean one careless `material_override`, one unlit shader or one
+## 180-degree tween landing a frame early is enough to leak hidden information, and hidden
+## information is the one thing a duel client cannot get wrong (V7).
 ##
 ## -------------------------------------------------------------------------------------------
 ## Picking
@@ -123,6 +134,20 @@ static var _shared_mesh: QuadMesh = null
 ## One `BoxShape3D` shared by every card, for the same reason as the mesh.
 static var _shared_pick_shape: BoxShape3D = null
 
+## Where every card looks for its face. Shared rather than per-instance because `set_card_id()`
+## is called from `BoardView` and `AnimationDirector` with one argument and those files are not
+## this change's to edit; a static keeps their call sites untouched and still gives every card
+## the same cache, which is the only way an LRU budget means anything.
+##
+## `null` is a supported state, not an unconfigured one: with no `CardArt` set, every card falls
+## back to its placeholder colour and the board behaves exactly as it did before art existed.
+## That is what keeps the headless scenes - which have no reason to touch the disk - cheap.
+static var art_source: CardArt = null
+
+## The texture currently on the front material, or `null` for the placeholder colour. Kept so a
+## `refresh_art()` on every card every frame is a comparison rather than a material write.
+var _front_texture: Texture2D = null
+
 
 func _init() -> void:
 	_build()
@@ -150,13 +175,28 @@ func orientation() -> Basis:
 func set_orientation(is_face_up: bool, is_defense: bool) -> void:
 	face_up = is_face_up
 	defense = is_defense
+	# Turning a card face-down has to strip its face, not just rotate it away. See the Art note.
+	_apply_front(art_source)
 
 
-## Swaps which card this view shows. Cheap: it only re-tints a material. Called at the moment of
-## use, never cached below L4 (V11).
+## Swaps which card this view shows. Cheap: it re-tints a material and, when `art_source` has
+## the face cached, swaps the texture on it. A face that is not cached yet is queued by
+## `CardArt` and arrives later through `refresh_art()`; this function never waits for it.
+## Called at the moment of use, never cached below L4 (V11).
 func set_card_id(value: int) -> void:
 	card_id = value
-	_front_material.albedo_color = _front_colour()
+	_apply_front(art_source)
+
+
+## Re-reads the face for the card this view is already showing. The counterpart to `texture_for()`
+## answering `null` on a cold cache: whoever owns the `CardArt` calls this on the cards on the
+## board once a load has had time to land, and a card that was wearing a placeholder colour picks
+## up its artwork without being re-placed or re-animated.
+##
+## Idempotent and cheap - no material is written unless the texture actually changed - so calling
+## it on every visible card every frame is a supported way to use it.
+func refresh_art(art: CardArt) -> void:
+	_apply_front(art)
 
 
 func describe() -> String:
@@ -190,6 +230,36 @@ func _front_colour() -> Color:
 		return UNKNOWN_COLOUR
 	var hue: float = fposmod(float(card_id) * 0.6180339887498949, 1.0)
 	return Color.from_hsv(hue, 0.45, 0.88)
+
+
+## Puts the right thing on the front quad: the card's face if `art` has it, the placeholder
+## colour otherwise. The albedo is forced to white under a texture because `StandardMaterial3D`
+## multiplies the two, and leaving the per-card tint in place would wash every face a different
+## shade of its own id.
+func _apply_front(art: CardArt) -> void:
+	if _front_material == null:
+		return
+	var texture: Texture2D = _face_texture(art)
+	if texture == _front_texture:
+		# Covers the common case of both being null: a face-down card refreshed every frame
+		# writes nothing at all.
+		if texture == null:
+			_front_material.albedo_color = _front_colour()
+		return
+	_front_texture = texture
+	_front_material.albedo_texture = texture
+	_front_material.albedo_color = Color.WHITE if texture != null else _front_colour()
+
+
+## The face this card is allowed to show, or `null`.
+##
+## The two guards are the hidden-information rule, and they come first on purpose: a face-down
+## card is never even asked for, so nothing can answer. `card_id == 0` is the same question from
+## the other side - the viewer was not told what this card is - and the answer is the same.
+func _face_texture(art: CardArt) -> Texture2D:
+	if art == null or card_id == 0 or not face_up:
+		return null
+	return art.texture_for(card_id)
 
 
 func _build() -> void:
@@ -254,11 +324,17 @@ func _refresh_pickable() -> void:
 	_pick_area.collision_layer = PICK_LAYER if on_board else 0
 
 
-## Unshaded on purpose. The board has one directional light and no art yet; shading flat colours
-## would only make neighbouring zones harder to tell apart.
+## Unshaded on purpose. The board has one directional light, and a card face is already a
+## finished, evenly lit image: shading it again only drags the printed artwork towards whatever
+## the table lighting happens to be.
+##
+## `TEXTURE_FILTER_LINEAR` rather than the mipmapped default because `CardArt` does not generate
+## mipmaps - see its memory note for why, and for the one-line change if the aliasing on a
+## steeply angled card turns out to read badly.
 func _make_material(colour: Color) -> StandardMaterial3D:
 	var material: StandardMaterial3D = StandardMaterial3D.new()
 	material.albedo_color = colour
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.cull_mode = BaseMaterial3D.CULL_BACK
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 	return material
