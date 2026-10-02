@@ -339,11 +339,16 @@ Semantic. Lossy, enriched, disposable.
   "from_anchor": "HAND_P0",
   "to_anchor": "MZ_P0_2",
   "face": "UP_ATK",
-  "visual": <VisualDefinition>,   # 3D or 2D fallback — §9
   "duration": 1.4,
   "blocking": true
 }
 ```
+
+An intent carries `card_id`, never a resolved `VisualDefinition`. L3 producing one would mean L3
+instantiating an L4 Resource, which breaks V2, V11 and V12 at once. L4 resolves the visual from
+`card_id` through `VisualRegistry` at the moment it needs it (§9). The anchor grammar
+(`MZ_P0_2`, `EMZ_P1_0`, `ST_P0_3`, `FZ_P0`, `OVL_MZ_P0_2_1`, `PLAYER_P1`, `NOWHERE`) is the only
+shared vocabulary between the two layers.
 
 **V9**: replays store Level 1 only. Never Level 2. Changing animations must not invalidate replays.
 
