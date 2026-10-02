@@ -26,13 +26,19 @@ extends RefCounted
 ##   START        {t, lp: [int, int], deck: [int, int], extra: [int, int], first: int}
 ##                Host-generated; ocgcore never emits MSG_START. Field order follows EDOPro's
 ##                `generic_duel.cpp` writer: playertype, lp0, lp1, deck0, extra0, deck1, extra1.
-##   DRAW         {t, player: int, cards: [{"code": int, "pos": int}, ...]}   operations.cpp:482
+##   DRAW         {t, player: int, cards: [{"card": int, "pos": int}, ...], count: int}
+##                operations.cpp:482. The per-entry key is "card", not "code": that is what
+##                `MsgParser::parse_draw` writes. "code" is still accepted so a hand-written
+##                event in a test or a tool keeps working.
 ##   MOVE         {t, card: int, from: loc_info, to: loc_info, reason: int}   field.cpp:280
 ##                `from.loc == 0` means the card did not exist before (token, new card).
 ##                Either side may carry `LOCATION.OVERLAY`, in which case `seq` is the host's
 ##                zone and `pos` is the index among its xyz materials.
-##   POS_CHANGE   {t, card: int, con, loc, seq, prev_pos: int, pos: int}      operations.cpp:5308
-##   SET          {t, card: int, con, loc, seq, pos}                          operations.cpp:2742
+##   POS_CHANGE   {t, card: int, at: loc_info, prev_pos: int, pos: int}       operations.cpp:5308
+##                The wire form is NOT a packed loc_info - the sequence is a single byte and
+##                the two positions follow it (AGENTS.md section 8b.3). `MsgParser` normalises
+##                that into "at" before we see it, with "at.pos" holding the new position.
+##   SET          {t, card: int, at: loc_info}                                operations.cpp:2742
 ##   NEW_TURN     {t, player: int}                                            processor.cpp:3334
 ##   NEW_PHASE    {t, phase: int}                                             processor.cpp:3365
 ##   DAMAGE       {t, player: int, amount: int}                               operations.cpp:603
@@ -291,7 +297,9 @@ func _on_draw(event: Dictionary) -> void:
 			card = deck[player].pop_back() as DuelCard
 		else:
 			card = DuelCard.new()
-		card.code = _as_int(data.get("code", card.code), card.code)
+		# "card" is the wire spelling (msg_parser.cpp parse_draw); "code" is the DuelCard field
+		# name and is accepted as a fallback.
+		card.code = _as_int(data.get("card", data.get("code", card.code)), card.code)
 		card.position = _as_int(data.get("pos", DuelEnums.POSITION.FACEDOWN_ATTACK), DuelEnums.POSITION.FACEDOWN_ATTACK)
 		card.is_public = (card.position & DuelEnums.POSITION.FACEUP) != 0 or card.code != 0
 		_append_to_pile(hand[player], card, player, DuelEnums.LOCATION.HAND)
@@ -313,7 +321,7 @@ func _on_move(event: Dictionary) -> void:
 
 
 func _on_pos_change(event: Dictionary) -> void:
-	var info: Dictionary = _as_loc_info(event)
+	var info: Dictionary = _as_loc_info(event.get("at", event))
 	var card: DuelCard = _card_at(info)
 	if card == null:
 		return
@@ -328,7 +336,7 @@ func _on_pos_change(event: Dictionary) -> void:
 ## is flip the card face-down and drop what we think we know about it: an opponent must not keep
 ## seeing a code the engine just hid.
 func _on_set(event: Dictionary) -> void:
-	var info: Dictionary = _as_loc_info(event)
+	var info: Dictionary = _as_loc_info(event.get("at", event))
 	var card: DuelCard = _card_at(info)
 	if card == null:
 		return
@@ -789,8 +797,8 @@ func _resequence(pile: Array) -> void:
 		(pile[index] as DuelCard).sequence = index
 
 
-## Reads a `loc_info` out of a payload. Accepts it nested (`{"from": {...}}`) or flattened onto
-## the event itself, which is how POS_CHANGE and SET arrive off the wire.
+## Reads a `loc_info` out of a payload. Accepts it nested (`{"from": {...}}`, `{"at": {...}}`)
+## or flattened onto the event itself; callers pass `event.get("at", event)` to get both.
 func _as_loc_info(value: Variant) -> Dictionary:
 	if not (value is Dictionary):
 		return {"con": 0, "loc": 0, "seq": 0, "pos": 0}
