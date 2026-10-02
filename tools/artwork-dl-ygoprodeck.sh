@@ -6,16 +6,19 @@ set -e
 # Default targets
 TARGET_HD=false
 TARGET_SD=false
+LANGUAGE=""
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --hd) TARGET_HD=true ;;
         --sd) TARGET_SD=true ;;
+        --lang) LANGUAGE="$2"; shift ;;
         -h|--help)
-            echo "Usage: $0 [--hd] [--sd]"
+            echo "Usage: $0 [--hd] [--sd] [--lang <code_language>]"
             echo "Options:"
-            echo "  --hd   Download High Definition images (~421x614) to hd/"
-            echo "  --sd   Download Standard Definition images (~177x254) to sd/"
+            echo "  --hd         Download High Definition images (~421x614) to hd/"
+            echo "  --sd         Download Standard Definition images (~177x254) to sd/"
+            echo "  --lang <id>  Language code (e.g., 'es' for Spanish, 'fr' for French)"
             exit 0
             ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
@@ -25,14 +28,18 @@ done
 
 if [ "$TARGET_HD" = false ] && [ "$TARGET_SD" = false ]; then
     echo "Error: You must specify what to download."
-    echo "Usage: $0 [--hd] [--sd]"
-    echo "Example: ./tools/artwork-dl-ygoprodeck.sh --sd"
+    echo "Usage: $0 [--hd] [--sd] [--lang <lang>]"
+    echo "Example: ./tools/artwork-dl-ygoprodeck.sh --sd --lang es"
     exit 1
 fi
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PICS_DIR="$BASE_DIR/data/base/pics"
 API_URL="https://db.ygoprodeck.com/api/v7/cardinfo.php"
+
+if [ -n "$LANGUAGE" ]; then
+    API_URL="${API_URL}?language=${LANGUAGE}"
+fi
 TMP_JSON="/tmp/ygo_cards.json"
 TMP_CURL_CONF="/tmp/ygo_curl_config.txt"
 
