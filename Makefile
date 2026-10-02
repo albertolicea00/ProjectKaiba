@@ -87,7 +87,12 @@ doctor:
 	@printf "card database : "; test -f data/base/cards.cdb \
 		&& echo "data/base/cards.cdb ($$(du -h data/base/cards.cdb | cut -f1))" \
 		|| echo "MISSING - see docs/DATA.md"
-	@printf "card scripts  : "; N=$$(ls data/base/script/c*.lua 2>/dev/null | wc -l | tr -d ' '); \
+	@printf "export tmpl   : "; test -d "$(TEMPLATE_DIR)" \
+		&& echo "$(GODOT_VERSION) (present)" \
+		|| echo "MISSING - run: make android-templates (~1.2 GB)"
+	@printf "device        : "; adb devices 2>/dev/null | tail -n +2 | grep -q device \
+		&& echo "attached" || echo "none attached"
+	@printf "card scripts  : "; N=$$(ls data/base/script/official/c*.lua 2>/dev/null | wc -l | tr -d ' '); \
 		if [ "$$N" = "0" ]; then echo "MISSING - see docs/DATA.md; card effects will not fire"; \
 		else echo "$$N scripts"; fi
 	@echo "submodules    :"
@@ -206,3 +211,88 @@ test-selectors:
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	@$(GODOT) --headless --path $(GAME_DIR) --script res://scenes/duel_selectors.gd 2>&1 | tee /tmp/kaiba_sel.log
 	@grep -q "all checks passed" /tmp/kaiba_sel.log || (echo "FAIL: selector coverage"; exit 1)
+
+# ----------------------------------------------------------------------------------------------
+# Android packaging
+#
+# Everything needed is already on this machine except Godot's export templates, which are a
+# ~1.2 GB download pinned to the exact engine version. `make android-templates` fetches them.
+# ----------------------------------------------------------------------------------------------
+
+GODOT_VERSION  := 4.6.3.stable
+TEMPLATE_DIR   := $(HOME)/Library/Application Support/Godot/export_templates/$(GODOT_VERSION)
+TEMPLATE_URL   := https://github.com/godotengine/godot/releases/download/4.6.3-stable/Godot_v4.6.3-stable_export_templates.tpz
+APK            := build/project-kaiba.apk
+
+.PHONY: android-templates export-preset apk install-apk
+
+android-templates:
+	@if [ -d "$(TEMPLATE_DIR)" ]; then \
+		echo "already installed: $(TEMPLATE_DIR)"; \
+	else \
+		echo "Downloading Godot $(GODOT_VERSION) export templates (~1.2 GB)..."; \
+		mkdir -p /tmp/kaiba-templates "$(TEMPLATE_DIR)" && \
+		curl -L --progress-bar -o /tmp/kaiba-templates/templates.tpz "$(TEMPLATE_URL)" && \
+		(cd /tmp/kaiba-templates && unzip -qo templates.tpz) && \
+		cp /tmp/kaiba-templates/templates/* "$(TEMPLATE_DIR)/" && \
+		rm -rf /tmp/kaiba-templates && \
+		echo "Installed into $(TEMPLATE_DIR)"; \
+	fi
+
+# export_presets.cfg is gitignored because it can hold a keystore path and password, so it is
+# generated locally rather than versioned. Editing it by hand or in the editor is fine; this
+# only writes it when it is missing.
+export-preset:
+	@if [ -f $(GAME_DIR)/export_presets.cfg ]; then \
+		echo "export_presets.cfg already exists; leaving it alone"; \
+	else \
+		printf '%s\n' \
+		  '[preset.0]' '' \
+		  'name="Android"' \
+		  'platform="Android"' \
+		  'runnable=true' \
+		  'advanced_options=false' \
+		  'dedicated_server=false' \
+		  'custom_features=""' \
+		  'export_filter="all_resources"' \
+		  'include_filter=""' \
+		  'exclude_filter=""' \
+		  'export_path="../build/project-kaiba.apk"' \
+		  'encryption_include_filters=""' \
+		  'encryption_exclude_filters=""' \
+		  'seed=0' \
+		  'encrypt_pck=false' \
+		  'encrypt_directory=false' \
+		  'script_export_mode=2' \
+		  '' '[preset.0.options]' '' \
+		  'gradle_build/use_gradle_build=false' \
+		  'architectures/armeabi-v7a=false' \
+		  'architectures/arm64-v8a=true' \
+		  'architectures/x86=false' \
+		  'architectures/x86_64=false' \
+		  'package/unique_name="com.example.projectkaiba"' \
+		  'package/name="Project Kaiba"' \
+		  'package/signed=true' \
+		  'screen/immersive_mode=true' \
+		  'screen/orientation=0' \
+		  'screen/support_small=true' \
+		  'screen/support_normal=true' \
+		  'screen/support_large=true' \
+		  'screen/support_xlarge=true' \
+		  > $(GAME_DIR)/export_presets.cfg; \
+		echo "wrote $(GAME_DIR)/export_presets.cfg (arm64 only, debug signing)"; \
+	fi
+
+# Builds the native library for arm64 and packages a debug APK.
+apk: android-arm64 export-preset
+	@test -d "$(TEMPLATE_DIR)" || (echo "export templates missing - run: make android-templates"; exit 1)
+	@mkdir -p build
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	$(GODOT) --headless --path $(GAME_DIR) --export-debug "Android" ../$(APK)
+	@ls -lh $(APK)
+
+# Installs onto the one attached device and launches it.
+install-apk: apk
+	@adb devices | tail -n +2 | grep -q device || (echo "no device attached - enable USB debugging"; exit 1)
+	adb install -r $(APK)
+	adb shell monkey -p com.example.projectkaiba -c android.intent.category.LAUNCHER 1
