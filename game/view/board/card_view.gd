@@ -42,10 +42,43 @@ extends Node3D
 ## **the visual is resolved from `card_id` at the moment of use and never stored anywhere below
 ## this layer** (V11, V12). Replacing it with a real texture lookup touches this function and
 ## nothing else.
+##
+## -------------------------------------------------------------------------------------------
+## Picking
+## -------------------------------------------------------------------------------------------
+## The two quads have no collider, so nothing can be aimed at them. This node carries one
+## `Area3D` holding a box the size of the card plus a margin, purely as a raycast target for
+## `InputSource._pick()`.
+##
+## Two rules make it safe:
+##
+##   - It sits alone on `PICK_LAYER`. A pick ray masked to that layer cannot hit the table, the
+##     felt, or anything a later phase puts in the world - only cards.
+##   - Its layer follows `visible`, so a card parked in the `CardPool` is not pickable. A pooled
+##     card still exists, still has a transform and would still answer a ray; a tap resolving to
+##     a card that is not on the board is the kind of bug that only shows up as a silent
+##     `MSG_RETRY` three selections later.
+##
+## This node still reads nothing and decides nothing (V1): it is a target, and whoever fires the
+## ray is the one that owns the meaning of the hit.
 
 ## Card face, in metres. 59 mm x 86 mm. See the Scale note above.
 const CARD_WIDTH: float = 0.059
 const CARD_HEIGHT: float = 0.086
+
+## Collision layer the pick volume lives on, and nothing else. Bit 1 (layer 2 in the inspector)
+## leaves layer 1 free for whatever physics the world grows later; a pick query masks to exactly
+## this value so it can never pick up a stray collider.
+const PICK_LAYER: int = 1 << 1
+
+## Grown around the card on every side so a fingertip that lands just past the edge still counts
+## as a hit. 8 mm is roughly the gutter between two zones, so neighbouring cards still cannot
+## overlap each other's volume.
+const PICK_MARGIN: float = 0.008
+
+## Thickness of the pick volume. Far larger than the card so a ray arriving at a grazing angle
+## still passes through it, small enough that a card lying flat cannot be hit through the table.
+const PICK_DEPTH: float = 0.006
 
 ## Separation between the front and back quads. A real card is about 0.3 mm; this is only here
 ## to keep the two faces out of each other's depth buffer.
@@ -79,14 +112,28 @@ var defense: bool = false
 ## built once and never touched again.
 var _front_material: StandardMaterial3D = null
 
+## The raycast target. See the Picking note above.
+var _pick_area: Area3D = null
+
 ## One `QuadMesh` shared by every card ever created. Built once, on the first card; after that
 ## a `CardPool` can hand out hundreds of cards without allocating any geometry, which is half of
 ## why the pool can promise never to `load()` mid-animation.
 static var _shared_mesh: QuadMesh = null
 
+## One `BoxShape3D` shared by every card, for the same reason as the mesh.
+static var _shared_pick_shape: BoxShape3D = null
+
 
 func _init() -> void:
 	_build()
+	# `CardPool` acquires and releases cards by toggling `visible`, and it is not this node's
+	# business to know that. Following the signal instead means any owner that hides a card
+	# gets the collider turned off for free.
+	visibility_changed.connect(_refresh_pickable)
+
+
+func _ready() -> void:
+	_refresh_pickable()
 
 
 ## The two rotations a card owns, in the card's own frame. Multiply an anchor's basis by this to
@@ -118,6 +165,17 @@ func describe() -> String:
 		"up" if face_up else "down",
 		" def" if defense else "",
 	]
+
+
+## True while a pick ray can hit this card. False for a card parked in the pool.
+func is_pickable() -> bool:
+	return _pick_area != null and _pick_area.collision_layer != 0
+
+
+## The `Area3D` a pick ray reports as the collider. `InputSource` walks back up from it to this
+## node; nothing else should need it.
+func pick_area() -> Area3D:
+	return _pick_area
 
 
 # ----------------------------------------------------------------------------------------------
@@ -156,6 +214,44 @@ func _build() -> void:
 	back.position = Vector3(0.0, 0.0, -CARD_THICKNESS * 0.5)
 	back.rotation = Vector3(0.0, PI, 0.0)
 	add_child(back)
+
+	_build_pick_volume()
+
+
+## The box a pick ray hits. It lives in the card's own frame - local XY is the face, local Z the
+## thickness - so a defense card's volume turns with it and a face-down card's with it too,
+## without this function knowing either rotation exists.
+func _build_pick_volume() -> void:
+	if _shared_pick_shape == null:
+		_shared_pick_shape = BoxShape3D.new()
+		_shared_pick_shape.size = Vector3(
+			CARD_WIDTH + PICK_MARGIN * 2.0,
+			CARD_HEIGHT + PICK_MARGIN * 2.0,
+			PICK_DEPTH)
+
+	var shape := CollisionShape3D.new()
+	shape.name = "PickShape"
+	shape.shape = _shared_pick_shape
+
+	_pick_area = Area3D.new()
+	_pick_area.name = "PickArea"
+	# It is a target, never a sensor: it reports nothing, detects nothing and costs no overlap
+	# bookkeeping. Only `intersect_ray` ever asks it anything.
+	_pick_area.monitoring = false
+	_pick_area.monitorable = false
+	_pick_area.collision_mask = 0
+	_pick_area.collision_layer = PICK_LAYER
+	_pick_area.add_child(shape)
+	add_child(_pick_area)
+
+
+## Layer `PICK_LAYER` while the card is on the board, layer 0 - which no query can match - while
+## it is parked. Driven by `visibility_changed`, so the pool never has to know this exists.
+func _refresh_pickable() -> void:
+	if _pick_area == null:
+		return
+	var on_board: bool = visible and (not is_inside_tree() or is_visible_in_tree())
+	_pick_area.collision_layer = PICK_LAYER if on_board else 0
 
 
 ## Unshaded on purpose. The board has one directional light and no art yet; shading flat colours
