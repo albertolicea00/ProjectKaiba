@@ -1,3 +1,18 @@
+# Pinned dependencies. Both are build inputs whose exact revision changes behaviour, so both
+# are submodules: bumping ocgcore in particular can alter duel outcomes and invalidate stored
+# replays (docs/ARCHITECTURE.md R5).
+#
+# The ProjectIgnis card script collection is deliberately NOT here. It is fetched by
+# `make data-scripts` into data/base/script/, which is gitignored. Pinning it would mean a new
+# card does not work until someone raises the pin by hand, and that contradicts Principle 2 of
+# the project: new cards must work as soon as their Lua exists. The collection receives commits
+# daily. Replays record its SHA instead of the build pinning it; see "Why the script collection
+# is not a submodule" in docs/ARCHITECTURE.md section 7.
+#
+# Recommendation: leave it as it is until you have stored replays you care about. If replay
+# fidelity across script updates turns into a real complaint rather than a theoretical one,
+# switch then -- it is a ten-line change.
+
 [submodule "native/godot-cpp"]
 	path = native/godot-cpp
 	url = https://github.com/godotengine/godot-cpp.git

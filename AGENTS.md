@@ -191,5 +191,9 @@ read a raw packet.
   break replay determinism (ARCHITECTURE.md R5). `tools/replay_verify.py` does not exist yet — it
   arrives with replays in Phase 3. Until then, bump the core only deliberately.
 - Do not commit anything under `data/`. Card data and art are copyrighted.
+- Do not turn the card script collection into a submodule. It is fetched by `make data-scripts`
+  and gitignored on purpose; pinning it breaks Principle 2 (new cards must work as soon as their
+  Lua exists). The rationale, and the one condition that would justify changing it, are in
+  `.gitmodules` and `docs/ARCHITECTURE.md` section 7.
 - State assumptions explicitly. Prefer saying "I don't know" over inventing engine behavior — the
   authority for ocgcore semantics is the source in `native/vendor/ocgcore/`, not memory.
