@@ -35,6 +35,15 @@ NDK_VERSION ?= 28.2.13676358
 # disable_exceptions=no is mandatory: ocgcore raises Lua errors as C++ exceptions.
 SCONS_COMMON  := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
 
+# Homebrew's android-ndk cask lands here. Picked up automatically so `make android` works
+# without exporting anything; an explicit ANDROID_NDK_HOME always wins.
+BREW_NDK := /opt/homebrew/share/android-ndk
+ifeq ($(ANDROID_NDK_HOME),)
+  ifneq ($(wildcard $(BREW_NDK)/toolchains),)
+    ANDROID_NDK_HOME := $(BREW_NDK)
+  endif
+endif
+
 # If ANDROID_NDK_HOME is set (e.g., via Homebrew), we override ANDROID_HOME and omit the
 # pinned ndk_version so that godot-cpp picks up the custom NDK installation.
 ifneq ($(ANDROID_NDK_HOME),)
@@ -45,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel test-gd bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -68,9 +77,19 @@ doctor:
 	@printf "godot         : "; $(GODOT) --version 2>/dev/null || echo "not on PATH"
 	@printf "python        : "; python3 --version
 	@echo "ANDROID_HOME  : $(ANDROID_HOME)"
-	@printf "ndk pinned    : "; test -d "$(ANDROID_HOME)/ndk/$(NDK_VERSION)" \
-		&& echo "$(NDK_VERSION) (present)" \
-		|| echo "$(NDK_VERSION) MISSING - installed: $$(ls $(ANDROID_HOME)/ndk 2>/dev/null | tr '\n' ' ')"
+	@printf "ndk           : "; if [ -n "$(ANDROID_NDK_HOME)" ]; then \
+		echo "$(ANDROID_NDK_HOME) (via ANDROID_NDK_HOME)"; \
+	elif [ -d "$(ANDROID_HOME)/ndk/$(NDK_VERSION)/toolchains" ]; then \
+		echo "$(NDK_VERSION) (via ANDROID_HOME)"; \
+	else \
+		echo "NOT USABLE - set ANDROID_NDK_HOME, or install NDK $(NDK_VERSION) under $(ANDROID_HOME)/ndk"; \
+	fi
+	@printf "card database : "; test -f data/base/cards.cdb \
+		&& echo "data/base/cards.cdb ($$(du -h data/base/cards.cdb | cut -f1))" \
+		|| echo "MISSING - see docs/DATA.md"
+	@printf "card scripts  : "; N=$$(ls data/base/script/c*.lua 2>/dev/null | wc -l | tr -d ' '); \
+		if [ "$$N" = "0" ]; then echo "MISSING - see docs/DATA.md; card effects will not fire"; \
+		else echo "$$N scripts"; fi
 	@echo "submodules    :"
 	@git submodule status | sed 's/^/                /'
 
@@ -155,3 +174,12 @@ duel: host
 test-gd:
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	@$(GODOT) --headless --path $(GAME_DIR) --script res://core/duel/duel_state_test.gd
+
+# Integration check against the real card database. Plays a scripted opening: normal summon,
+# choose a zone, enter battle, attack directly. Needs data/base/cards.cdb (docs/DATA.md).
+duel-real:
+	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb is missing, see docs/DATA.md"; exit 1)
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) --script res://scenes/duel_real.gd 2>&1 | tee /tmp/kaiba_real.log
+	@grep -q "all checks passed" /tmp/kaiba_real.log \
+		|| (echo "FAIL: real-data duel did not complete"; exit 1)
