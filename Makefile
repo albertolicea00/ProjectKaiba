@@ -54,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors data-scripts bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors touch data-scripts bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -296,3 +296,11 @@ install-apk: apk
 	@adb devices | tail -n +2 | grep -q device || (echo "no device attached - enable USB debugging"; exit 1)
 	adb install -r $(APK)
 	adb shell monkey -p com.example.projectkaiba -c android.intent.category.LAUNCHER 1
+
+# The touch-driven duel. Headless it drives itself with synthesised InputIntents and probes the
+# raycast against a real card, so the picking path is covered without a finger.
+touch:
+	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb missing, see docs/DATA.md"; exit 1)
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/duel_touch.tscn 2>&1 | tee /tmp/kaiba_touch.log
+	@grep -q "all checks passed" /tmp/kaiba_touch.log || (echo "FAIL: touch duel"; exit 1)
