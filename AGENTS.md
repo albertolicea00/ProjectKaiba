@@ -178,6 +178,16 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
    zones 0-7. Answering with a zone whose bit is set yields `MSG_RETRY`, which is silent (see
    trap 8) — and answering a spell activation with a monster zone is the easy way to hit it.
 
+10. **`MSG_SELECT_CARD` and `MSG_SELECT_TRIBUTE` share a prefix but not a card entry.**
+    SELECT_CARD writes a packed `loc_info`; SELECT_TRIBUTE writes a loose controller/location/
+    sequence triple plus a `release_param` byte. Reading the tribute entry as a `loc_info`
+    overruns by four bytes per card. `MSG_SELECT_SUM` goes back to packed `loc_info` in both of
+    its lists. There is no rule here to memorise — read the write site every time.
+11. **`sum_param` in `MSG_SELECT_SUM` packs two alternatives**, low and high 16 bits
+    (`field.cpp:2619`). A card whose Level may be treated as either value contributes whichever
+    one makes the total work. Its `must` list is supplied by the engine and is not addressable
+    by the answer, but does count toward the total.
+
 `native/src/msg_parser.cpp` is the single place that knows any of this. Nothing above L1 may
 read a raw packet.
 
