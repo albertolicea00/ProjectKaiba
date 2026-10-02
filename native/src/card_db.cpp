@@ -59,7 +59,7 @@ std::string column_text(sqlite3_stmt* stmt, int index) {
 	return std::string(reinterpret_cast<const char*>(text), static_cast<size_t>(bytes));
 }
 
-std::string sqlite_error(sqlite3* db, const char* context) {
+std::string sqlite_error(sqlite3* db, const std::string& context) {
 	std::string message = context;
 	const char* detail = (db != nullptr) ? sqlite3_errmsg(db) : nullptr;
 	if (detail != nullptr && detail[0] != '\0') {
