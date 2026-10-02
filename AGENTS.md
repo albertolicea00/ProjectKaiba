@@ -157,6 +157,12 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
 7. **`LOCATION_OVERLAY` (0x80) set in a loc_info's location** means the card is an xyz
    material: `seq` is then the host monster's sequence and `pos` is the index in its stack.
 
+8. **`MSG_RETRY` (opcode 1) is how ocgcore rejects a response**, and it does **not** re-send
+   the selection it rejected. A client that waits for a fresh `MSG_SELECT_*` after a bad answer
+   waits forever. `MsgParser` surfaces it as `EV::RETRY`; L3 must answer the request it is still
+   holding. This is also why `EV::UNHANDLED` and `EV::MALFORMED` sit at 1100/1101 instead of
+   0/1 — opcode 1 was already taken.
+
 `native/src/msg_parser.cpp` is the single place that knows any of this. Nothing above L1 may
 read a raw packet.
 
