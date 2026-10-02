@@ -16,6 +16,13 @@ extends Node
 ## with no effects. That is expected here: the subject is the pipe, not the card pool.
 
 const CORE_CLASS: String = "KaibaCore"
+const CDB_PATH: String = "res://../data/base/cards.cdb"
+const SCRIPT_ROOTS: Array[String] = [
+	"res://../data/base/script",
+	"res://../data/base/script/official",
+	"res://../data/base/script/unofficial",
+	"res://../data/base/script/pre-release",
+]
 
 ## Blue-Eyes White Dragon, forty times. Without a database a code is just a number, and a
 ## single repeated code makes the hand trivially readable in the dump.
@@ -59,17 +66,38 @@ func _ready() -> void:
 		get_tree().quit(1)
 		return
 
+	# Optional: with the real collection installed the duel runs with full card effects; without
+	# it we fall back to skipping the library preload, which keeps this driver usable on a fresh
+	# clone. See docs/DATA.md.
+	var has_data: bool = FileAccess.file_exists(CDB_PATH) and DirAccess.dir_exists_absolute(
+		ProjectSettings.globalize_path(SCRIPT_ROOTS[0]))
+	if has_data:
+		var loaded: Dictionary = _core.load_card_database(CDB_PATH)
+		if bool(loaded.get("ok", false)):
+			print("[duel] card database: %d cards" % int(loaded.get("count", 0)))
+			for root: String in SCRIPT_ROOTS:
+				_core.add_script_root(root)
+		else:
+			has_data = false
+	if not has_data:
+		print("[duel] no card data installed; running with bare card codes (see docs/DATA.md)")
+
 	var deck: PackedInt32Array = PackedInt32Array()
 	for index: int in DECK_SIZE:
 		deck.append(DECK_CARD)
 
-	var result: Dictionary = _core.start_duel({
+	var config: Dictionary = {
 		"start_lp": START_LP,
 		"start_hand": START_HAND,
 		"draw_count": DRAW_COUNT,
 		"deck_p0": deck,
 		"deck_p1": deck,
-	})
+	}
+	if not has_data:
+		# Nothing to preload, so skip the library scripts a real duel requires.
+		config["init_scripts"] = PackedStringArray()
+
+	var result: Dictionary = _core.start_duel(config)
 
 	if not bool(result.get("ok", false)):
 		push_error("[duel] start_duel failed: %s" % result.get("error", "unknown"))
