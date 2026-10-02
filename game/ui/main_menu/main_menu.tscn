@@ -1,0 +1,170 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://ui/main_menu/main_menu.gd" id="1_menu"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.113725, 0.133333, 0.168627, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.207843, 0.243137, 0.301961, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_active"]
+content_margin_left = 24.0
+content_margin_top = 18.0
+content_margin_right = 24.0
+content_margin_bottom = 18.0
+bg_color = Color(0.180392, 0.227451, 0.309804, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.360784, 0.682353, 1, 1)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[node name="MainMenu" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_menu")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0509804, 0.0588235, 0.0745098, 1)
+
+[node name="Frame" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 32
+theme_override_constants/margin_top = 32
+theme_override_constants/margin_right = 32
+theme_override_constants/margin_bottom = 32
+
+[node name="Center" type="CenterContainer" parent="Frame"]
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Column" type="VBoxContainer" parent="Frame/Center"]
+custom_minimum_size = Vector2(560, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Frame/Center/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_font_sizes/font_size = 46
+text = "Project Kaiba"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Frame/Center/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.588235, 0.65098, 0.729412, 1)
+theme_override_font_sizes/font_size = 20
+text = "Solo plays a real duel. The rest is roadmap."
+horizontal_alignment = 1
+
+[node name="TopSpacer" type="Control" parent="Frame/Center/Column"]
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Buttons" type="VBoxContainer" parent="Frame/Center/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 14
+
+[node name="Solo" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
+text = "Solo"
+
+[node name="Host" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
+text = "Host Duel   (not built yet)"
+
+[node name="Join" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
+text = "Join Duel   (not built yet)"
+
+[node name="Decks" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
+text = "Decks   (not built yet)"
+
+[node name="Replays" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 76)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("StyleBoxFlat_button")
+theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
+theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
+text = "Replays   (not built yet)"
+
+[node name="BottomSpacer" type="Control" parent="Frame/Center/Column"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+mouse_filter = 2
+
+[node name="Status" type="Label" parent="Frame/Center/Column"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.886275, 0.74902, 0.447059, 1)
+theme_override_font_sizes/font_size = 20
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
