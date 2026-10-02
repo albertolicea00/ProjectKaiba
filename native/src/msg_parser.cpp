@@ -36,6 +36,7 @@ static_assert(static_cast<int32_t>(EV::SELECT_PLACE) == MSG_SELECT_PLACE, "EV/MS
 static_assert(static_cast<int32_t>(EV::SELECT_POSITION) == MSG_SELECT_POSITION, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SELECT_TRIBUTE) == MSG_SELECT_TRIBUTE, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SELECT_SUM) == MSG_SELECT_SUM, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::SELECT_SUM) == MSG_SELECT_SUM, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SORT_CARD) == MSG_SORT_CARD, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::CONFIRM_CARDS) == MSG_CONFIRM_CARDS, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SHUFFLE_DECK) == MSG_SHUFFLE_DECK, "EV/MSG drift");
@@ -462,8 +463,14 @@ Dictionary parse_select_option(Cursor& cursor) {
 	return event;
 }
 
-/// MSG_SELECT_CARD and MSG_SELECT_TRIBUTE share a prefix; tribute entries carry an extra
-/// release-parameter byte.
+/// MSG_SELECT_CARD and MSG_SELECT_TRIBUTE share the same five-field prefix but NOT the same
+/// card entry, which is the kind of difference that costs an afternoon.
+///
+///   SELECT_CARD    code + packed loc_info          (playerop.cpp:314)
+///   SELECT_TRIBUTE code + loose triple + release   (playerop.cpp:673)
+///
+/// The tribute entry has no position field and its sequence is 32-bit, so reading it as a
+/// packed loc_info overruns by four bytes per card and the message decodes as MALFORMED.
 Dictionary parse_select_card(Cursor& cursor, EV type) {
 	Dictionary event = make_event(type);
 	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
@@ -471,17 +478,54 @@ Dictionary parse_select_card(Cursor& cursor, EV type) {
 	event["min"] = static_cast<int32_t>(cursor.read<uint32_t>());
 	event["max"] = static_cast<int32_t>(cursor.read<uint32_t>());
 
+	const bool is_tribute = (type == EV::SELECT_TRIBUTE);
+
 	Array cards;
 	const uint32_t count = cursor.read<uint32_t>();
 	for (uint32_t i = 0; i < count && cursor.ok(); ++i) {
 		const uint32_t code = cursor.read<uint32_t>();
-		Dictionary entry = card_ref(code, cursor.read_loc());
-		if (type == EV::SELECT_TRIBUTE) {
+		Dictionary entry = card_ref(code, is_tribute ? cursor.read_loc_triple32() : cursor.read_loc());
+		if (is_tribute) {
+			// How many tributes this card is worth. A card that counts double still occupies
+			// one index in the answer, so L3 must not sum indices to reach the required count.
 			entry["release_param"] = static_cast<int32_t>(cursor.read<uint8_t>());
 		}
 		cards.push_back(entry);
 	}
 	event["cards"] = cards;
+	return event;
+}
+
+/// MSG_SELECT_SUM: pick cards whose summed parameter reaches `acc` (playerop.cpp:796).
+///
+/// Two lists arrive. `must` is forced in by the engine and is NOT addressable by the answer;
+/// indices in the response address `cards` alone. Concatenating the two for display and then
+/// answering with those indices is an off-by-N that the engine reports only as MSG_RETRY.
+///
+/// Reached in practice through ritual summons: proc_ritual.lua is the only place in the whole
+/// ProjectIgnis collection that calls Group.SelectWithSumEqual.
+Dictionary parse_select_sum(Cursor& cursor) {
+	Dictionary event = make_event(EV::SELECT_SUM);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	// ocgcore writes 0 when a max was given and 1 when it was not; with 1 the engine accepts
+	// any number of cards as long as the sum lands exactly on `acc`.
+	event["exact_count"] = cursor.read<uint8_t>() == 0;
+	event["acc"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["min"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["max"] = static_cast<int32_t>(cursor.read<uint32_t>());
+
+	// Both lists use a packed loc_info here, unlike SELECT_TRIBUTE just above.
+	for (const char* key : { "must", "cards" }) {
+		Array list;
+		const uint32_t count = cursor.read<uint32_t>();
+		for (uint32_t i = 0; i < count && cursor.ok(); ++i) {
+			const uint32_t code = cursor.read<uint32_t>();
+			Dictionary entry = card_ref(code, cursor.read_loc());
+			entry["sum_param"] = static_cast<int32_t>(cursor.read<uint32_t>());
+			list.push_back(entry);
+		}
+		event[key] = list;
+	}
 	return event;
 }
 
@@ -708,6 +752,7 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		case MSG_SELECT_OPTION:     event = parse_select_option(cursor); break;
 		case MSG_SELECT_CARD:       event = parse_select_card(cursor, EV::SELECT_CARD); break;
 		case MSG_SELECT_TRIBUTE:    event = parse_select_card(cursor, EV::SELECT_TRIBUTE); break;
+		case MSG_SELECT_SUM:        event = parse_select_sum(cursor); break;
 		case MSG_SELECT_CHAIN:      event = parse_select_chain(cursor); break;
 		case MSG_SELECT_PLACE:      event = parse_select_place(cursor); break;
 		case MSG_SELECT_POSITION:   event = parse_select_position(cursor); break;
@@ -737,7 +782,7 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		// TODO(batch3): MSG_UNEQUIP, MSG_FIELD_DISABLED, MSG_CARD_SELECTED,
 		// MSG_SWAP_GRAVE_DECK, MSG_REVERSE_DECK, MSG_DECK_TOP, MSG_MATCH_KILL,
 		// MSG_BE_CHAIN_TARGET, MSG_ANNOUNCE_*, MSG_SELECT_COUNTER,
-		// MSG_SELECT_UNSELECT_CARD, MSG_SORT_CARD, MSG_SELECT_SUM, MSG_TAG_SWAP,
+		// MSG_SELECT_UNSELECT_CARD, MSG_SORT_CARD, MSG_TAG_SWAP,
 		// MSG_RELOAD_FIELD. Their write sites are conditional or share a buffer with another
 		// message, so the layout was not certain enough to implement. They fall through to
 		// EV::UNHANDLED below, which is the correct behaviour until each is pinned down.
