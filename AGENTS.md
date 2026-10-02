@@ -163,6 +163,21 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
    holding. This is also why `EV::UNHANDLED` and `EV::MALFORMED` sit at 1100/1101 instead of
    0/1 — opcode 1 was already taken.
 
+9. **`MSG_SELECT_PLACE.flag` decoded** (from ocgcore's own validation, `playerop.cpp:588`):
+
+   ```
+   to_check = 1 << sequence
+   if location is SZONE:  to_check <<= 8
+   if not the asking player's side: to_check <<= 16
+   a SET bit means the zone is NOT selectable
+   ```
+
+   So bits 0-6 are the asking player's monster zones, 8-15 their spell/trap zones, 16-22 the
+   opponent's monster zones, 24-31 the opponent's spell/trap zones. Sides are relative to
+   `event["player"]`, **not** to absolute player 0. Sequence caps: monster zones 0-6, spell
+   zones 0-7. Answering with a zone whose bit is set yields `MSG_RETRY`, which is silent (see
+   trap 8) — and answering a spell activation with a monster zone is the easy way to hit it.
+
 `native/src/msg_parser.cpp` is the single place that knows any of this. Nothing above L1 may
 read a raw packet.
 

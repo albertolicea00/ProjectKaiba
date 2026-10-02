@@ -41,6 +41,36 @@ repositories below are its data. Verified against EDOPro's own source (`gframe/g
 `edo9300/ygopro-core` (OCG core v11). The Fluorohydride scripts target the older Fluorohydride
 core and use a different Lua API; they will fail at load or behave incorrectly.
 
+### Installing the scripts
+
+```bash
+make data-scripts
+```
+
+Clones the collection into `data/base/script` as a git working copy, so later refreshes are a
+plain `git -C data/base/script pull`. Around 115 MB.
+
+Layout after the clone, and the search order `ScriptVFS` must be given:
+
+| root | holds |
+|---|---|
+| `data/base/script` | the shared library: `constant.lua`, `utility.lua`, `proc_*.lua`, `chain.lua` |
+| `data/base/script/official` | ~13,500 card scripts |
+| `data/base/script/unofficial` | ~5,500 anime and custom cards |
+| `data/base/script/pre-release` | ~130 upcoming cards |
+
+**The host must preload the library scripts itself.** ocgcore only ever asks the `scriptReader`
+for `c<code>.lua` (`interpreter.cpp:287`); it never requests `constant.lua` or `utility.lua`.
+`DuelThread` loads them from `DuelConfig::init_scripts` right after `OCG_CreateDuel`, mirroring
+EDOPro's `Game::SetupDuel` (`game.cpp:3932`). Those two then pull in the rest themselves through
+`Duel.LoadScript`, which routes back through our own reader, so the chain resolves from there.
+
+Without this step every card logs `"CallCardFunction"(cNNNN.initial_effect): attempt to call an
+error function` and no effect ever fires — a failure that looks like missing scripts but is not.
+
+Note that we pass `enableUnsafeLibraries = 0` while EDOPro passes 1. That withholds Lua's `io`
+library from card scripts. Nothing in the official collection needs it.
+
 `BabelCDB` ships many `.cdb` files (one per set/era) rather than a single `cards.cdb`. They are
 plain SQLite and can be merged. `tools/cdb_check.py` (not written yet) should verify the merged
 result before it is used.
