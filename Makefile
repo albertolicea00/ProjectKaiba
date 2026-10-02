@@ -36,7 +36,7 @@ NDK_VERSION ?= 28.2.13676358
 SCONS_COMMON  := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
 SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -122,3 +122,15 @@ bootstrap-import:
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg \
 		&& echo "Godot project imported; extension registered." \
 		|| (echo "FAIL: import did not register the extension"; exit 1)
+
+# Phase 1 end-to-end check: runs a real ocgcore duel through DuelThread + MsgParser and
+# asserts the opening sequence parses. Needs no cards.cdb (docs/DATA.md): the point is the
+# message pump, not the card pool.
+smoke: host
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) --script res://scenes/duel_smoke.gd 2>&1 | tee /tmp/kaiba_smoke.log
+	@grep -q "reached a blocking selection (t=11)" /tmp/kaiba_smoke.log \
+		|| (echo "FAIL: duel did not reach MSG_SELECT_IDLECMD"; exit 1)
+	@grep -q "duel ended cleanly" /tmp/kaiba_smoke.log \
+		|| (echo "FAIL: duel thread did not shut down"; exit 1)
+	@echo "Phase 1 verified: ocgcore duel runs on its own thread and parses into DuelEvents."
