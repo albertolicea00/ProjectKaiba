@@ -355,11 +355,31 @@ shared vocabulary between the two layers.
 ### Replay
 
 ```
-header: magic "KBRP", version, core_version{major,minor}, flags
+header: magic "KBRP", version, core_version{major,minor}, script_sha[20], flags
         seed[4], host_info, deck_p0[], deck_p1[]
 body:   DuelResponse[]   # responses only — the duel is re-simulated
 tail:   DuelEvent[]      # OPTIONAL "fat replay" fallback
 ```
+
+### Why the script collection is not a submodule
+
+`ocgcore` is pinned as a submodule; the ProjectIgnis card scripts deliberately are not, even
+though a script change alters how a card resolves and therefore threatens replay determinism in
+exactly the way a core bump does (R5).
+
+The reason is Principle 2: *new cards must work automatically as soon as their Lua exists*. A
+pinned submodule means a new card does not appear until somebody raises the pin by hand, and the
+collection receives commits daily. Pinning it would trade the project's stated goal for a
+guarantee we can get more cheaply.
+
+Instead, `script_sha` records which collection a replay was made against. On playback, a
+mismatch is a warning and a switch to the recorded event tail, the same path a `core_version`
+mismatch already takes.
+
+**Known limit, stated plainly:** `make data-scripts` clones with `--depth 1`, so a recorded SHA
+is diagnostic, not reproducible — you cannot check out the exact old revision to re-simulate
+against it. Dropping `--depth 1` buys that back at roughly 500 MB. Worth revisiting if replay
+fidelity across script updates ever becomes a real complaint rather than a theoretical one.
 
 A thin replay (responses only) is a few KB, but **breaks if ocgcore behavior changes**. Hence the optional tail: if `core_version` mismatches on open, play back the recorded event stream instead of re-simulating. Two modes, one file. This decision is what saves your replay library over a 5-year horizon.
 
