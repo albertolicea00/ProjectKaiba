@@ -29,5 +29,20 @@ To download the images (which take up gigabytes of space), do not commit them. I
 *   *Command:* Run `./tools/artwork-dl-ygoprodeck.sh --sd` (for standard definition) or `--hd` (for high definition).
 
 ### 3. Lua Scripts (`script/`)
-The engine requires the Lua scripts that define how each card effect resolves. 
-*   *Source:* The easiest way to get these is to install a standard **EDOPro** or **YGOPro** client on your PC, zip the `script/` folder, and extract it here into `data/base/script/`.
+The engine requires the Lua scripts that define how each card effect resolves.
+*   *Command:* Run `make data-scripts` from the repository root. It clones [ProjectIgnis/CardScripts](https://github.com/ProjectIgnis/CardScripts) into `data/base/script/` as a git working copy (~115 MB), so refreshing later is just `git -C data/base/script pull`.
+*   **Use the ProjectIgnis collection, not Fluorohydride's.** We pin the EDOPro core (OCG v11); the Fluorohydride scripts target the older core and use a different Lua API, so they fail at load.
+
+The clone is searched in this order:
+
+| Folder | Contents |
+| :--- | :--- |
+| `script/` | shared library: `constant.lua`, `utility.lua`, `proc_*.lua`, `chain.lua` |
+| `script/official/` | ~13,500 card scripts |
+| `script/unofficial/` | ~5,500 anime and custom cards |
+| `script/pre-release/` | ~130 upcoming cards |
+
+> [!NOTE]
+> The two library scripts are loaded by the host, not requested by the engine. ocgcore only ever
+> asks for `c<code>.lua`. If they are missing, every card logs `attempt to call an error function`
+> and no effect fires — which looks like missing card scripts but is not. See `docs/DATA.md`.

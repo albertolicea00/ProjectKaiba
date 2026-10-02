@@ -41,6 +41,9 @@ game/bin/*
 data/**/*.jpg
 data/**/*.png
 data/**/*.lua
+# `make data-scripts` clones ProjectIgnis/CardScripts in here, so this is a git working copy of
+# its own. Tracking anything inside it would fight the next `git pull`.
+data/base/script/
 *.cdb
 *.pck
 *.ydk
