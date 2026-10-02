@@ -164,6 +164,9 @@ const PASSIVE_EVENTS: Array[int] = [
 
 ## Event types already warned about, so the warning fires once per type and a repeating
 ## unhandled opcode does not drown the log.
+## Monotonic, never reused within a duel. Reset only by `reset()`.
+var _next_handle: int = 0
+
 var _warned_types: Dictionary = {}
 
 
@@ -173,6 +176,7 @@ func _init() -> void:
 
 ## Returns the board to its pre-duel state. Also the only place zone sizes are decided.
 func reset() -> void:
+	_next_handle = 0
 	hand = []
 	main_monster = []
 	extra_monster = []
@@ -296,7 +300,7 @@ func _on_draw(event: Dictionary) -> void:
 		if not deck[player].is_empty():
 			card = deck[player].pop_back() as DuelCard
 		else:
-			card = DuelCard.new()
+			card = _new_card()
 		# "card" is the wire spelling (msg_parser.cpp parse_draw); "code" is the DuelCard field
 		# name and is accepted as a fallback.
 		card.code = _as_int(data.get("card", data.get("code", card.code)), card.code)
@@ -314,7 +318,7 @@ func _on_move(event: Dictionary) -> void:
 
 	var card: DuelCard = _take_from(from_info)
 	if card == null:
-		card = DuelCard.new()
+		card = _new_card()
 	if code != 0:
 		card.code = code
 	_put_into(card, to_info)
@@ -416,7 +420,7 @@ func _on_shuffle_pile(event: Dictionary, location: int) -> void:
 	# means we lost an event somewhere. Adopt the engine's count instead of guessing.
 	var rebuilt: Array = []
 	for index: int in range(codes.size()):
-		var card: DuelCard = pile[index] as DuelCard if index < pile.size() else DuelCard.new()
+		var card: DuelCard = pile[index] as DuelCard if index < pile.size() else _new_card()
 		card.code = _as_int(codes[index], 0)
 		card.is_public = card.code != 0
 		rebuilt.append(card)
@@ -460,6 +464,17 @@ func _on_win(event: Dictionary) -> void:
 # ---------------------------------------------------------------------------------------------
 # Zone access
 # ---------------------------------------------------------------------------------------------
+
+## Creates a card already carrying a fresh handle.
+##
+## Every `DuelCard` in this model must come from here. One built with `DuelCard.new()` directly
+## would carry handle 0 and silently lose its identity the first time it moved.
+func _new_card() -> DuelCard:
+	var card := DuelCard.new()
+	_next_handle += 1
+	card.handle = _next_handle
+	return card
+
 
 ## The card at a location, or `null`. Reads through the `OVERLAY` bit to the host monster.
 func card_at(player: int, location: int, sequence: int) -> DuelCard:
@@ -633,7 +648,7 @@ func _detach_overlay(player: int, host_location: int, host_sequence: int, index:
 	if host == null or host.overlay_codes.is_empty():
 		return null
 	var slot: int = clampi(index, 0, host.overlay_codes.size() - 1)
-	var card := DuelCard.new()
+	var card := _new_card()
 	card.code = host.overlay_codes[slot]
 	card.is_public = card.code != 0
 	host.overlay_codes.remove_at(slot)
@@ -645,7 +660,7 @@ func _apply_query(player: int, location: int, sequence: int, data: Dictionary) -
 	if card == null:
 		# The host may describe a slot we have not seen filled yet. Create it rather than drop
 		# the information: a missing card is worse than an extra one (V13).
-		card = DuelCard.new()
+		card = _new_card()
 		card.controller = player
 		card.location = location
 		card.sequence = sequence
@@ -767,7 +782,7 @@ func _empty_slots(count: int) -> Array:
 func _hidden_pile(player: int, location: int, count: int) -> Array:
 	var pile: Array = []
 	for index: int in range(maxi(0, count)):
-		var card := DuelCard.new()
+		var card := _new_card()
 		card.controller = player
 		card.location = location
 		card.sequence = index

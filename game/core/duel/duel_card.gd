@@ -18,6 +18,17 @@ extends RefCounted
 ## transport (V7), so the client never has the data to leak in the first place.
 
 ## Passcode. `0` means unknown - a face-down card, or any card in a pile we cannot see.
+## Stable identity for this physical card, unique within a duel and preserved across every
+## move. `0` means "not yet stamped" and must never be treated as a real handle.
+##
+## Minted by `DuelState`, never by ocgcore: the engine identifies a card only by where it is
+## standing right now. The handle is derived from the Level-1 event stream as the duel replays,
+## so it never enters the replay format and invariant V9 is untouched.
+##
+## It exists because `card_id` cannot identify a card: two copies in one hand share it, and a
+## face-down card reports `0`.
+var handle: int = 0
+
 var code: int = 0
 
 ## Controller: 0 or 1. Not the owner. A stolen monster is controlled by the thief.
