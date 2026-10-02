@@ -43,7 +43,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | `native/vendor/ocgcore` | `efc21aa433b88cd35b7c37db4072a35c58d9d435` | OCG core v11.0. **Bumping this can change duel behaviour and invalidate stored replays** (ARCHITECTURE.md R5) |
 | `native/vendor/ocgcore/lua/src` | `6e22fedb74cf0c9b6656e9fce8b7331db847c605` | Lua 5.4, compiled as C++ |
 
+### Added (Phase 1)
+- `native/src/core_utils.{h,cpp}` and `buffer_io.h` — port of EDOPro's message/query byte
+  parsing layer, stripped of Irrlicht and `ClientField`.
+- `native/vendor/sqlite3/` — SQLite 3.53.4 amalgamation, vendored (not a submodule), compiled
+  as C with `SQLITE_OMIT_LOAD_EXTENSION` and friends.
+- `native/src/card_db.{h,cpp}` — `cards.cdb` reader implementing ocgcore's `cardReader` and
+  `cardReaderDone`, with the packed `setcode` / `level` / `def` decoding from docs/DATA.md.
+  Loads the whole database into memory at open and closes the SQLite handle.
+- `native/src/script_vfs.{h,cpp}` — `scriptReader` over an ordered list of search roots, with
+  an in-memory cache.
+- `native/src/duel_event.h` — the Level 1 event model. `EV` values mirror the `MSG_*` opcodes
+  so replays stay readable across core bumps; `msg_parser.cpp` static_asserts every one.
+- `native/src/msg_parser.{h,cpp}` — batch 1 of the opcode decoders (~40 messages), each
+  bounds-checked. Unknown opcodes become `EV::UNHANDLED` and truncated ones `EV::MALFORMED`,
+  never a crash (invariant V13).
+- `native/src/spsc_queue.h` and `duel_thread.{h,cpp}` — the duel worker thread. One
+  `OCG_Duel` per thread, created and destroyed on it (V8); events leave through a lock-free
+  SPSC queue, responses arrive through a condition variable that also serves as the shutdown
+  wakeup.
+- `KaibaCore` duel API: `load_card_database`, `add_script_root`, `start_duel`, `poll_event`,
+  `send_response`, `end_duel`, `is_duel_running`.
+- `game/core/duel/` — `duel_enums.gd`, `duel_card.gd`, `duel_state.gd`.
+- `game/scenes/duel_smoke.gd` and `make smoke` — Phase 1 regression test.
+
 ### Verified
+- `make smoke` drives a real ocgcore duel on its own thread with synthetic decks and no card
+  database. The opening sequence parses correctly: two `MSG_DRAW` of five cards, `MSG_NEW_TURN`,
+  three `MSG_NEW_PHASE` (draw, standby, main1), `MSG_HINT`, then `MSG_SELECT_IDLECMD` reporting
+  five settable cards. The duel blocks on the selection as designed and the worker thread shuts
+  down cleanly from a parked state.
 - macOS arm64 host build passes `make verify` end to end: the GDExtension loads inside Godot
   4.6.3, `OCG_CreateDuel` succeeds, a Lua chunk runs inside the duel's own state, and the duel is
   destroyed cleanly. ocgcore reports 11.0.

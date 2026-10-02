@@ -135,6 +135,31 @@ Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.1
 
 ---
 
+## 8b. Wire-format traps (found the hard way; all verified against vendor/ocgcore)
+
+1. **`MSG_START`, `MSG_UPDATE_DATA` and `MSG_UPDATE_CARD` are never emitted by ocgcore.** No
+   `new_message()` call site produces them. The host synthesises them: `MSG_START` from the
+   duel configuration, the two UPDATE messages from `OCG_DuelQuery*`. EDOPro does this in
+   `generic_duel.cpp`. Do not go looking for them in the core's message stream.
+2. **Sequence width is not uniform inside a single message.** In `MSG_SELECT_IDLECMD` the
+   summon / spsummon / mset / sset / activate lists write the sequence as `uint32_t`, but
+   `repositionable_cards` writes it as `uint8_t`. Same split in `MSG_SELECT_BATTLECMD`
+   between the activatable and attackable lists. Reading the wrong width desynchronises
+   everything after it in the payload.
+3. **`MSG_POS_CHANGE` does not carry a `loc_info`.** It writes code, controller, location,
+   an 8-bit sequence, the previous position and the current position as separate bytes.
+4. **`MSG_SUMMONED`, `MSG_SPSUMMONED`, `MSG_FLIPSUMMONED`, `MSG_CHAIN_END` and
+   `MSG_ATTACK_DISABLED` have no payload at all.** They are pure sequencing markers.
+5. **`MSG_SELECT_OPTION` writes its option count as `uint8_t`**, not `uint32_t` like every
+   other list length in the select family.
+6. **A zeroed `loc_info` in `MSG_ATTACK` / `MSG_BATTLE` means "direct attack"**, not
+   "controller 0, location 0".
+7. **`LOCATION_OVERLAY` (0x80) set in a loc_info's location** means the card is an xyz
+   material: `seq` is then the host monster's sequence and `pos` is the index in its stack.
+
+`native/src/msg_parser.cpp` is the single place that knows any of this. Nothing above L1 may
+read a raw packet.
+
 ## 9. Working rules
 
 - Never reimplement a Yu-Gi-Oh! rule. If behavior looks wrong, the bug is in our adapter or in the
