@@ -34,7 +34,16 @@ NDK_VERSION ?= 28.2.13676358
 
 # disable_exceptions=no is mandatory: ocgcore raises Lua errors as C++ exceptions.
 SCONS_COMMON  := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
-SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
+
+# If ANDROID_NDK_HOME is set (e.g., via Homebrew), we override ANDROID_HOME and omit the
+# pinned ndk_version so that godot-cpp picks up the custom NDK installation.
+ifneq ($(ANDROID_NDK_HOME),)
+  SCONS_ENV := env ANDROID_HOME="" ANDROID_NDK_ROOT="$(ANDROID_NDK_HOME)"
+  SCONS_ANDROID := $(SCONS_COMMON) platform=android
+else
+  SCONS_ENV := env
+  SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
+endif
 
 .PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel test-gd bootstrap-import run editor clean distclean
 
@@ -76,13 +85,13 @@ host:
 android: android-arm64 android-arm32 android-x86_64
 
 android-arm64:
-	$(SCONS) $(SCONS_ANDROID) arch=arm64
+	$(SCONS_ENV) $(SCONS) $(SCONS_ANDROID) arch=arm64
 
 android-arm32:
-	$(SCONS) $(SCONS_ANDROID) arch=arm32
+	$(SCONS_ENV) $(SCONS) $(SCONS_ANDROID) arch=arm32
 
 android-x86_64:
-	$(SCONS) $(SCONS_ANDROID) arch=x86_64
+	$(SCONS_ENV) $(SCONS) $(SCONS_ANDROID) arch=x86_64
 
 # Builds and runs the standalone probe. A failure here points at the ocgcore build itself;
 # a pass here plus a failure in Godot points at the GDExtension binding.
