@@ -4,10 +4,27 @@ import sys
 import time
 import argparse
 import requests
+import subprocess
 from deep_translator import GoogleTranslator, MyMemoryTranslator
 
 EN_JSON_PATH = "cardinfo.ygoprodeck.apiv7.en.json"
 BATCH_SIZE = 10
+
+OLLAMA_STARTED = False
+
+def ensure_ollama_running():
+    global OLLAMA_STARTED
+    if OLLAMA_STARTED:
+        return
+    try:
+        requests.get('http://localhost:11434/', timeout=1)
+        OLLAMA_STARTED = True
+    except requests.exceptions.ConnectionError:
+        print("    -> Ollama is not listening. Starting 'ollama serve' in the background...")
+        # Start Ollama detached
+        subprocess.Popen(["ollama", "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        time.sleep(4)  # Give it a few seconds to boot up
+        OLLAMA_STARTED = True
 
 def make_ollama_translator(model_name):
     class OllamaEngine:
@@ -15,12 +32,19 @@ def make_ollama_translator(model_name):
             self.source = source
             self.target = target
         def translate(self, text):
+            ensure_ollama_running()
+            
             prompt = f"Translate the following text from {self.source} to {self.target}. Reply with ONLY the translated text, do not include any quotes or explanations.\n\nText: {text}"
             res = requests.post('http://localhost:11434/api/generate', json={
                 "model": model_name,
                 "prompt": prompt,
                 "stream": False
             }, timeout=60)
+            
+            # If model is not found, Ollama returns 404. We should not retry this.
+            if res.status_code == 404:
+                raise ValueError("ModelNotFoundError: 404")
+                
             res.raise_for_status()
             return res.json().get('response', '').strip()
     OllamaEngine.__name__ = f"Ollama_{model_name.replace(':', '_')}"
@@ -38,16 +62,17 @@ FALLBACK_ENGINES = [
 
 def get_engine_target_lang(engine_name, base_lang):
     if engine_name == 'MyMemoryTranslator':
-        # MyMemory requires specific regional codes for some languages
+        # MyMemory in deep-translator explicitly expects the full English language name 
+        # (like 'spanish') rather than short codes ('es' or 'es-ES').
         mapping = {
-            'es': 'es-ES',
-            'ja': 'ja-JP',
-            'ru': 'ru-RU',
-            'fr': 'fr-FR',
-            'de': 'de-DE',
-            'it': 'it-IT',
-            'pt': 'pt-PT',
-            'en': 'en-GB'
+            'es': 'spanish',
+            'ja': 'japanese',
+            'ru': 'russian',
+            'fr': 'french',
+            'de': 'german',
+            'it': 'italian',
+            'pt': 'portuguese',
+            'en': 'english'
         }
         return mapping.get(base_lang, base_lang)
     return base_lang
@@ -68,6 +93,12 @@ def translate_with_fallbacks(text, target_lang):
                 return Engine(source='en', target=engine_target).translate(text)
             except Exception as e:
                 print(f"    [{engine_name} attempt {attempt+1}/2] error: {e}")
+                
+                # If Ollama returns 404, the model doesn't exist locally. Don't retry it.
+                if "ModelNotFoundError" in str(e):
+                    print(f"    -> Model not found on Ollama. Skipping {engine_name} entirely.")
+                    break 
+                    
                 time.sleep(5)  # Backoff before next attempt
                 
     # If all engines in the array and their retries fail, return None
