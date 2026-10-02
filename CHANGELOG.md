@@ -93,6 +93,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Intents with nothing to animate (`TURN_START`, `LP_CHANGE`, `PHASE_CHANGE`) had no tween and
   settled in their starting frame, so a blocking one released the barrier instantly.
 
+### Added (interface)
+- `game/core/registry/card_art.gd` — runtime loader for `data/base/pics/`. The art lives outside
+  `res://` so it is read with `Image.load_from_file()`, which keeps `data/` swappable. Decoding
+  happens on a `WorkerThreadPool`; a cache miss returns null and queues, never blocking a frame.
+  LRU budget scales with the tier: 64 MB for sd (~200 faces), 256 MB for hd (~90), because a
+  face costs roughly nine times more at hd and one number cannot be right for both.
+- `game/ui/hud/` — life points, turn, phase and the pending prompt. Life totals roll rather than
+  snap, and the previous value lives in the HUD rather than the model.
+- `game/ui/main_menu/` and `game/platform/scene_router.gd` — the project boots into a menu after
+  its startup self-test instead of straight into a test scene.
+- `game/view/fx/` — procedural effects with no binary assets: ground flashes, impact rings and
+  shard bursts, capped at 24 live.
+- `game/view/anim/card_flight.gd` — a parametric flight with arc, swell, spin and fade, driven by
+  tweening one float.
+- Summon, attack and battle now read as distinct beats rather than three position tweens. A card
+  arriving face-down never receives the mid-flight flip callback, so a set monster cannot show
+  its face for a frame.
+- `KaibaCore.get_card_info(code)` — card names, effect text and the sixteen per-effect labels,
+  which existed in `CardDB` but had no route to GDScript.
+
+### Fixed
+- `CardView.art_source` was never assigned, so every card silently fell back to a placeholder
+  colour while the whole art pipeline sat unused. `make touch` now asserts that faces decode.
+- `skip_all()` killed tweens but left effects playing, so a skip snapped the board to its end
+  state while debris from an unwatched battle kept flying.
+- An attack returned the card to a remembered transform. It now asks the board to re-seat it, so
+  a reconciliation during the lunge cannot strand it.
+- `scene_router.gd` lived under `game/core/`, which `AGENTS.md` defines as L3 with no scene
+  dependencies, while doing ten scene-tree operations. Moved to the platform layer.
+
 ### Verified
 - `make smoke` drives a real ocgcore duel on its own thread with synthetic decks and no card
   database. The opening sequence parses correctly: two `MSG_DRAW` of five cards, `MSG_NEW_TURN`,
