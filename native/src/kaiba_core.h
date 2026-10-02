@@ -1,8 +1,17 @@
 #ifndef KAIBA_CORE_H
 #define KAIBA_CORE_H
 
+#include <memory>
+
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/variant.hpp>
+
+#include "card_db.h"
+#include "duel_thread.h"
+#include "script_vfs.h"
 
 namespace kaiba {
 
@@ -30,6 +39,40 @@ public:
 	/// Runs the Phase 0 toolchain probe. See core_selftest.h for what it proves.
 	/// Returns {"ok", "stage", "detail", "core_version", "expected_version"}.
 	godot::Dictionary run_selftest() const;
+
+	// --- Phase 1: card data, scripts and the duel lifecycle -----------------------------
+
+	/// Loads a cards.cdb entirely into memory. Accepts res:// and user:// paths.
+	/// Returns {"ok": bool, "count": int, "error": String}.
+	godot::Dictionary load_card_database(const godot::String &path);
+
+	/// Appends a directory to the Lua script search path, searched in insertion order.
+	void add_script_root(const godot::String &path);
+
+	/// Starts a duel on its own thread (invariants V4 and V8).
+	///
+	/// Config keys: "seed" (PackedInt64Array of 4; generated when absent), "flags",
+	/// "start_lp", "start_hand", "draw_count", "deck_p0", "extra_p0", "deck_p1", "extra_p1"
+	/// (PackedInt32Array of card codes). Returns {"ok": bool, "error": String}.
+	godot::Dictionary start_duel(const godot::Dictionary &config);
+
+	/// Drains one event from the duel thread, or null when the queue is empty.
+	/// Returning a Variant rather than taking an out-parameter keeps the GDScript call site
+	/// honest: `while true: var ev = core.poll_event(); if ev == null: break`.
+	godot::Variant poll_event();
+
+	/// Hands a response back to the blocked duel thread.
+	void send_response(const godot::PackedByteArray &response);
+
+	/// Stops the duel thread and joins it. Safe to call when no duel is running.
+	void end_duel();
+
+	bool is_duel_running() const;
+
+private:
+	CardDB card_db_;
+	ScriptVFS script_vfs_;
+	std::unique_ptr<DuelThread> duel_thread_;
 };
 
 } // namespace kaiba
