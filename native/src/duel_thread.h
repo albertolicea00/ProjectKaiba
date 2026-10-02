@@ -63,6 +63,14 @@ struct DuelConfig {
 
 	CardDB *card_db = nullptr; // non-owning, must be non-null
 	ScriptVFS *script_vfs = nullptr; // non-owning, must be non-null
+
+	/// Library scripts loaded into the duel's Lua state before any card is created.
+	///
+	/// ocgcore only ever asks the scriptReader for `c<code>.lua` (interpreter.cpp:287); the
+	/// shared library is the host's job to push in. These two pull in the rest themselves
+	/// through `Duel.LoadScript`, which routes back through our own scriptReader, so the
+	/// chain resolves from here. Mirrors EDOPro's `Game::SetupDuel` (game.cpp:3932).
+	std::vector<std::string> init_scripts = { "constant.lua", "utility.lua" };
 };
 
 /// One OCG_Duel, one std::thread, for the whole life of that duel.
@@ -166,6 +174,7 @@ private:
 	// --- worker thread only ----------------------------------------------------------
 	void run();
 	bool create_duel(std::string *error);
+	bool load_init_scripts(std::string *error);
 	bool populate_decks(std::string *error);
 	void process_loop();
 	bool dispatch_messages(uint8_t *buffer, uint32_t length);

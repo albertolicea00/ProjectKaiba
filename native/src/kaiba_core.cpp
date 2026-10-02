@@ -9,6 +9,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/packed_int64_array.hpp>
+#include <godot_cpp/variant/packed_string_array.hpp>
 
 #include <ocgapi.h>
 
@@ -18,6 +19,7 @@ using godot::Dictionary;
 using godot::PackedByteArray;
 using godot::PackedInt32Array;
 using godot::PackedInt64Array;
+using godot::PackedStringArray;
 using godot::ProjectSettings;
 using godot::String;
 using godot::Variant;
@@ -188,6 +190,18 @@ Dictionary KaibaCore::start_duel(const Dictionary &config) {
 	duel_config.extra_deck[0] = read_decklist(config, "extra_p0");
 	duel_config.main_deck[1] = read_decklist(config, "deck_p1");
 	duel_config.extra_deck[1] = read_decklist(config, "extra_p1");
+
+	// Library scripts to preload. Defaults to constant.lua + utility.lua; pass an empty array
+	// to start a duel with no script collection installed at all. Only a test that is
+	// deliberately exercising the message pump without card data should do that - a real duel
+	// without the library silently has no card effects.
+	if (config.has("init_scripts")) {
+		const PackedStringArray names = config["init_scripts"];
+		duel_config.init_scripts.clear();
+		for (int64_t i = 0; i < names.size(); ++i) {
+			duel_config.init_scripts.push_back(std::string(names[i].utf8().get_data()));
+		}
+	}
 
 	duel_config.card_db = &card_db_;
 	duel_config.script_vfs = &script_vfs_;

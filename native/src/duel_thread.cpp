@@ -128,7 +128,7 @@ bool DuelThread::stop_requested() const {
 
 void DuelThread::run() {
 	std::string error;
-	const bool created = create_duel(&error) && populate_decks(&error);
+	const bool created = create_duel(&error) && load_init_scripts(&error) && populate_decks(&error);
 
 	{
 		std::lock_guard<std::mutex> lock(mutex_);
@@ -211,6 +211,22 @@ bool DuelThread::create_duel(std::string *error) {
 	}
 	duel_ = nullptr;
 	return false;
+}
+
+bool DuelThread::load_init_scripts(std::string *error) {
+	for (const std::string &name : config_.init_scripts) {
+		if (config_.script_vfs->load(duel_, name.c_str()) != 1) {
+			if (error != nullptr) {
+				*error = "could not load the library script '" + name + "'";
+				if (!last_core_error_.empty()) {
+					*error += ": " + last_core_error_;
+				}
+				*error += ". Card effects need the ProjectIgnis script collection; see docs/DATA.md";
+			}
+			return false;
+		}
+	}
+	return true;
 }
 
 bool DuelThread::populate_decks(std::string *error) {
