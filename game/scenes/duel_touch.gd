@@ -82,6 +82,8 @@ const HEADLESS_DURATION_SCALE: float = 0.05
 ## selection legitimately eats several; a selection that eats a dozen is not being answered.
 const MAX_INTENTS_PER_SELECTION: int = 16
 
+var _art: CardArt = null
+
 @onready var _board: BoardView = $World3D/BoardView
 @onready var _director: AnimationDirector = $AnimationDirector
 @onready var _rig: CameraRig = $World3D/CameraRig
@@ -144,6 +146,12 @@ func _ready() -> void:
 	add_child(_hud)
 	_hud.bind(_state)
 
+	# One cache for the whole duel; CardView reads it through a static so every view shares it,
+	# which is the only way the LRU budget means anything. It configures its own roots and picks
+	# sd on Android / hd elsewhere, so there is nothing to pass in.
+	_art = CardArt.new()
+	CardView.art_source = _art
+
 	_director.bind(_board)
 	# Advisory only: the director suggests a framing, the rig decides whether to take it. A VR
 	# rig ignores every cue, because moving a camera a person's head is not moving is how you
@@ -166,6 +174,9 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _art != null:
+		_board.refresh_art(_art)
+
 	if _hud != null:
 		_hud.refresh()
 		_hud.set_prompt(_selection.pending_prompt() if _selection != null else "")
@@ -230,6 +241,12 @@ func _start_duel() -> void:
 	print("[touch] card database loaded: %d cards" % int(loaded.get("count", 0)))
 	for root: String in SCRIPT_ROOTS:
 		_core.add_script_root(root)
+
+	# Both decklists are known before the first draw, so the faces can be decoding while the
+	# engine is still shuffling. Without this the opening hand shows five card backs that pop
+	# into focus a moment later.
+	if _art != null:
+		_art.preload_codes(_build_deck())
 
 	var started: Dictionary = _core.start_duel({
 		"start_lp": START_LP,
@@ -503,6 +520,19 @@ func _on_queue_drained() -> void:
 		_board.sync_from_state(_state)
 
 
+## Art is not decorative here - a face that never arrives means the whole CardArt path is dead
+## and nothing else in this scene would notice. `stats()` is the only honest witness.
+func _check_art_arrived() -> void:
+	if _art == null:
+		_fail("no CardArt was created")
+		return
+	var stats: Dictionary = _art.stats()
+	var cached: int = int(stats.get("cached", 0))
+	_expect(cached > 0,
+		"card faces decoded from data/base/pics (%d cached, %d bytes, %d misses)"
+			% [cached, int(stats.get("bytes", 0)), int(stats.get("misses", 0))])
+
+
 func _stop(reason: String) -> void:
 	if _stopping:
 		return
@@ -534,6 +564,10 @@ func _stop(reason: String) -> void:
 
 
 func _check_results() -> void:
+	_check_art_arrived()
+	if _art != null:
+		_art.shutdown()
+
 	if not _headless:
 		return
 

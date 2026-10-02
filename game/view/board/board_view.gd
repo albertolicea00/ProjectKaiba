@@ -256,6 +256,20 @@ func take_view(anchor: String) -> CardView:
 	return view
 
 
+## Offers the art cache to every card currently on the board.
+##
+## Cheap enough to call every frame: `CardView.refresh_art()` compares against the texture it
+## already has and only writes the material when that changed. This is how a card that was drawn
+## before its face finished decoding picks the face up a few frames later, without anything
+## having to track which loads are outstanding.
+func refresh_art(art: CardArt) -> void:
+	for key: Variant in _occupants.keys():
+		for entry: Variant in (_occupants[key] as Array):
+			var view: CardView = entry as CardView
+			if view != null:
+				view.refresh_art(art)
+
+
 ## Detaches the view showing a specific model card, wherever it is parked.
 ##
 ## This is the precise counterpart to `take_view()`, which can only take the top of a pile.

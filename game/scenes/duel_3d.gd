@@ -67,6 +67,8 @@ const MAX_FRAMES: int = 5400
 ## minutes to verify. Nothing about the blocking rule depends on how long a tween lasts.
 const HEADLESS_DURATION_SCALE: float = 0.05
 
+var _art: CardArt = null
+
 @onready var _board: BoardView = $World3D/BoardView
 @onready var _director: AnimationDirector = $AnimationDirector
 @onready var _rig: CameraRig = $World3D/CameraRig
@@ -107,6 +109,12 @@ func _ready() -> void:
 	_headless = DisplayServer.get_name() == "headless" or OS.get_cmdline_args().has("--headless")
 
 	_rig.activate()
+	# One cache for the whole duel; CardView reads it through a static so every view shares it,
+	# which is the only way the LRU budget means anything. It configures its own roots and picks
+	# sd on Android / hd elsewhere, so there is nothing to pass in.
+	_art = CardArt.new()
+	CardView.art_source = _art
+
 	_director.bind(_board)
 	# Advisory only: the director suggests a framing, the rig decides whether to take it. A VR
 	# rig ignores every cue, because moving a camera a person's head is not moving is how you
@@ -131,6 +139,9 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _art != null:
+		_board.refresh_art(_art)
+
 	_frames += 1
 	if _frames > MAX_FRAMES:
 		_stop("frame budget exhausted")
