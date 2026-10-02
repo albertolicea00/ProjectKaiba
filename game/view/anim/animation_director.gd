@@ -55,6 +55,11 @@ extends Node
 signal queue_drained
 
 ## Diagnostics and HUD cues. Carries the intent itself, which is already disposable.
+## Advisory framing hint. The director knows a monster was summoned; only a `CameraRig` knows
+## whether moving the camera is safe, so this is a cue and not a command. A VR rig must ignore
+## it entirely — see `CameraRig.cue()`.
+signal camera_cue(kind: String, world_position: Vector3)
+
 signal intent_started(intent: Dictionary)
 signal intent_finished(intent: Dictionary)
 
@@ -146,6 +151,34 @@ func _drain_check() -> void:
 		return
 	_idle = true
 	queue_drained.emit()
+	# Nothing left to watch, so suggest returning to the resting frame.
+	camera_cue.emit(CameraRig.CUE_SETTLE, Vector3.ZERO)
+
+
+## Suggests a framing for the intents worth looking at.
+##
+## Deliberately a short list. Cueing on every move would mean cueing on every card that goes to
+## the graveyard during a long chain, and the camera would spend the duel twitching.
+func _emit_camera_cue(intent: Dictionary) -> void:
+	var kind: String = str(intent.get("kind", ""))
+	var cue: String = ""
+	match kind:
+		EventTranslator.KIND_SUMMON:
+			cue = CameraRig.CUE_SUMMON
+		EventTranslator.KIND_ATTACK:
+			cue = CameraRig.CUE_ATTACK
+		EventTranslator.KIND_BATTLE:
+			cue = CameraRig.CUE_DAMAGE
+		_:
+			return
+
+	# Frame where the action lands, falling back to where it came from.
+	var anchor_name: String = str(intent.get("to_anchor", intent.get("anchor", "")))
+	if anchor_name == "":
+		anchor_name = str(intent.get("from_anchor", ""))
+	if anchor_name == "":
+		return
+	camera_cue.emit(cue, _board.anchor_position(anchor_name))
 
 
 ## Starts one intent. `instant` collapses it to its end state with no tween, which is both the
@@ -164,6 +197,7 @@ func _begin(intent: Dictionary, instant: bool) -> void:
 	}
 
 	intent_started.emit(intent)
+	_emit_camera_cue(intent)
 	_build(intent, entry, duration)
 
 	var tween: Tween = entry["tween"] as Tween
