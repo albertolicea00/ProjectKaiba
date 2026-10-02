@@ -17,7 +17,11 @@ namespace kaiba {
 // The EV enum doubles as a replay serialisation format (V9), so every value that mirrors an
 // opcode must keep mirroring it. If a core bump renumbers anything, fail the build here
 // rather than silently corrupting the replay library.
+static_assert(static_cast<int32_t>(EV::RETRY) == MSG_RETRY, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::HINT) == MSG_HINT, "EV/MSG drift");
+// The two synthesised outcomes must stay clear of every real opcode.
+static_assert(static_cast<int32_t>(EV::UNHANDLED) > 255, "UNHANDLED collides with an opcode");
+static_assert(static_cast<int32_t>(EV::MALFORMED) > 255, "MALFORMED collides with an opcode");
 static_assert(static_cast<int32_t>(EV::WIN) == MSG_WIN, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::UPDATE_DATA) == MSG_UPDATE_DATA, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::UPDATE_CARD) == MSG_UPDATE_CARD, "EV/MSG drift");
@@ -656,6 +660,9 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 
 	Dictionary event;
 	switch (opcode) {
+		// Carries no payload. Surfaced explicitly because ocgcore does not re-send the
+		// selection it rejected; L3 must answer the request it is already holding.
+		case MSG_RETRY:             event = parse_empty(EV::RETRY); break;
 		case MSG_HINT:              event = parse_hint(cursor); break;
 		case MSG_WIN:               event = parse_win(cursor); break;
 		case MSG_NEW_TURN:          event = parse_new_turn(cursor); break;

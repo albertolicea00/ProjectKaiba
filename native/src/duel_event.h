@@ -48,15 +48,17 @@ namespace kaiba {
 /// msg_parser.cpp static_asserts every value below against vendor/ocgcore, so a core bump
 /// that renumbered anything breaks the build instead of corrupting replays.
 ///
-/// Values at or above 1000 are reserved for events Project Kaiba synthesises itself and
-/// that no opcode corresponds to. 0 and 1 are taken by the two parser-level outcomes.
+/// Values at or above 1000 are reserved for events Project Kaiba synthesises itself and that
+/// no opcode corresponds to. The parser-level outcomes live at 1100+ rather than at 0 and 1:
+/// MSG_RETRY really is opcode 1, so putting MALFORMED there made two different things share
+/// a tag. DuelThread's LifecycleEvent occupies 1000-1003.
 enum class EV : int32_t {
-	/// Opcode recognised by ocgcore but not implemented yet. Carries "opcode" and "size".
-	/// Invariant V13: this is a warning, never a crash and never an aborted duel.
-	UNHANDLED = 0,
-	/// The payload ended mid-field, so the message could not be decoded. Carries "opcode"
-	/// and "size". Also V13: corrupt or truncated bytes must not take the duel down.
-	MALFORMED = 1,
+	/// ocgcore rejected the last response and re-parked on the same selection.
+	///
+	/// This one matters more than its size suggests: ocgcore does NOT re-emit the original
+	/// MSG_SELECT_*, so a client that waits for a fresh request after a bad answer waits
+	/// forever. Treat it as "resend an answer to the selection you are already holding".
+	RETRY = 1,
 
 	HINT = 2,
 	START = 4,
@@ -131,6 +133,14 @@ enum class EV : int32_t {
 	ATTACK = 110,
 	BATTLE = 111,
 	ATTACK_DISABLED = 112,
+
+	// --- synthesised by us; no opcode corresponds -------------------------------------
+	/// Opcode recognised by ocgcore but not decoded by this batch. Carries "opcode" and
+	/// "size". Invariant V13: a warning, never a crash and never an aborted duel.
+	UNHANDLED = 1100,
+	/// The payload ended mid-field. Carries "opcode" and "size". Also V13: corrupt or
+	/// truncated bytes must not take the duel down.
+	MALFORMED = 1101,
 };
 
 /// Starts a new event Dictionary with its type tag already set.

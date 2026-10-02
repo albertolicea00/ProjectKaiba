@@ -97,6 +97,13 @@ enum EV {
 	ATTACK = 110,               # MVP
 	BATTLE = 111,               # MVP
 	ATTACK_DISABLED = 112,      # MVP
+
+	# --- synthesised by Project Kaiba; no ocgcore opcode corresponds --------------------
+	# 1000-1003 belong to DuelThread's LifecycleEvent (started / ended / core error / core log).
+	# These two live at 1100+ because MSG_RETRY really is opcode 1: parking MALFORMED there
+	# would make two different things share a tag. Mirrors native/src/duel_event.h.
+	UNHANDLED = 1100,
+	MALFORMED = 1101,
 	DAMAGE_STEP_START = 113,
 	DAMAGE_STEP_END = 114,
 	MISSED_EFFECT = 120,
