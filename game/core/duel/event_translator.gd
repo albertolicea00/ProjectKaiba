@@ -189,7 +189,17 @@ const DEFAULT_PROFILE: Dictionary = {"duration": 0.4, "blocking": false}
 
 ## Translates one Level-1 `DuelEvent` into 0..N Level-2 `VisualIntent` dictionaries, in the
 ## order they should play. An event with no visual consequence returns an empty array.
-func translate(event: Dictionary) -> Array[Dictionary]:
+## Turns one Level-1 event into zero or more Level-2 intents.
+##
+## `state` is optional and must be the model **after** `apply()` has run on this same event
+## (docs/ARCHITECTURE.md section 5 step 4). When supplied, every intent that names a card also
+## carries `"handle"`, the stable identity of the physical card involved, so L4 can follow one
+## card across moves instead of guessing from `card_id` — which it cannot do for two copies in
+## a hand, nor for a face-down card, where `card_id` is 0.
+##
+## Without `state` the intents are exactly as before, so a caller that only wants shapes (the
+## test suite) needs no model.
+func translate(event: Dictionary, state: DuelState = null) -> Array[Dictionary]:
 	var intents: Array[Dictionary] = []
 	if not event.has("t"):
 		return intents
@@ -240,7 +250,68 @@ func translate(event: Dictionary) -> Array[Dictionary]:
 	for intent: Dictionary in intents:
 		intent["ev"] = type
 
+	if state != null:
+		_stamp_handles(event, intents, state, type)
+
 	return intents
+
+
+## Attaches the stable card handle to every intent that names a card.
+##
+## Resolution is positional: the model has already been updated, so the card this event is about
+## is the one now standing at the event's destination. `handle` is omitted rather than set to 0
+## when nothing resolves — 0 must never read as a real identity.
+func _stamp_handles(event: Dictionary, intents: Array[Dictionary], state: DuelState, type: int) -> void:
+	if type == DuelEnums.EV.DRAW:
+		_stamp_draw_handles(event, intents, state)
+		return
+
+	# Destination first: after apply() the card is at "to" for a move, "at" for an in-place
+	# change. "from" is the fallback for ATTACK and BATTLE, where the attacker is the subject.
+	var info: Dictionary = {}
+	for key: String in ["to", "at", "from"]:
+		var candidate: Variant = event.get(key)
+		if candidate is Dictionary and not (candidate as Dictionary).is_empty():
+			info = candidate
+			break
+	if info.is_empty():
+		return
+
+	var card: DuelCard = state.card_at(
+		_as_int(info.get("con", 0), 0),
+		_as_int(info.get("loc", 0), 0),
+		_as_int(info.get("seq", 0), 0))
+	if card == null or card.handle == 0:
+		return
+
+	for intent: Dictionary in intents:
+		if intent.has("card_id"):
+			intent["handle"] = card.handle
+
+
+## A draw moves several cards at once and produces one intent per card, in order.
+##
+## The drawn cards are the last `count` entries of the hand, because `DuelState` appends them in
+## the order the engine listed them. Zipping the two is exact; there is nothing to guess here.
+func _stamp_draw_handles(event: Dictionary, intents: Array[Dictionary], state: DuelState) -> void:
+	var drawn: int = _as_int(event.get("count", 0), 0)
+	if drawn <= 0:
+		return
+	var hand: Array = state.pile_for(_as_int(event.get("player", 0), 0), DuelEnums.LOCATION.HAND)
+	if hand.size() < drawn:
+		return
+
+	var first: int = hand.size() - drawn
+	var index: int = 0
+	for intent: Dictionary in intents:
+		if not intent.has("card_id"):
+			continue
+		if index >= drawn:
+			break
+		var card: DuelCard = hand[first + index] as DuelCard
+		if card != null and card.handle != 0:
+			intent["handle"] = card.handle
+		index += 1
 
 
 # ----------------------------------------------------------------------------------------------
