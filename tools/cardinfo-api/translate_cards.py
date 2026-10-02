@@ -90,7 +90,8 @@ def translate_with_fallbacks(text, target_lang):
         for attempt in range(2):
             try:
                 time.sleep(2)  # Delay to respect rate limits
-                return Engine(source='en', target=engine_target).translate(text)
+                engine_source = get_engine_target_lang(engine_name, 'en')
+                return Engine(source=engine_source, target=engine_target).translate(text)
             except Exception as e:
                 print(f"    [{engine_name} attempt {attempt+1}/2] error: {e}")
                 
