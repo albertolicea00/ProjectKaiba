@@ -54,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd data-scripts bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -183,3 +183,16 @@ duel-real:
 	@$(GODOT) --headless --path $(GAME_DIR) --script res://scenes/duel_real.gd 2>&1 | tee /tmp/kaiba_real.log
 	@grep -q "all checks passed" /tmp/kaiba_real.log \
 		|| (echo "FAIL: real-data duel did not complete"; exit 1)
+
+# Fetches the ProjectIgnis card script collection into data/base/script as a git working copy,
+# so refreshing it later is a plain `git -C data/base/script pull`. Roughly 115 MB.
+# Must be ProjectIgnis, not Fluorohydride: those target the older core and use a different
+# Lua API (docs/DATA.md).
+CARDSCRIPTS_URL := https://github.com/ProjectIgnis/CardScripts.git
+
+data-scripts:
+	@test ! -d data/base/script/.git || (echo "already present; updating"; git -C data/base/script pull --ff-only; exit 0)
+	@test ! -e data/base/script || (echo "data/base/script exists but is not a git clone; move it aside first"; exit 1)
+	@mkdir -p data/base
+	git clone --depth 1 $(CARDSCRIPTS_URL) data/base/script
+	@$(MAKE) doctor | grep "card scripts"
