@@ -54,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd data-scripts bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors data-scripts bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -196,3 +196,12 @@ data-scripts:
 	@mkdir -p data/base
 	git clone --depth 1 $(CARDSCRIPTS_URL) data/base/script
 	@$(MAKE) doctor | grep "card scripts"
+
+# Selector coverage: forces the prompts a vanilla duel never produces (tribute summon, deck
+# search, ritual sum). Needs both cards.cdb and the script collection (docs/DATA.md).
+test-selectors:
+	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb missing, see docs/DATA.md"; exit 1)
+	@test -d data/base/script/official || (echo "SKIP: card scripts missing, run make data-scripts"; exit 1)
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) --script res://scenes/duel_selectors.gd 2>&1 | tee /tmp/kaiba_sel.log
+	@grep -q "all checks passed" /tmp/kaiba_sel.log || (echo "FAIL: selector coverage"; exit 1)
