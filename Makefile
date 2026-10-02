@@ -168,7 +168,8 @@ smoke: host
 # --script: it needs _process to pump poll_event().
 duel: host
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
-	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/headless_duel.tscn
+	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/headless_duel.tscn 2>&1 | tee /tmp/kaiba_duel.log
+	@grep -q "final board" /tmp/kaiba_duel.log || (echo "FAIL: driver did not reach a final board"; exit 1)
 
 # GDScript test suite for the L3 model and the event translator.
 test-gd:
