@@ -248,7 +248,7 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 	var to_anchor: String = str(intent["to_anchor"])
 	var card_id: int = int(intent.get("card_id", 0))
 
-	var view: CardView = _claim(from_anchor, card_id, str(intent.get("from_face", "")))
+	var view: CardView = _claim(from_anchor, card_id, str(intent.get("from_face", "")), int(intent.get("handle", 0)))
 	if view == null:
 		return
 
@@ -279,7 +279,7 @@ func _build_in_place(intent: Dictionary, entry: Dictionary, duration: float) -> 
 	var anchor: String = str(intent["anchor"])
 	var card_id: int = int(intent.get("card_id", 0))
 
-	var view: CardView = _claim(anchor, card_id, str(intent.get("from_face", "")))
+	var view: CardView = _claim(anchor, card_id, str(intent.get("from_face", "")), int(intent.get("handle", 0)))
 	if view == null:
 		return
 	if card_id != 0:
@@ -348,14 +348,24 @@ func _build_battle(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 ## Takes the card at an anchor out of the board's occupancy so it can be flown somewhere, or
 ## conjures one if the board does not have it. Conjuring is normal, not a failure: the first
 ## thing a duel does is draw five cards out of a deck nothing has rendered yet.
-func _claim(anchor: String, card_id: int, face: String) -> CardView:
-	var view: CardView = _board.take_view(anchor)
+## Takes the view that should move.
+##
+## Prefers the intent's `handle`, which names one physical card exactly. Falls back to the top
+## of the anchor's pile when no handle is available - correct for piles, a guess for a hand.
+func _claim(anchor: String, card_id: int, face: String, handle: int = 0) -> CardView:
+	var view: CardView = _board.take_view_by_handle(handle)
 	if view != null:
+		return view
+
+	view = _board.take_view(anchor)
+	if view != null:
+		view.handle = handle
 		return view
 
 	view = _board.card_pool().acquire()
 	if view == null:
 		return null
+	view.handle = handle
 	view.set_card_id(card_id)
 	_board.apply_face(view, face)
 	view.global_transform = _board.rest_transform(anchor, 0, 1, view)

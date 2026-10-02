@@ -402,7 +402,8 @@ func _handle(event: Dictionary) -> void:
 	_state.apply(event)
 
 	# Then Level 2, which is lossy, enriched and never stored (V9).
-	var intents: Array[Dictionary] = _translator.translate(event)
+	# After apply(), so the translator resolves handles from the card's destination.
+	var intents: Array[Dictionary] = _translator.translate(event, _state)
 	if not intents.is_empty():
 		_intent_count += intents.size()
 		_director.enqueue(intents)

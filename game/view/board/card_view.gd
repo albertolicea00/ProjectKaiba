@@ -60,6 +60,13 @@ const BACK_COLOUR: Color = Color(0.42, 0.26, 0.14)
 const UNKNOWN_COLOUR: Color = Color(0.55, 0.55, 0.58)
 
 ## Passcode of the card currently shown. `0` means "not revealed to this viewer".
+## Stable identity of the card this view is currently showing, minted by `DuelState` and
+## carried on the intent. `0` means "not bound to a model card".
+##
+## This is what makes one card followable: `card_id` cannot do it, because two copies in a
+## hand share it and a face-down card reports 0.
+var handle: int = 0
+
 var card_id: int = 0
 
 ## False means the back is up.

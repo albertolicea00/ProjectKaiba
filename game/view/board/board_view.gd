@@ -256,6 +256,26 @@ func take_view(anchor: String) -> CardView:
 	return view
 
 
+## Detaches the view showing a specific model card, wherever it is parked.
+##
+## This is the precise counterpart to `take_view()`, which can only take the top of a pile.
+## Moving the third card out of a hand animates the third card, not whatever happened to be
+## on top. Returns `null` when no view is bound to that handle, which is the normal case for
+## a card that has not been rendered yet.
+func take_view_by_handle(handle: int) -> CardView:
+	if handle == 0:
+		return null
+	for key: Variant in _occupants.keys():
+		var stack: Array = _occupants[key] as Array
+		for index: int in stack.size():
+			var view: CardView = stack[index] as CardView
+			if view != null and view.handle == handle:
+				stack.remove_at(index)
+				_reflow(str(key))
+				return view
+	return null
+
+
 ## Parks a card at an anchor and snaps it to the right slot.
 func place_view(view: CardView, anchor: String) -> void:
 	if view == null:
@@ -354,6 +374,7 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	if view == null:
 		return
 	view.set_card_id(card.code if card.is_face_up() else 0)
+	view.handle = card.handle
 	view.set_orientation(card.is_face_up(), card.is_defense())
 	place_view(view, anchor)
 
@@ -382,6 +403,7 @@ func _sync_hand(cards: Array, player: int) -> void:
 			return
 		var revealed: bool = player == viewer_player and card.code != 0
 		view.set_card_id(card.code if revealed else 0)
+		view.handle = card.handle
 		view.set_orientation(revealed, false)
 		place_view(view, anchor)
 
@@ -397,6 +419,7 @@ func _sync_pile(cards: Array, anchor: String, limit: int, face_up: bool) -> void
 		if view == null:
 			return
 		view.set_card_id(card.code if face_up else 0)
+		view.handle = card.handle
 		view.set_orientation(face_up, false)
 		place_view(view, anchor)
 
