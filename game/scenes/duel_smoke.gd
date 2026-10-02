@@ -30,6 +30,10 @@ func _init() -> void:
 		"draw_count": 1,
 		"deck_p0": deck,
 		"deck_p1": deck,
+		# No script collection is installed for this test, so skip the library preload that a
+		# real duel requires. Everything below still exercises DuelThread and MsgParser; only
+		# card effects are absent, and this deck has none to begin with.
+		"init_scripts": PackedStringArray(),
 	})
 
 	if not result["ok"]:
