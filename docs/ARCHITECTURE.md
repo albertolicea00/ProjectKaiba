@@ -242,6 +242,20 @@ Duel.tscn                      ← the scene that matters
 
 Never sync BoardView against the core. If the user skips animations, BoardView snaps to DuelState. This is what lets you have Duel-Links-tier animation without ever stalling the duel clock.
 
+### Which seat is "mine" is not board state
+
+`DuelState` holds `turn_player` but never "the local player". A board does not know who is
+looking at it, and giving it a seat would be the same mistake as baking a viewer's perspective
+into the Level-1 event stream — which we explicitly refused (see the player-coordinate note in
+`native/src/duel_event.h`).
+
+The reason is the same in both places: a replay must be watchable from either side, and a
+spectator has no seat at all. A model that committed to one viewer could not serve either.
+
+So the seat lives in the viewing layer. `DuelHud.local_player` carries it today; when
+networking lands, `ClientService` sets it from the seat the host assigned. Nothing in the model
+changes, which is the point.
+
 ### Visibility / anti-cheat
 
 **V7**: hidden-information filtering happens in `HostService`, before the transport. Never in the client.
