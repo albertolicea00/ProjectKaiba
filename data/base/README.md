@@ -21,6 +21,8 @@ Since these assets cannot be bundled with the repository, here is where you can 
 *   **Spanish (Community):** Translated by the Hispanic community.
     *   *Repository:* [ryoken08/CDBEsp](https://github.com/ryoken08/CDBEsp)
     *   *Direct link:* `https://raw.githubusercontent.com/ryoken08/CDBEsp/master/cards.cdb`
+*   **Japanese / OCG (Community):**
+    *   Since the Asian YGOPro community does not maintain a permanent central GitHub repository for databases, there is no direct download link. To obtain the Japanese database (`cards.ja.cdb`), search the web for **"YGOPro ADS 日本語"** (the Japanese equivalent of EDOPro), download the client, and extract the `cards.cdb` file from its installation folder.
 
 ### 2. Card Artwork (`pics/`)
 To download the images (which take up gigabytes of space), do not commit them. Instead, use the built-in downloader script provided in this repository which fetches them automatically from the public YGOPRODeck API:
