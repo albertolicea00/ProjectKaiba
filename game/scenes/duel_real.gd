@@ -13,12 +13,22 @@ extends SceneTree
 
 const CORE_CLASS: String = "KaibaCore"
 const CDB_PATH: String = "res://../data/base/cards.cdb"
-const SCRIPT_ROOT: String = "res://../data/base/script"
+## Searched in order. The library scripts (constant.lua, utility.lua, proc_*.lua) sit at the
+## repository root; card scripts live in the three collection folders below it.
+const SCRIPT_ROOTS: Array[String] = [
+	"res://../data/base/script",
+	"res://../data/base/script/official",
+	"res://../data/base/script/unofficial",
+	"res://../data/base/script/pre-release",
+]
 
 ## Level 4 vanilla beaters: summonable with no tribute and no effects to misfire.
 const BEATERS: Array[int] = [11091375, 14898066, 33256280, 35052053]
 ## Level 8 vanilla, needs two tributes. Present so the deck is not uniform.
 const BIG: int = 89631139
+## Pot of Greed. A scripted card on purpose: if the Lua collection is missing or the library
+## scripts never loaded, it simply never appears as activatable and the check below fails.
+const POT_OF_GREED: int = 55144522
 
 const DECK_SIZE: int = 40
 const POLL_BUDGET: int = 4000
@@ -27,6 +37,8 @@ var _core: Object = null
 var _pending: Dictionary = {}
 var _has_summoned: bool = false
 var _attacked: bool = false
+var _activated_pot: bool = false
+var _effect_draw: int = 0
 var _failures: PackedStringArray = PackedStringArray()
 
 
@@ -43,11 +55,17 @@ func _init() -> void:
 		quit(1)
 		return
 	print("[real] card database loaded: %d cards" % loaded["count"])
-	_core.add_script_root(SCRIPT_ROOT)
+	for root: String in SCRIPT_ROOTS:
+		_core.add_script_root(root)
 
 	var deck: PackedInt32Array = PackedInt32Array()
 	for i in DECK_SIZE:
-		deck.append(BIG if i % 10 == 0 else BEATERS[i % BEATERS.size()])
+		if i % 10 == 0:
+			deck.append(BIG)
+		elif i % 5 == 0:
+			deck.append(POT_OF_GREED)
+		else:
+			deck.append(BEATERS[i % BEATERS.size()])
 
 	var started: Dictionary = _core.start_duel({
 		"start_lp": 8000, "start_hand": 5, "draw_count": 1,
@@ -79,6 +97,14 @@ func _plan(event_type: int, event: Dictionary) -> Dictionary:
 			return {"cancel": true}
 
 		DuelEnums.EV.SELECT_IDLECMD:
+			# Activating a scripted card is the real proof that the Lua collection loaded.
+			var activate: Array = event.get("activate", [])
+			if not _activated_pot:
+				_expect(activate.size() > 0,
+					"a scripted card in hand is activatable, so card scripts ran (got %d)" % activate.size())
+				if activate.size() > 0:
+					_activated_pot = true
+					return {"cmd": "activate", "index": 0}
 			if not _has_summoned:
 				var summon: Array = event.get("summon", [])
 				_expect(summon.size() > 0, "a level 4 vanilla in hand is summonable (got %d)" % summon.size())
@@ -91,7 +117,7 @@ func _plan(event_type: int, event: Dictionary) -> Dictionary:
 			return {"cmd": "to_ep"}
 
 		DuelEnums.EV.SELECT_PLACE:
-			return {"places": [{"con": 0, "loc": DuelEnums.LOCATION.MZONE, "seq": 2}], "count": 1}
+			return _pick_place(event)
 
 		DuelEnums.EV.SELECT_POSITION:
 			return {"position": 0x1} # face-up attack
@@ -107,6 +133,26 @@ func _plan(event_type: int, event: Dictionary) -> Dictionary:
 			return {"answer": 0}
 
 	_fail("no plan for selection type %d" % event_type)
+	return {}
+
+
+## Picks the first legal zone out of the request's own mask.
+##
+## Hardcoding a monster zone is what the first version did, and it fails the moment the
+## selection is for a spell: the engine answers MSG_RETRY and, because a retry does not
+## re-send the selection, the duel looks hung. See AGENTS.md section 8b trap 9 for the layout.
+func _pick_place(event: Dictionary) -> Dictionary:
+	var flag: int = int(event.get("flag", 0))
+	var me: int = int(event.get("player", 0))
+
+	for seq: int in range(7):
+		if (flag & (1 << seq)) == 0:
+			return {"places": [{"con": me, "loc": DuelEnums.LOCATION.MZONE, "seq": seq}], "count": 1}
+	for seq: int in range(8):
+		if (flag & (1 << (8 + seq))) == 0:
+			return {"places": [{"con": me, "loc": DuelEnums.LOCATION.SZONE, "seq": seq}], "count": 1}
+
+	_fail("SELECT_PLACE offered no free zone on our side (flag 0x%x)" % flag)
 	return {}
 
 
@@ -137,6 +183,10 @@ func _run() -> void:
 				print("[real] SUMMONED")
 			DuelEnums.EV.ATTACK:
 				print("[real] ATTACK direct=%s" % str(event.get("direct", false)))
+			DuelEnums.EV.DRAW:
+				if _activated_pot and _effect_draw == 0 and int(event["player"]) == 0:
+					_effect_draw = int(event["count"])
+					print("[real] DRAW from a card effect: %d cards" % _effect_draw)
 			DuelEnums.EV.DAMAGE:
 				damage_dealt = int(event["amount"])
 				print("[real] DAMAGE player %d takes %d" % [int(event["player"]), damage_dealt])
@@ -161,6 +211,8 @@ func _run() -> void:
 		if _attacked and damage_dealt > 0:
 			break
 
+	_expect(_activated_pot, "a scripted card was offered and activated")
+	_expect(_effect_draw == 2, "the activated effect drew exactly 2 (got %d)" % _effect_draw)
 	_expect(_has_summoned, "the idle prompt offered a normal summon")
 	_expect(summoned_code != 0, "a monster reached the monster zone")
 	_expect(damage_dealt == 1900, "a direct attack by a 1900 ATK beater dealt 1900 (got %d)" % damage_dealt)
