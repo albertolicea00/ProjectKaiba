@@ -200,6 +200,13 @@ read a raw packet.
 - When touching `native/vendor/ocgcore`, record the new pinned SHA in `CHANGELOG.md`. A core bump can
   break replay determinism (ARCHITECTURE.md R5). `tools/replay_verify.py` does not exist yet — it
   arrives with replays in Phase 3. Until then, bump the core only deliberately.
+- **A new or moved `class_name` needs a reimport before anything referencing it will compile.**
+  Godot resolves global script classes through `.godot/global_script_class_cache.cfg`, which is
+  only rebuilt on a filesystem scan. Adding `game/view/fx/fx_layer.gd` or moving
+  `scene_router.gd` both produced `Could not find type "X" in the current scope` from files that
+  were perfectly correct. Run `godot --headless --path game --import` (or `make bootstrap-import`)
+  after either. The failure looks like a mistake in the *referencing* file, which is why it has
+  cost time twice.
 - Do not commit anything under `data/`. Card data and art are copyrighted.
 - Do not turn the card script collection into a submodule. It is fetched by `make data-scripts`
   and gitignored on purpose; pinning it breaks Principle 2 (new cards must work as soon as their
