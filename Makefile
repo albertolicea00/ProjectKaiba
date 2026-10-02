@@ -36,7 +36,7 @@ NDK_VERSION ?= 28.2.13676358
 SCONS_COMMON  := -C $(NATIVE_DIR) -j$(JOBS) target=$(TARGET) disable_exceptions=no
 SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel test-gd bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -134,3 +134,15 @@ smoke: host
 	@grep -q "duel ended cleanly" /tmp/kaiba_smoke.log \
 		|| (echo "FAIL: duel thread did not shut down"; exit 1)
 	@echo "Phase 1 verified: ocgcore duel runs on its own thread and parses into DuelEvents."
+
+# Phase 1 console driver: runs a real duel and prints the board after every event, so the
+# L1 -> L3 pipeline can be read rather than inferred from a packet dump. It is a scene, not a
+# --script: it needs _process to pump poll_event().
+duel: host
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/headless_duel.tscn
+
+# GDScript test suite for the L3 model and the event translator.
+test-gd:
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) --script res://core/duel/duel_state_test.gd
