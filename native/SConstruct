@@ -2,11 +2,12 @@
 """Project Kaiba - native build.
 
 Produces ../game/bin/libkaiba_core.<platform>.<target>.<arch>.<ext>: a GDExtension that
-statically links ocgcore (the EDOPro rules engine) and Lua 5.4.
+statically links ocgcore (the EDOPro rules engine), Lua 5.4 and SQLite.
 
     scons platform=macos   target=template_debug arch=arm64
     scons platform=android target=template_debug arch=arm64
     scons platform=macos   target=template_debug arch=arm64 selftest=yes
+    scons platform=macos   target=template_debug arch=arm64 datatest=yes
 
 Compiler flags here are not arbitrary. Read AGENTS.md section 8 before changing any of them.
 """
@@ -21,12 +22,14 @@ ARGUMENTS.setdefault("disable_exceptions", "no")
 # Consumed here, not by godot-cpp. Popping it keeps godot-cpp from warning about an unknown
 # variable when the standalone probe is requested.
 BUILD_SELFTEST = ARGUMENTS.pop("selftest", "no") == "yes"
+BUILD_DATATEST = ARGUMENTS.pop("datatest", "no") == "yes"
 
 env = SConscript("godot-cpp/SConstruct")
 
 OCGCORE_DIR = "vendor/ocgcore"
 LUA_DIR = os.path.join(OCGCORE_DIR, "lua")
 LUA_SRC_DIR = os.path.join(LUA_DIR, "src")
+SQLITE_DIR = "vendor/sqlite3"
 
 # --------------------------------------------------------------------------------------
 # Preconditions
@@ -37,6 +40,14 @@ if not os.path.isfile(os.path.join(OCGCORE_DIR, "ocgapi.h")):
 
 if not os.path.isfile(os.path.join(LUA_SRC_DIR, "lua.h")):
     raise SystemExit("Lua submodule (inside ocgcore) is missing or empty. Run: make deps")
+
+# SQLite is vendored, not a submodule: two public-domain files, no build system of its own.
+# `make deps` cannot restore them, so point at the right fix.
+if not os.path.isfile(os.path.join(SQLITE_DIR, "sqlite3.c")):
+    raise SystemExit(
+        "SQLite amalgamation is missing from %s. Re-download it from https://sqlite.org/ "
+        "and keep %s/VERSION in sync." % (SQLITE_DIR, SQLITE_DIR)
+    )
 
 if env.get("disable_exceptions", False):
     raise SystemExit("ocgcore requires C++ exceptions. Build with disable_exceptions=no.")
@@ -159,17 +170,53 @@ if not ocg_sources:
 ocg_objects = build_objects(ocg_env, ocg_sources, "ocgcore", ocg_per_file)
 
 # --------------------------------------------------------------------------------------
+# SQLite - compiled as C, unlike Lua
+# --------------------------------------------------------------------------------------
+#
+# Lua is forced through the C++ compiler because ocgcore unwinds through it (AGENTS.md 8.1).
+# SQLite has no such constraint: CardDB closes the database handle before any duel exists, so
+# no SQLite frame is ever on the stack when ocgcore throws. Building it as C is also what
+# upstream tests, and it keeps the amalgamation free of C++ name mangling.
+#
+# The defines trim the build rather than tune it:
+#   SQLITE_OMIT_LOAD_EXTENSION  no dlopen(). A cdb is untrusted content; loading native code
+#                               from one would be a remote code execution path.
+#   SQLITE_THREADSAFE=1         serialised. CardDB::open may run off the main thread.
+#   SQLITE_DEFAULT_MEMSTATUS=0  drops the global allocation counters we never read.
+#   SQLITE_OMIT_DEPRECATED      removes the legacy API surface.
+#   SQLITE_DQS=0                double-quoted strings are identifiers only, never string
+#                               literals. A typo in a column name then fails loudly instead
+#                               of silently evaluating to its own text.
+
+sqlite_env = env.Clone()
+# godot-cpp leaves CC pointing at the C compiler; unlike lua_env we deliberately do not
+# repoint it at CXX.
+sqlite_env.Append(
+    CPPDEFINES=[
+        "SQLITE_OMIT_LOAD_EXTENSION",
+        ("SQLITE_THREADSAFE", 1),
+        ("SQLITE_DEFAULT_MEMSTATUS", 0),
+        "SQLITE_OMIT_DEPRECATED",
+        ("SQLITE_DQS", 0),
+    ]
+)
+sqlite_env.Append(CFLAGS=["-Wno-unused-parameter", "-Wno-implicit-fallthrough"])
+
+sqlite_objects = build_objects(sqlite_env, [os.path.join(SQLITE_DIR, "sqlite3.c")], "sqlite")
+
+# --------------------------------------------------------------------------------------
 # Project Kaiba sources
 # --------------------------------------------------------------------------------------
 
 kaiba_env = env.Clone()
 kaiba_env.Append(CXXFLAGS=["-fexceptions"])
+kaiba_env.Append(CPPPATH=[SQLITE_DIR])
 kaiba_sources = sorted(str(source) for source in Glob("src/*.cpp"))
 kaiba_objects = build_objects(kaiba_env, kaiba_sources, "kaiba")
 
 library = env.SharedLibrary(
     target=os.path.join("..", "game", "bin", "libkaiba_core%s%s" % (env["suffix"], env["SHLIBSUFFIX"])),
-    source=kaiba_objects + ocg_objects + lua_objects,
+    source=kaiba_objects + ocg_objects + lua_objects + sqlite_objects,
 )
 Default(library)
 
@@ -196,3 +243,38 @@ if BUILD_SELFTEST:
         source=selftest_objects + ocg_objects + lua_objects,
     )
     Default(selftest)
+
+# --------------------------------------------------------------------------------------
+# Optional: standalone data-layer test
+# --------------------------------------------------------------------------------------
+#
+# Builds a synthetic cdb and a temporary script tree at runtime and checks CardDB's packed
+# column decoding and ScriptVFS's resolution against them. No Godot, and no real card data:
+# everything it needs it writes itself into a temp directory and deletes afterwards.
+#
+#   scons platform=macos target=template_debug arch=arm64 datatest=yes
+#   ./build/macos.template_debug.arm64/kaiba_data_test
+
+if BUILD_DATATEST:
+    if env["platform"] == "android":
+        raise SystemExit("datatest=yes builds a host executable; drop platform=android.")
+    datatest_env = env.Clone()
+    datatest_env["LIBS"] = []
+    datatest_env.Append(CXXFLAGS=["-fexceptions"])
+    datatest_env.Append(CPPPATH=[SQLITE_DIR])
+    if env["platform"] != "windows":
+        datatest_env.Append(LIBS=["m"])
+    if env["platform"] == "linux":
+        # SQLITE_THREADSAFE=1 pulls in pthreads, which glibc does not fold into libc for
+        # older toolchains. macOS has them in libSystem.
+        datatest_env.Append(LIBS=["pthread"])
+    datatest_objects = build_objects(
+        datatest_env,
+        ["tools/card_data_test_main.cpp", "src/card_db.cpp", "src/script_vfs.cpp"],
+        "datatest",
+    )
+    datatest = datatest_env.Program(
+        target=os.path.join(OBJ_ROOT, "kaiba_data_test"),
+        source=datatest_objects + sqlite_objects + ocg_objects + lua_objects,
+    )
+    Default(datatest)
