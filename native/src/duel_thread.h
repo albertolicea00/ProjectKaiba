@@ -1,6 +1,7 @@
 #ifndef KAIBA_DUEL_THREAD_H
 #define KAIBA_DUEL_THREAD_H
 
+#include "msg_parser.h"
 #include "spsc_queue.h"
 
 #include <atomic>
@@ -20,6 +21,24 @@ namespace kaiba {
 
 class CardDB;
 class ScriptVFS;
+
+/// Events the duel worker synthesises itself, which correspond to no ocgcore opcode.
+///
+/// duel_event.h reserves "t" values at or above 1000 for exactly this. 1000-1099 is the
+/// DuelThread lifecycle band; a parser-side synthetic event must pick a different one.
+/// They share the integer "t" key with every parsed event, and additionally carry
+/// `"src": "core"` so an adapter can filter them without knowing the EV table.
+enum class LifecycleEvent : int32_t {
+	/// The duel exists, both decks are loaded and OCG_StartDuel has been called.
+	DUEL_STARTED = 1000,
+	/// OCG_DuelProcess returned OCG_DUEL_STATUS_END. The worker is about to exit.
+	DUEL_ENDED = 1001,
+	/// Setup or teardown failed. Carries "stage" and "detail".
+	CORE_ERROR = 1002,
+	/// Passthrough of ocgcore's logHandler. Carries "level" (an OCG_LogTypes value) and
+	/// "message". An OCG_LOG_TYPE_ERROR here means a broken card script.
+	CORE_LOG = 1003,
+};
 
 /// Everything OCG_CreateDuel needs, plus the two decklists used to populate the duel.
 ///
