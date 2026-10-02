@@ -37,7 +37,10 @@ game/bin/*
 # ---------------------------------------------------------------------------
 # Game data - never commit. Card data and artwork are copyrighted (see DISCLAIMER.md).
 # ---------------------------------------------------------------------------
-data/
+# Ignore the actual assets inside data/, but keep the folder structure
+data/**/*.jpg
+data/**/*.png
+data/**/*.lua
 *.cdb
 *.pck
 *.ydk
