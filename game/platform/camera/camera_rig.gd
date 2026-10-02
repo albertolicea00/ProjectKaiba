@@ -98,6 +98,27 @@ func _ensure_camera() -> void:
 
 ## Places the eye on a circle around `focus` at `elevation` degrees, looking back at it. Virtual
 ## so a rig that does not own its transform - `RigVR` - can make this a no-op.
+## Cue kinds a rig may choose to react to. Advisory only - see `cue()`.
+const CUE_SUMMON: String = "SUMMON"
+const CUE_ATTACK: String = "ATTACK"
+const CUE_DAMAGE: String = "DAMAGE"
+const CUE_SETTLE: String = "SETTLE"
+
+
+## Tells the rig that something interesting is happening at a point on the table.
+##
+## **This is a suggestion, not an instruction, and the distinction is load-bearing.** The base
+## rig ignores every cue and holds still. `RigMobile` leans toward the action. `RigVR` must keep
+## ignoring them: moving a camera that a person's head is not moving is the textbook way to
+## induce motion sickness, so the one thing a VR rig may never do is accept a framing command
+## from the game.
+##
+## That is why `AnimationDirector` emits cues rather than calling `look_at` on a camera. The
+## director knows a monster was summoned; only the rig knows whether moving is safe.
+func cue(_kind: String, _world_position: Vector3) -> void:
+	pass
+
+
 func _apply() -> void:
 	if _camera == null:
 		return
