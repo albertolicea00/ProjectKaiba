@@ -88,6 +88,12 @@ const MAX_INTENTS_PER_SELECTION: int = 16
 @onready var _touch: TouchSource = $InputLayer/TouchSource
 @onready var _mouse: MouseSource = $InputLayer/MouseSource
 
+## Instantiated rather than placed in the .tscn so the duel scene keeps working headless and so
+## the VR port can swap this one layer for world-space quads without editing the scene file
+## (ARCHITECTURE.md section 10 rule 4).
+const HUD_SCENE: PackedScene = preload("res://ui/hud/duel_hud.tscn")
+var _hud: DuelHud = null
+
 var _core: Object = null
 var _state: DuelState = DuelState.new()
 var _translator: EventTranslator = EventTranslator.new()
@@ -134,6 +140,10 @@ func _ready() -> void:
 	_selection = SelectionController.new(_state)
 
 	_rig.activate()
+	_hud = HUD_SCENE.instantiate() as DuelHud
+	add_child(_hud)
+	_hud.bind(_state)
+
 	_director.bind(_board)
 	# Advisory only: the director suggests a framing, the rig decides whether to take it. A VR
 	# rig ignores every cue, because moving a camera a person's head is not moving is how you
@@ -156,6 +166,10 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if _hud != null:
+		_hud.refresh()
+		_hud.set_prompt(_selection.pending_prompt() if _selection != null else "")
+
 	_frames += 1
 	if _frames > MAX_FRAMES:
 		_stop("frame budget exhausted")
