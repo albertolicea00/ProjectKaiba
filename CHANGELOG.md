@@ -67,6 +67,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `game/core/duel/` — `duel_enums.gd`, `duel_card.gd`, `duel_state.gd`.
 - `game/scenes/duel_smoke.gd` and `make smoke` — Phase 1 regression test.
 
+### Added (Phase 2 — visual layer)
+- `game/view/board/` — `BoardView`, `CardView`, `CardPool`. The table is 1.20 m x 0.75 m and
+  cards 8.6 x 5.9 cm in Godot units, so the later VR port is not an art redo (ARCHITECTURE.md
+  section 10 rule 1). Player 1's half is derived by a 180 degree rotation about the table
+  centre rather than written twice.
+- `game/view/anim/animation_director.gd` — consumes Level-2 `VisualIntent` with a single
+  barrier: a blocking intent stops the queue until its own tween finishes, non-blocking ones
+  overlap. A five-card draw therefore plays as one beat.
+- `game/platform/camera/` — `CameraRig` plus `RigMobile`. `duel_3d.tscn` holds no direct
+  `Camera3D`; the rig is a swappable child.
+- `game/scenes/duel_3d.{gd,tscn}` — a real duel rendered on the 3D board, with 21 self-checks.
+- `make test-selectors` — forces the prompts a vanilla duel never produces.
+
+### Fixed
+- `MSG_SELECT_TRIBUTE` decoded as `MALFORMED`. It shares a five-field prefix with
+  `MSG_SELECT_CARD` but not a card entry: `SELECT_CARD` writes a packed `loc_info`,
+  `SELECT_TRIBUTE` writes a loose controller/location/sequence triple plus a `release_param`
+  byte. Reading it as a `loc_info` overran by four bytes per card.
+- `MSG_SELECT_SUM` implemented. Reached in practice only through ritual summons:
+  `proc_ritual.lua` is the sole caller of `Group.SelectWithSumEqual` in the whole collection.
+- `make duel` could not start a duel once the script collection was installed: the driver
+  neither registered script roots nor opted out of the library preload. The target now asserts
+  that it reaches a final board, so it cannot rot unnoticed again.
+- Intents with nothing to animate (`TURN_START`, `LP_CHANGE`, `PHASE_CHANGE`) had no tween and
+  settled in their starting frame, so a blocking one released the barrier instantly.
+
 ### Verified
 - `make smoke` drives a real ocgcore duel on its own thread with synthetic decks and no card
   database. The opening sequence parses correctly: two `MSG_DRAW` of five cards, `MSG_NEW_TURN`,
