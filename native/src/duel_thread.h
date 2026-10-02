@@ -171,7 +171,7 @@ private:
 	bool dispatch_messages(uint8_t *buffer, uint32_t length);
 	bool wait_for_response(std::vector<uint8_t> &out);
 	bool emit(const godot::Dictionary &event);
-	void emit_lifecycle(const char *type);
+	void emit_lifecycle(LifecycleEvent type);
 	void emit_error(const char *stage, const std::string &detail);
 	static void log_handler(void *payload, const char *message, int type);
 
@@ -186,6 +186,8 @@ private:
 	// --- shared ----------------------------------------------------------------------
 	DuelConfig config_;
 	std::thread worker_;
+	/// Owned by the worker thread, like the OCG_Duel handle itself (V8).
+	MsgParser parser_;
 	SpscQueue<godot::Dictionary, EVENT_QUEUE_CAPACITY> events_;
 	std::atomic<bool> duel_live_{ false };
 
