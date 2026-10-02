@@ -123,6 +123,12 @@ var defense: bool = false
 ## built once and never touched again.
 var _front_material: StandardMaterial3D = null
 
+## Kept only so `set_opacity()` can reach it. Its colour is still never changed.
+var _back_material: StandardMaterial3D = null
+
+## 0 is invisible, 1 is the normal state. See `set_opacity()`.
+var _opacity: float = 1.0
+
 ## The raycast target. See the Picking note above.
 var _pick_area: Area3D = null
 
@@ -153,8 +159,8 @@ func _init() -> void:
 	_build()
 	# `CardPool` acquires and releases cards by toggling `visible`, and it is not this node's
 	# business to know that. Following the signal instead means any owner that hides a card
-	# gets the collider turned off for free.
-	visibility_changed.connect(_refresh_pickable)
+	# gets the collider turned off - and a half-finished fade undone - for free.
+	visibility_changed.connect(_on_visibility_changed)
 
 
 func _ready() -> void:
@@ -164,8 +170,18 @@ func _ready() -> void:
 ## The two rotations a card owns, in the card's own frame. Multiply an anchor's basis by this to
 ## get the card's world basis. See the Orientation note above for why the order is fixed.
 func orientation() -> Basis:
-	var turn: Basis = Basis.from_euler(Vector3(0.0, 0.0, (PI * 0.5) if defense else 0.0))
-	var flip: Basis = Basis.from_euler(Vector3(0.0, 0.0 if face_up else PI, 0.0))
+	return orientation_for(face_up, defense)
+
+
+## The same rotation for a face this card is **not** wearing yet.
+##
+## An animation has to know the pose it is flying towards before it is allowed to put that face
+## on the material: `set_orientation()` does both at once, and calling it early is how a
+## face-down card gets a frame of its own artwork. Asking here costs nothing and changes
+## nothing, which is the whole point.
+static func orientation_for(is_face_up: bool, is_defense: bool) -> Basis:
+	var turn: Basis = Basis.from_euler(Vector3(0.0, 0.0, (PI * 0.5) if is_defense else 0.0))
+	var flip: Basis = Basis.from_euler(Vector3(0.0, 0.0 if is_face_up else PI, 0.0))
 	return turn * flip
 
 
@@ -197,6 +213,28 @@ func set_card_id(value: int) -> void:
 ## it on every visible card every frame is a supported way to use it.
 func refresh_art(art: CardArt) -> void:
 	_apply_front(art)
+
+
+## How solid this card is, 0 to 1. 1 is the normal state.
+##
+## Only destruction uses it: a monster that loses a battle burns out rather than sliding to the
+## graveyard, and a fade is the only part of that which cannot be expressed as a transform.
+##
+## Alpha blending is **off** at full opacity and goes back off the moment the fade ends. A
+## transparent surface on a mobile tiler is drawn in a separate, unsorted pass, and a hundred
+## cards permanently in that pass to serve the one that is currently dying is exactly the kind
+## of cost ARCHITECTURE.md section 9 is about.
+func set_opacity(value: float) -> void:
+	var clamped: float = clampf(value, 0.0, 1.0)
+	if is_equal_approx(clamped, _opacity):
+		return
+	_opacity = clamped
+	_apply_opacity(_front_material)
+	_apply_opacity(_back_material)
+
+
+func opacity() -> float:
+	return _opacity
 
 
 func describe() -> String:
@@ -244,11 +282,26 @@ func _apply_front(art: CardArt) -> void:
 		# Covers the common case of both being null: a face-down card refreshed every frame
 		# writes nothing at all.
 		if texture == null:
-			_front_material.albedo_color = _front_colour()
+			_front_material.albedo_color = _tinted(_front_colour())
 		return
 	_front_texture = texture
 	_front_material.albedo_texture = texture
-	_front_material.albedo_color = Color.WHITE if texture != null else _front_colour()
+	_front_material.albedo_color = _tinted(Color.WHITE if texture != null else _front_colour())
+
+
+## Every albedo write goes through here so a card that is mid-fade cannot have its alpha undone
+## by an unrelated `set_card_id()` or `refresh_art()`.
+func _tinted(colour: Color) -> Color:
+	return Color(colour.r, colour.g, colour.b, _opacity)
+
+
+func _apply_opacity(material: StandardMaterial3D) -> void:
+	if material == null:
+		return
+	material.transparency = (
+		BaseMaterial3D.TRANSPARENCY_DISABLED if _opacity >= 1.0
+		else BaseMaterial3D.TRANSPARENCY_ALPHA)
+	material.albedo_color = _tinted(material.albedo_color)
 
 
 ## The face this card is allowed to show, or `null`.
@@ -277,10 +330,11 @@ func _build() -> void:
 	add_child(front)
 
 	# Turned to face local -Z, so flipping the card 180 degrees about Y is what brings it up.
+	_back_material = _make_material(BACK_COLOUR)
 	var back: MeshInstance3D = MeshInstance3D.new()
 	back.name = "Back"
 	back.mesh = _shared_mesh
-	back.material_override = _make_material(BACK_COLOUR)
+	back.material_override = _back_material
 	back.position = Vector3(0.0, 0.0, -CARD_THICKNESS * 0.5)
 	back.rotation = Vector3(0.0, PI, 0.0)
 	add_child(back)
@@ -313,6 +367,18 @@ func _build_pick_volume() -> void:
 	_pick_area.collision_layer = PICK_LAYER
 	_pick_area.add_child(shape)
 	add_child(_pick_area)
+
+
+## A card going back to the pool must not take a half-finished fade with it.
+##
+## `CardPool.acquire()` resets the transform, the face and the id, which covers everything an
+## animation can leave behind **except** opacity - and the pool has no business knowing that a
+## card can be faded in the first place. Hooking the same signal the collider already follows
+## keeps that knowledge here, where it belongs.
+func _on_visibility_changed() -> void:
+	_refresh_pickable()
+	if not visible:
+		set_opacity(1.0)
 
 
 ## Layer `PICK_LAYER` while the card is on the board, layer 0 - which no query can match - while

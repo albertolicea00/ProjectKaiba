@@ -118,6 +118,12 @@ func skip_all() -> void:
 	_running.clear()
 	_barrier = false
 
+	# Effects outlive the tween that spawned them, so killing tweens is not enough: a skip that
+	# left a shard burst playing would have the board snap to its end state while debris from a
+	# battle nobody watched kept flying.
+	if _fx != null and is_instance_valid(_fx):
+		_fx.clear()
+
 	var pending: Array[Dictionary] = _queue
 	_queue = []
 	for intent: Dictionary in pending:
@@ -305,7 +311,54 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 
 	if duration <= 0.0:
 		return
+
+	var kind: String = str(intent.get("kind", ""))
+	if kind == EventTranslator.KIND_SUMMON and not leaving:
+		entry["tween"] = _build_summon_flight(intent, view, target, duration)
+		return
+
 	entry["tween"] = _arc(view, target, duration)
+
+
+## A monster arriving on the field: rise, turn over at the apex, land with a flash.
+##
+## The flip is a callback at the midpoint rather than a rotation, because `CardView` treats its
+## face as a material swap, not a transform. A card arriving face-down never gets that callback,
+## so a set monster cannot show its face for even one frame.
+func _build_summon_flight(
+		intent: Dictionary, view: CardView, target: Transform3D, duration: float) -> Tween:
+	var flight: CardFlight = CardFlight.between(view, view.global_transform, target)
+	flight.bulge = Vector3(0.0, SUMMON_RISE, 0.0)
+	flight.swell = SUMMON_SWELL
+
+	var face: String = str(intent.get("face", ""))
+	var arrives_face_up: bool = face.begins_with("UP")
+
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_method(flight.apply, 0.0, 0.5, duration * 0.5)
+	if arrives_face_up:
+		tween.tween_callback(func() -> void: _board.apply_face(view, face))
+	tween.tween_method(flight.apply, 0.5, 1.0, duration * 0.5)
+	tween.tween_callback(func() -> void: _flash_at(target, SUMMON_FLASH_RADIUS, SUMMON_FLASH_COLOUR))
+	return tween
+
+
+## The breaking of a monster. Shards plus a ring, both procedural.
+func _shatter_at(seat: Transform3D) -> void:
+	var fx: FxLayer = _ensure_fx()
+	if fx == null:
+		return
+	fx.shards(seat, DESTROY_COLOUR, 0.45)
+	fx.ring(seat, 0.02, 0.11, DESTROY_COLOUR, 0.35)
+
+
+## A ground flash seated at a transform. Silently does nothing when the layer is full or absent,
+## which is the right behaviour for decoration.
+func _flash_at(seat: Transform3D, radius: float, colour: Color) -> void:
+	var fx: FxLayer = _ensure_fx()
+	if fx != null:
+		fx.flash(seat, radius, colour, 0.35)
 
 
 ## A card that stays where it is but changes: SET, SUMMON_ANNOUNCE, POS_CHANGE, FLIP.
@@ -349,12 +402,30 @@ func _build_attack(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 	var toward: Vector3 = _board.anchor_position(to_anchor) - home.origin
 	var lunge: Transform3D = home.translated(toward * attack_lunge + Vector3(0.0, travel_arc, 0.0))
 
+	# Out fast, back slower, with a tilt into the blow. The card leads with its top edge rather
+	# than sliding flat, which is what makes it read as a strike and not a move.
+	var out: CardFlight = CardFlight.between(view, home, lunge)
+	out.bulge = Vector3(0.0, travel_arc * 0.35, 0.0)
+	out.swell = 0.08
+	var back: CardFlight = CardFlight.between(view, lunge, home)
+
 	var tween: Tween = create_tween()
-	tween.tween_property(view, "global_transform", lunge, duration * 0.4)
-	tween.tween_property(view, "global_transform", home, duration * 0.6)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.set_ease(Tween.EASE_OUT)
+	tween.tween_method(out.apply, 0.0, 1.0, duration * 0.35)
+	tween.tween_callback(func() -> void:
+		var fx: FxLayer = _ensure_fx()
+		if fx != null:
+			fx.ring(lunge, 0.01, 0.09, BATTLE_RING_COLOUR, 0.28))
+	tween.tween_method(back.apply, 0.0, 1.0, duration * 0.65)
+
 	entry["tween"] = tween
+	# Asking the board to re-seat the card is not the same as restoring `home`. A reconciliation
+	# during the lunge can have moved where this card belongs; `place_view` reflows the whole
+	# anchor, so the card lands where it actually lives now rather than where it set off from.
 	entry["finish"] = func() -> void:
 		view.global_transform = home
+		_board.place_view(view, from_anchor)
 
 
 ## Damage calculation. Both combatants shudder; destruction is a separate intent.
@@ -368,6 +439,16 @@ func _build_battle(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 	var tween: Tween = create_tween()
 	tween.tween_property(view, "global_transform", shove, duration * 0.25)
 	tween.tween_property(view, "global_transform", home, duration * 0.25)
+
+	# A destroyed monster bursts rather than sliding away. The card itself still travels to the
+	# graveyard on its own MOVE intent; this is the moment of breaking, not the journey.
+	if bool(intent.get("from_destroyed", false)):
+		tween.tween_callback(func() -> void: _shatter_at(home))
+	if bool(intent.get("to_destroyed", false)):
+		var defender: String = str(intent.get("to_anchor", ""))
+		if defender != "":
+			var seat: Transform3D = _board.anchor_transform(defender)
+			tween.tween_callback(func() -> void: _shatter_at(seat))
 	tween.tween_property(view, "global_transform", shove, duration * 0.25)
 	tween.tween_property(view, "global_transform", home, duration * 0.25)
 	entry["tween"] = tween
@@ -416,6 +497,51 @@ func _landing(anchor: String, view: CardView) -> Transform3D:
 
 ## Travel as two halves through a raised midpoint. A straight line between two zones passes
 ## through every card between them.
+# ----------------------------------------------------------------------------------------------
+# Beats
+#
+# Every number here is in metres on a 1.20 m table where a card is 8.6 cm tall. A 30 cm lunge
+# would be enormous; these are centimetres on purpose.
+# ----------------------------------------------------------------------------------------------
+
+## How high a summoned card rises at the apex of its flight. Roughly two thirds of a card.
+const SUMMON_RISE: float = 0.055
+## Momentary swell at the apex, as a fraction of card size. Reads as weight landing.
+const SUMMON_SWELL: float = 0.14
+## Radius of the ground flash under a summon.
+const SUMMON_FLASH_RADIUS: float = 0.075
+const SUMMON_FLASH_COLOUR: Color = Color(0.72, 0.84, 1.0, 1.0)
+
+const DESTROY_COLOUR: Color = Color(1.0, 0.52, 0.26, 1.0)
+const BATTLE_RING_COLOUR: Color = Color(1.0, 0.74, 0.35, 1.0)
+
+var _fx: FxLayer = null
+
+
+## The effects layer, created under the board the first time anything needs it.
+##
+## Built in code rather than placed in a `.tscn` for the same reason the camera is: a scene file
+## that owned it would have to be edited to remove it, and effects are exactly the thing a very
+## low-end device or a VR build might want to drop wholesale.
+func _ensure_fx() -> FxLayer:
+	if _fx != null and is_instance_valid(_fx):
+		return _fx
+	if _board == null or not _board.is_inside_tree():
+		return null
+	_fx = FxLayer.new()
+	_fx.name = "FxLayer"
+	_board.add_child(_fx)
+	return _fx
+
+
+## Drives a `CardFlight` from a tween. One float, sixty times a second; the flight owns the shape.
+func _fly(flight: CardFlight, duration: float, from_t: float = 0.0, to_t: float = 1.0) -> Tween:
+	var tween: Tween = create_tween()
+	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_method(flight.apply, from_t, to_t, duration)
+	return tween
+
+
 func _arc(view: CardView, target: Transform3D, duration: float) -> Tween:
 	var start: Transform3D = view.global_transform
 	var middle: Transform3D = target
