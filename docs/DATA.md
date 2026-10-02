@@ -25,13 +25,17 @@ against any mounted pack in priority order.
 
 ## Sources
 
-Verified against EDOPro's own source (`gframe/game.cpp:206`, `README.md`):
+**All of this is EDOPro.** "Project Ignis" is the EDOPro team, not a separate project — EDOPro's
+own README opens with "Project Ignis: EDOPro". `edo9300/edopro` is the client; the ProjectIgnis
+repositories below are its data. Verified against EDOPro's own source (`gframe/game.cpp:206`,
+`README.md`).
 
-| content | repository |
-|---|---|
-| Card scripts | `https://github.com/ProjectIgnis/CardScripts` |
-| Card databases | `https://github.com/ProjectIgnis/BabelCDB` |
-| AI (reference only) | `https://github.com/ProjectIgnis/windbot` |
+| content | repository | relation to EDOPro |
+|---|---|---|
+| Rules engine (pinned in `native/vendor/ocgcore`) | `https://github.com/edo9300/ygopro-core` | the exact repo EDOPro itself vendors; see `sdk/edopro/.gitmodules` |
+| Card scripts | `https://github.com/ProjectIgnis/CardScripts` | EDOPro's canonical script collection |
+| Card databases | `https://github.com/ProjectIgnis/BabelCDB` | EDOPro's canonical database collection |
+| AI (reference only) | `https://github.com/ProjectIgnis/windbot` | EDOPro's bot; a separate C# process, not a library |
 
 **Use the ProjectIgnis script collection, not `Fluorohydride/ygopro-scripts`.** We pin
 `edo9300/ygopro-core` (OCG core v11). The Fluorohydride scripts target the older Fluorohydride
@@ -41,7 +45,10 @@ core and use a different Lua API; they will fail at load or behave incorrectly.
 plain SQLite and can be merged. `tools/cdb_check.py` (not written yet) should verify the merged
 result before it is used.
 
-Artwork is not distributed by any of these projects and must be sourced separately.
+Artwork is not distributed by any of these projects and must be sourced separately. EDOPro
+downloads card images on demand from a third-party host rather than shipping them; any
+equivalent source (for example the ygoprodeck image API) works, since nothing in the engine
+reads artwork — it is purely a `visual` pack concern (ARCHITECTURE.md section 8).
 
 ---
 
