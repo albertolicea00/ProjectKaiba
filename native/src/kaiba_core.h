@@ -11,6 +11,7 @@
 
 #include "card_db.h"
 #include "duel_thread.h"
+#include "response_builder.h"
 #include "script_vfs.h"
 
 namespace kaiba {
@@ -63,6 +64,14 @@ public:
 
 	/// Hands a response back to the blocked duel thread.
 	void send_response(const godot::PackedByteArray &response);
+
+	/// Encodes one player intent for the pending MSG_SELECT_* and hands it to the duel
+	/// thread. `event_type` is the "t" of the selection event that is blocking the duel.
+	///
+	/// Returns {"ok": bool, "error": String}. On failure nothing is sent: a malformed
+	/// intent leaves the duel parked on the same selection, which is recoverable, whereas
+	/// half a response is not. See response_builder.h for the intent schema.
+	godot::Dictionary respond(int event_type, const godot::Dictionary &intent);
 
 	/// Stops the duel thread and joins it. Safe to call when no duel is running.
 	void end_duel();

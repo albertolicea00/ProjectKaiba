@@ -34,6 +34,7 @@ void KaibaCore::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("start_duel", "config"), &KaibaCore::start_duel);
 	ClassDB::bind_method(D_METHOD("poll_event"), &KaibaCore::poll_event);
 	ClassDB::bind_method(D_METHOD("send_response", "response"), &KaibaCore::send_response);
+	ClassDB::bind_method(D_METHOD("respond", "event_type", "intent"), &KaibaCore::respond);
 	ClassDB::bind_method(D_METHOD("end_duel"), &KaibaCore::end_duel);
 	ClassDB::bind_method(D_METHOD("is_duel_running"), &KaibaCore::is_duel_running);
 }
@@ -225,6 +226,33 @@ void KaibaCore::send_response(const PackedByteArray &response) {
 	if (duel_thread_) {
 		duel_thread_->send_response(response);
 	}
+}
+
+Dictionary KaibaCore::respond(int event_type, const Dictionary &intent) {
+	Dictionary result;
+
+	if (!duel_thread_) {
+		result["ok"] = false;
+		result["error"] = "no duel is running; call start_duel() first";
+		return result;
+	}
+
+	// Encode first, send second. A rejected intent must leave the duel exactly where it
+	// was - still parked on the same selection, still answerable - rather than consume the
+	// one response ocgcore is waiting for.
+	PackedByteArray bytes;
+	String error;
+	if (!ResponseBuilder::build(static_cast<int32_t>(event_type), intent, bytes, &error)) {
+		result["ok"] = false;
+		result["error"] = error;
+		return result;
+	}
+
+	send_response(bytes);
+
+	result["ok"] = true;
+	result["error"] = String();
+	return result;
 }
 
 void KaibaCore::end_duel() {
