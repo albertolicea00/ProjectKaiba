@@ -32,6 +32,7 @@
 #include <cstdint>
 
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/variant.hpp>
 
 #include "core_utils.h"
 
