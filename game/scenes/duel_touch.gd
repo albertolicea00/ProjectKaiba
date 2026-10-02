@@ -135,6 +135,12 @@ func _ready() -> void:
 
 	_rig.activate()
 	_director.bind(_board)
+	# Advisory only: the director suggests a framing, the rig decides whether to take it. A VR
+	# rig ignores every cue, because moving a camera a person's head is not moving is how you
+	# make them sick (CameraRig.cue()).
+	_director.camera_cue.connect(_rig.cue)
+	_director.camera_cue.connect(_on_camera_cue)
+
 	if _headless:
 		_director.duration_scale = HEADLESS_DURATION_SCALE
 	_director.queue_drained.connect(_on_queue_drained)
@@ -624,3 +630,13 @@ func _expect(condition: bool, what: String) -> void:
 func _fail(what: String) -> void:
 	print("  FAIL  %s" % what)
 	_failures.append(what)
+
+
+## Counts framing cues so the headless run proves the path exists rather than leaving a signal
+## that nothing listens to.
+var _cues_seen: int = 0
+
+
+func _on_camera_cue(kind: String, _world_position: Vector3) -> void:
+	if kind != CameraRig.CUE_SETTLE:
+		_cues_seen += 1
