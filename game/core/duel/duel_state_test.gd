@@ -45,6 +45,13 @@ func _init() -> void:
 	_case_translate_anchors()
 	_case_translate_ignored()
 
+	_case_handle_distinguishes_copies()
+	_case_handle_survives_face_down()
+	_case_handle_survives_zone_chain()
+	_case_handle_shuffle_keeps_the_set()
+	_case_handle_never_reused()
+	_case_translate_stamps_handles()
+
 	print("== %d cases, %d failed ==" % [_cases_run, _cases_failed])
 	quit(1 if _cases_failed > 0 else 0)
 
@@ -503,7 +510,216 @@ func _case_translate_ignored() -> void:
 # Fixtures
 # ----------------------------------------------------------------------------------------------
 
+
+# ----------------------------------------------------------------------------------------------
+# Card handles
+#
+# `card_id` cannot identify a physical card: two copies share it and a face-down card reports 0.
+# These cases pin the property L4 depends on - one card, one handle, for the whole duel.
+# ----------------------------------------------------------------------------------------------
+
+func _case_handle_distinguishes_copies() -> void:
+	_begin("two copies of one code get distinct handles")
+	var state: DuelState = DuelState.new()
+	state.apply(_event_start(0))
+	state.apply(_event_draw(0, [7777, 7777, 7777]))
+
+	var hand: Array = state.hand[0]
+	var first: DuelCard = hand[0] as DuelCard
+	var second: DuelCard = hand[1] as DuelCard
+
+	_check("both are the same card code", first.code == second.code, "codes differ")
+	_check("handles differ", first.handle != second.handle,
+		"both reported handle %d" % first.handle)
+	_check("neither handle is zero", first.handle != 0 and second.handle != 0, "a handle was 0")
+
+	var moved: int = first.handle
+	var untouched: int = second.handle
+	state.apply({
+		"t": DuelEnums.EV.MOVE,
+		"card": 7777,
+		"from": _loc(0, DuelEnums.LOCATION.HAND, 0),
+		"to": _loc(0, DuelEnums.LOCATION.MZONE, 0, DuelEnums.POSITION.FACEUP_ATTACK),
+	})
+
+	var on_field: DuelCard = state.card_at(0, DuelEnums.LOCATION.MZONE, 0)
+	_check("the moved copy kept its handle", on_field != null and on_field.handle == moved,
+		"expected %d, got %s" % [moved, str(on_field.handle) if on_field else "null"])
+	_check("the other copy was not disturbed",
+		(state.hand[0][0] as DuelCard).handle == untouched, "the remaining copy changed identity")
+	_end()
+
+
+func _case_handle_survives_face_down() -> void:
+	_begin("a face-down card keeps one handle across a move and a flip")
+	var state: DuelState = DuelState.new()
+	state.apply(_event_start(0))
+	# code 0 is exactly the case card_id cannot express: the viewer is not allowed to see it.
+	state.apply(_event_draw(0, [0]))
+
+	var before: int = (state.hand[0][0] as DuelCard).handle
+	_check("a hidden card still gets a handle", before != 0, "handle was 0")
+
+	state.apply({
+		"t": DuelEnums.EV.MOVE,
+		"card": 0,
+		"from": _loc(0, DuelEnums.LOCATION.HAND, 0),
+		"to": _loc(0, DuelEnums.LOCATION.MZONE, 2, DuelEnums.POSITION.FACEDOWN_DEFENSE),
+	})
+	var set_card: DuelCard = state.card_at(0, DuelEnums.LOCATION.MZONE, 2)
+	_check("handle survived the set", set_card != null and set_card.handle == before,
+		"handle changed on move")
+
+	state.apply({
+		"t": DuelEnums.EV.POS_CHANGE,
+		"card": 0,
+		"at": _loc(0, DuelEnums.LOCATION.MZONE, 2, DuelEnums.POSITION.FACEUP_ATTACK),
+		"prev_pos": DuelEnums.POSITION.FACEDOWN_DEFENSE,
+		"pos": DuelEnums.POSITION.FACEUP_ATTACK,
+	})
+	var flipped: DuelCard = state.card_at(0, DuelEnums.LOCATION.MZONE, 2)
+	_check("handle survived the flip", flipped != null and flipped.handle == before,
+		"handle changed on position change")
+	_end()
+
+
+func _case_handle_survives_zone_chain() -> void:
+	_begin("a handle survives hand -> monster zone -> graveyard")
+	var state: DuelState = _state_with_hand()
+	var original: int = (state.hand[0][2] as DuelCard).handle
+
+	state.apply({
+		"t": DuelEnums.EV.MOVE, "card": 1003,
+		"from": _loc(0, DuelEnums.LOCATION.HAND, 2),
+		"to": _loc(0, DuelEnums.LOCATION.MZONE, 1, DuelEnums.POSITION.FACEUP_ATTACK),
+	})
+	state.apply({
+		"t": DuelEnums.EV.MOVE, "card": 1003,
+		"from": _loc(0, DuelEnums.LOCATION.MZONE, 1),
+		"to": _loc(0, DuelEnums.LOCATION.GRAVE, 0),
+	})
+
+	var grave: Array = state.graveyard[0]
+	_check("the card reached the graveyard", grave.size() == 1, "graveyard holds %d" % grave.size())
+	_check("handle unchanged across both moves",
+		grave.size() == 1 and (grave[0] as DuelCard).handle == original,
+		"expected %d" % original)
+	_end()
+
+
+func _case_handle_shuffle_keeps_the_set() -> void:
+	_begin("a shuffle preserves the set of handles, not their order")
+	var state: DuelState = _state_with_hand()
+
+	var before: Array[int] = []
+	for entry: Variant in state.hand[0]:
+		before.append((entry as DuelCard).handle)
+	before.sort()
+
+	state.apply({
+		"t": DuelEnums.EV.SHUFFLE_HAND, "player": 0,
+		"codes": [1005, 1004, 1003, 1002, 1001],
+	})
+
+	var after: Array[int] = []
+	for entry: Variant in state.hand[0]:
+		after.append((entry as DuelCard).handle)
+	after.sort()
+
+	_equal("hand size unchanged", state.hand[0].size(), 5)
+	_check("the same handles are still in hand", before == after,
+		"before %s, after %s" % [str(before), str(after)])
+	_end()
+
+
+func _case_handle_never_reused() -> void:
+	_begin("handles are unique for a duel and restart with reset()")
+	var state: DuelState = DuelState.new()
+	state.apply(_event_start(0))
+	state.apply(_event_draw(0, [1, 2, 3]))
+	state.apply(_event_draw(1, [4, 5, 6]))
+
+	var seen: Dictionary = {}
+	for player: int in 2:
+		for entry: Variant in state.hand[player]:
+			var handle: int = (entry as DuelCard).handle
+			_check("handle %d is not a duplicate" % handle, not seen.has(handle),
+				"handle %d was issued twice" % handle)
+			seen[handle] = true
+	_equal("six distinct handles", seen.size(), 6)
+
+	# Discarding a card must not free its handle for the next one.
+	state.apply({
+		"t": DuelEnums.EV.MOVE, "card": 1,
+		"from": _loc(0, DuelEnums.LOCATION.HAND, 0),
+		"to": _loc(0, DuelEnums.LOCATION.GRAVE, 0),
+	})
+	state.apply(_event_draw(0, [7]))
+	var fresh: int = (state.hand[0][state.hand[0].size() - 1] as DuelCard).handle
+	_check("a later card does not reuse a retired handle", not seen.has(fresh),
+		"handle %d was reused" % fresh)
+
+	# The counter must restart, not continue. Asserting a specific number would be asserting how
+	# many DuelCards START happens to materialise, which is not what this case is about.
+	var highest: int = 0
+	for player: int in 2:
+		for pile: Array in [state.hand[player], state.deck[player], state.graveyard[player]]:
+			for entry: Variant in pile:
+				highest = maxi(highest, (entry as DuelCard).handle)
+
+	state.reset()
+	state.apply(_event_start(0))
+	var first_after_reset: int = (state.deck[0][0] as DuelCard).handle
+	_equal("reset restarts the counter at 1", first_after_reset, 1)
+	_check("post-reset handles do not continue the old duel", first_after_reset < highest,
+		"got %d, previous duel reached %d" % [first_after_reset, highest])
+	_end()
+
+
+func _case_translate_stamps_handles() -> void:
+	_begin("translate(event, state) attaches the handle of the card involved")
+	var translator: EventTranslator = EventTranslator.new()
+	var state: DuelState = DuelState.new()
+	state.apply(_event_start(0))
+
+	# Order matters: apply() first, then translate, so the card is already at its destination
+	# (docs/ARCHITECTURE.md section 5 step 4).
+	var draw: Dictionary = _event_draw(0, [2001, 2002])
+	state.apply(draw)
+	var drawn_intents: Array[Dictionary] = translator.translate(draw, state)
+
+	var handles: Array[int] = []
+	for intent: Dictionary in drawn_intents:
+		if intent.has("handle"):
+			handles.append(int(intent["handle"]))
+	_equal("one handle per drawn card", handles.size(), 2)
+	_check("the two draw intents name different cards",
+		handles.size() == 2 and handles[0] != handles[1], "both intents named the same card")
+
+	var expected: int = (state.hand[0][0] as DuelCard).handle
+	var move: Dictionary = {
+		"t": DuelEnums.EV.MOVE, "card": 2001,
+		"from": _loc(0, DuelEnums.LOCATION.HAND, 0),
+		"to": _loc(0, DuelEnums.LOCATION.MZONE, 3, DuelEnums.POSITION.FACEUP_ATTACK),
+	}
+	state.apply(move)
+	var move_intents: Array[Dictionary] = translator.translate(move, state)
+	_check("the move intent carries a handle",
+		move_intents.size() > 0 and move_intents[0].has("handle"), "no handle stamped")
+	_check("it is the handle the card already had",
+		move_intents.size() > 0 and int(move_intents[0].get("handle", 0)) == expected,
+		"expected %d" % expected)
+
+	# Without a model the intents must come back exactly as before.
+	var bare: Array[Dictionary] = translator.translate(move)
+	_check("translate without a state stamps nothing",
+		bare.size() > 0 and not bare[0].has("handle"), "a handle appeared with no model")
+
+
 ## START is host-synthesised; ocgcore never emits it (AGENTS.md section 8b.1).
+	_end()
+
+
 func _event_start(first_player: int) -> Dictionary:
 	return {
 		"t": DuelEnums.EV.START,
