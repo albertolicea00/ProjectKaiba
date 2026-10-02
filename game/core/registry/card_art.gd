@@ -96,6 +96,12 @@ const TIER_HD: int = 1
 ## 64 MB. See the memory note above for what that buys at each tier.
 const DEFAULT_BUDGET_BYTES: int = 64 * 1024 * 1024
 
+## Desktop default. An hd face decodes to roughly 2.9 MB, so 64 MB would hold about 22 of them -
+## fewer than a mid-game board shows at once, which means the LRU would evict a card and decode
+## it again within the same turn. 256 MB holds about 90, which covers both hands, both fields
+## and both graveyards with room to spare.
+const DEFAULT_BUDGET_BYTES_HD: int = 256 * 1024 * 1024
+
 ## Where the art lives relative to the Godot project, for the dev tree. An Android build keeps
 ## its art in external app storage and must call `set_roots()` with a real path.
 const DEFAULT_PICS_PATH: String = "res://../data/base/pics"
@@ -109,6 +115,9 @@ var _roots: PackedStringArray = PackedStringArray(["", ""])
 var _tier: int = TIER_SD
 
 var _budget_bytes: int = DEFAULT_BUDGET_BYTES
+
+## Set once a caller has chosen a budget, so a later `set_tier()` does not overrule them.
+var _budget_is_explicit: bool = false
 
 ## card_id -> {"image": Image, "texture": Texture2D, "bytes": int, "used": int}.
 ## Exactly one of `image` / `texture` is non-null: a freshly decoded entry holds the `Image`
@@ -151,6 +160,7 @@ var _generation: int = 0
 
 func _init() -> void:
 	_tier = default_tier()
+	_budget_bytes = default_budget_bytes(_tier)
 	set_roots(default_root(TIER_SD), default_root(TIER_HD))
 
 
@@ -194,6 +204,10 @@ func set_tier(tier: int) -> void:
 		_mutex.unlock()
 		return
 	_tier = wanted
+	if not _budget_is_explicit:
+		# Per-face cost changes by roughly nine times between the tiers, so a budget that was
+		# right for one is wrong for the other. A caller who set their own keeps it.
+		_budget_bytes = default_budget_bytes(_tier)
 	_invalidate_locked()
 	_mutex.unlock()
 
@@ -208,6 +222,7 @@ func tier() -> int:
 ## Raises or lowers the cap. Takes effect immediately: lowering it evicts on the spot rather
 ## than waiting for the next load, so a caller can shrink the budget under memory pressure.
 func set_budget_bytes(budget: int) -> void:
+	_budget_is_explicit = true
 	_mutex.lock()
 	_budget_bytes = maxi(1, budget)
 	_trim_locked()
@@ -224,6 +239,15 @@ func budget_bytes() -> int:
 ## `TIER_SD` on mobile - which for this project means Android, the only mobile target in scope -
 ## and `TIER_HD` everywhere else. A decoded hd face is 2.9 MB; sixty of them is 173 MB, which is
 ## not a budget a mid-range phone has to spare. This is a platform fact, not a quality setting.
+## The budget that makes sense for a tier, in bytes.
+##
+## Tied to the tier rather than fixed because the per-face cost differs by about nine times
+## between sd and hd, so one number cannot be right for both: sized for hd it wastes a phone's
+## memory, sized for sd it thrashes on a desktop.
+static func default_budget_bytes(tier: int) -> int:
+	return DEFAULT_BUDGET_BYTES_HD if tier == TIER_HD else DEFAULT_BUDGET_BYTES
+
+
 static func default_tier() -> int:
 	return TIER_SD if OS.has_feature("mobile") else TIER_HD
 
