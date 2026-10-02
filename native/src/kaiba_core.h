@@ -47,6 +47,16 @@ public:
 	/// Returns {"ok": bool, "count": int, "error": String}.
 	godot::Dictionary load_card_database(const godot::String &path);
 
+	/// Everything the UI needs to show one card, or an empty Dictionary for an unknown code.
+	///
+	/// Keys: "code", "name", "desc", "strings" (16 per-effect labels), "type", "level",
+	/// "attribute", "race", "attack", "defense", "lscale", "rscale", "link_marker", "alias",
+	/// "ot", "category", "setcodes".
+	///
+	/// Reads the in-memory database, so it is a hash lookup and safe to call from a tooltip.
+	/// `load_card_database()` must have succeeded first.
+	godot::Dictionary get_card_info(int code) const;
+
 	/// Appends a directory to the Lua script search path, searched in insertion order.
 	void add_script_root(const godot::String &path);
 

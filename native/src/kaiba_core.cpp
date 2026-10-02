@@ -32,6 +32,7 @@ void KaibaCore::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("run_selftest"), &KaibaCore::run_selftest);
 
 	ClassDB::bind_method(D_METHOD("load_card_database", "path"), &KaibaCore::load_card_database);
+	ClassDB::bind_method(D_METHOD("get_card_info", "code"), &KaibaCore::get_card_info);
 	ClassDB::bind_method(D_METHOD("add_script_root", "path"), &KaibaCore::add_script_root);
 	ClassDB::bind_method(D_METHOD("start_duel", "config"), &KaibaCore::start_duel);
 	ClassDB::bind_method(D_METHOD("poll_event"), &KaibaCore::poll_event);
@@ -142,6 +143,58 @@ Dictionary KaibaCore::load_card_database(const String &path) {
 	result["count"] = static_cast<int64_t>(card_db_.card_count());
 	result["error"] = ok ? String() : String::utf8(error.c_str());
 	return result;
+}
+
+Dictionary KaibaCore::get_card_info(int code) const {
+	Dictionary info;
+	const uint32_t card_code = static_cast<uint32_t>(code);
+
+	const OCG_CardData *data = card_db_.find(card_code);
+	const CardText *text = card_db_.find_text(card_code);
+	if (data == nullptr && text == nullptr) {
+		return info;
+	}
+
+	info["code"] = code;
+
+	if (data != nullptr) {
+		info["alias"] = static_cast<int64_t>(data->alias);
+		info["type"] = static_cast<int64_t>(data->type);
+		info["level"] = static_cast<int64_t>(data->level);
+		info["attribute"] = static_cast<int64_t>(data->attribute);
+		// 64-bit since OCG core v11; a 32-bit read silently drops the newer races.
+		info["race"] = static_cast<int64_t>(data->race);
+		info["attack"] = data->attack;
+		info["defense"] = data->defense;
+		info["lscale"] = static_cast<int64_t>(data->lscale);
+		info["rscale"] = static_cast<int64_t>(data->rscale);
+		info["link_marker"] = static_cast<int64_t>(data->link_marker);
+
+		PackedInt32Array setcodes;
+		if (data->setcodes != nullptr) {
+			for (const uint16_t *cursor = data->setcodes; *cursor != 0; ++cursor) {
+				setcodes.push_back(static_cast<int32_t>(*cursor));
+			}
+		}
+		info["setcodes"] = setcodes;
+	}
+
+	if (text != nullptr) {
+		info["name"] = String::utf8(text->name.c_str());
+		info["desc"] = String::utf8(text->desc.c_str());
+		info["ot"] = static_cast<int64_t>(text->ot);
+		info["category"] = static_cast<int64_t>(text->category);
+
+		// Always sixteen entries, empty where the column was blank, so a caller can index by
+		// effect number without checking the size first.
+		PackedStringArray strings;
+		for (size_t i = 0; i < CardText::STRING_COUNT; ++i) {
+			strings.push_back(String::utf8(text->strings[i].c_str()));
+		}
+		info["strings"] = strings;
+	}
+
+	return info;
 }
 
 void KaibaCore::add_script_root(const String &path) {
