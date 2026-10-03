@@ -12,7 +12,7 @@ extends Node
 ##     router.go("solo")
 ##     router.go("solo_test")
 ##
-## `menu`, `solo`, `solo_test` and `decks` are the destinations that exist. `host`, `join` and `replays` are
+## `menu`, `solo`, `solo_test`, `controls` and `decks` are the destinations that exist. `host`, `join` and `replays` are
 ## named in the menu because they are named in the roadmap, and choosing one lands back on the
 ## menu carrying the line of `PENDING` that says why. An unknown name does the same thing with a
 ## different line - a typo should put the player somewhere, not nowhere.
@@ -38,6 +38,10 @@ const SOLO: String = "solo"
 ## must never do.
 const SOLO_TEST: String = "solo_test"
 const DECKS: String = "decks"
+## Every gesture the game listens for, on both devices. A destination rather than an overlay
+## because it has to be reachable before a duel exists - a player who cannot work out how to
+## play a card is not already in a duel.
+const CONTROLS: String = "controls"
 
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
 const SOLO_SCENE: String = "res://scenes/duel_touch.tscn"
@@ -46,6 +50,7 @@ const SOLO_TEST_SCENE: String = "res://scenes/solo_test.tscn"
 ## client works here untouched, and owning a deck format would cut this one off from all
 ## of them.
 const DECKS_SCENE: String = "res://ui/deck_picker/deck_picker.tscn"
+const CONTROLS_SCENE: String = "res://ui/controls/controls_screen.tscn"
 
 ## The signal a hosted scene uses to ask for a different destination.
 const CHOSE_SIGNAL: String = "chose"
@@ -69,6 +74,7 @@ var routes: Dictionary = {
 	SOLO: SOLO_SCENE,
 	SOLO_TEST: SOLO_TEST_SCENE,
 	DECKS: DECKS_SCENE,
+	CONTROLS: CONTROLS_SCENE,
 }
 
 var _current: String = ""
