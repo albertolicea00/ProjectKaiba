@@ -86,6 +86,9 @@ var _art: CardArt = null
 
 @onready var _board: BoardView = $World3D/BoardView
 @onready var _director: AnimationDirector = $AnimationDirector
+
+## Built in `_ready()`; see there for why it is not in the scene file.
+var _audio: AudioDirector = null
 @onready var _rig: CameraRig = $World3D/CameraRig
 @onready var _touch: TouchSource = $InputLayer/TouchSource
 @onready var _mouse: MouseSource = $InputLayer/MouseSource
@@ -162,6 +165,18 @@ func _ready() -> void:
 	if _headless:
 		_director.duration_scale = HEADLESS_DURATION_SCALE
 	_director.queue_drained.connect(_on_queue_drained)
+
+	# Sound. It listens to the same `intent_started` stream the animation runs on and to nothing
+	# else, so what is heard and what is seen cannot drift apart (see `audio_director.gd`). The
+	# node is built here rather than placed in the `.tscn` because it has no editable state worth
+	# serialising - its pools, buses and bank are all built in `initialise()`.
+	_audio = AudioDirector.new()
+	_audio.name = "AudioDirector"
+	add_child(_audio)
+	_audio.bind(_director)
+	# `win` and `lose` exist and are reachable, but neither of these harness scenes decides a
+	# winner - they stop on a probe result, not on a duel result. The context stays `duel`.
+	_audio.set_music_context(AudioDirector.MUSIC_DUEL)
 
 	# Both sources are wired and both are harmless on the wrong device: Godot only emits
 	# `InputEventScreenTouch` on a touch screen and only `InputEventMouse*` with a pointer. The
