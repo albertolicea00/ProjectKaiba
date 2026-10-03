@@ -296,7 +296,7 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 	# the moment of use is the V11/V12 contract.
 	if card_id != 0:
 		view.set_card_id(card_id)
-	_board.apply_face(view, str(intent.get("face", "")))
+	_board.apply_face(view, str(intent.get("face", "")), str(intent.get("to_anchor", intent.get("anchor", ""))))
 
 	var leaving: bool = to_anchor == BoardView.ANCHOR_NOWHERE
 	var target: Transform3D = _landing(to_anchor, view)
@@ -338,7 +338,7 @@ func _build_summon_flight(
 	tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_method(flight.apply, 0.0, 0.5, duration * 0.5)
 	if arrives_face_up:
-		tween.tween_callback(func() -> void: _board.apply_face(view, face))
+		tween.tween_callback(func() -> void: _board.apply_face(view, face, to_anchor))
 	tween.tween_method(flight.apply, 0.5, 1.0, duration * 0.5)
 	tween.tween_callback(func() -> void: _flash_at(target, SUMMON_FLASH_RADIUS, SUMMON_FLASH_COLOUR))
 	return tween
@@ -371,7 +371,7 @@ func _build_in_place(intent: Dictionary, entry: Dictionary, duration: float) -> 
 		return
 	if card_id != 0:
 		view.set_card_id(card_id)
-	_board.apply_face(view, str(intent.get("face", "")))
+	_board.apply_face(view, str(intent.get("face", "")), str(intent.get("to_anchor", intent.get("anchor", ""))))
 
 	var target: Transform3D = _landing(anchor, view)
 	entry["finish"] = func() -> void:
@@ -482,7 +482,7 @@ func _claim(anchor: String, card_id: int, face: String, handle: int = 0) -> Card
 		return null
 	view.handle = handle
 	view.set_card_id(card_id)
-	_board.apply_face(view, face)
+	_board.apply_face(view, face, anchor)
 	view.global_transform = _board.rest_transform(anchor, 0, 1, view)
 	return view
 

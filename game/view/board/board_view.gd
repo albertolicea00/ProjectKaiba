@@ -127,6 +127,11 @@ const HAND_MAX_WIDTH: float = 0.420
 
 const ANCHOR_NOWHERE: String = "NOWHERE"
 
+## Anchor prefixes that identify a spell/trap row and a field zone. Used by `zone_turns()`:
+## cards parked here are never drawn sideways.
+const ANCHOR_SPELL_PREFIX: String = "ST_"
+const ANCHOR_FIELD_PREFIX: String = "FZ_"
+
 # ----------------------------------------------------------------------------------------------
 # Zone markers
 # ----------------------------------------------------------------------------------------------
@@ -480,17 +485,30 @@ func release_view(view: CardView) -> void:
 
 ## Decodes an `EventTranslator` FACE_* string onto a card. The one place in L4 that knows that
 ## vocabulary, so the rest of the view layer deals in two booleans.
-func apply_face(view: CardView, face: String) -> void:
+## Whether a card parked at this anchor is ever drawn turned sideways.
+##
+## Only a monster is. ocgcore represents a **set** spell or trap as `FACEDOWN_DEFENSE`, because
+## `position` is one field shared by every card type - so reading the defence bit straight into
+## a rotation lays every set spell and trap on its side in its zone. A real one sits upright.
+##
+## Decided by the zone rather than by the card's type because the zone is what the view already
+## knows, and because it stays right for anything unusual that ends up in a spell zone.
+static func zone_turns(anchor: String) -> bool:
+	return not (anchor.begins_with(ANCHOR_SPELL_PREFIX) or anchor.begins_with(ANCHOR_FIELD_PREFIX))
+
+
+func apply_face(view: CardView, face: String, anchor: String = "") -> void:
 	if view == null:
 		return
+	var turns: bool = zone_turns(anchor)
 	if face == EventTranslator.FACE_UP_ATTACK:
 		view.set_orientation(true, false)
 	elif face == EventTranslator.FACE_DOWN_ATTACK:
 		view.set_orientation(false, false)
 	elif face == EventTranslator.FACE_UP_DEFENSE:
-		view.set_orientation(true, true)
+		view.set_orientation(true, turns)
 	elif face == EventTranslator.FACE_DOWN_DEFENSE:
-		view.set_orientation(false, true)
+		view.set_orientation(false, turns)
 	# Anything else is FACE_UNKNOWN: no position byte was sent. Most pile destinations have no
 	# meaningful face, and overwriting the card's current one would be a guess.
 
@@ -551,7 +569,7 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 		return
 	view.set_card_id(card.code if card.is_face_up() else 0)
 	view.handle = card.handle
-	view.set_orientation(card.is_face_up(), card.is_defense())
+	view.set_orientation(card.is_face_up(), card.is_defense() and zone_turns(anchor))
 	place_view(view, anchor)
 
 	var materials: int = mini(card.overlay_codes.size(), OVERLAY_VIEW_LIMIT)
