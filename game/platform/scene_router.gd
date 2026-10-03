@@ -10,8 +10,9 @@ extends Node
 ##
 ##     router.go("menu")
 ##     router.go("solo")
+##     router.go("solo_test")
 ##
-## `menu`, `solo` and `decks` are the destinations that exist. `host`, `join` and `replays` are
+## `menu`, `solo`, `solo_test` and `decks` are the destinations that exist. `host`, `join` and `replays` are
 ## named in the menu because they are named in the roadmap, and choosing one lands back on the
 ## menu carrying the line of `PENDING` that says why. An unknown name does the same thing with a
 ## different line - a typo should put the player somewhere, not nowhere.
@@ -31,10 +32,16 @@ signal changed(destination: String)
 
 const MENU: String = "menu"
 const SOLO: String = "solo"
+## The hot-seat test bench. A separate destination from `solo` rather than a flag on it: they
+## are the same duel wired to two different shells, and the one thing this one adds - a camera
+## and a HUD that change seats with the turn - is exactly what a real solo duel against an AI
+## must never do.
+const SOLO_TEST: String = "solo_test"
 const DECKS: String = "decks"
 
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
 const SOLO_SCENE: String = "res://scenes/duel_touch.tscn"
+const SOLO_TEST_SCENE: String = "res://scenes/solo_test.tscn"
 ## `scenes/deck_editor.tscn` and not `ui/deck_editor/deck_editor.tscn`: the editor itself is a
 ## widget that is handed its card data, and the scene named here is the host that looks that
 ## data up for it. V1 - nothing under `game/ui/` may reach the native core - is the reason the
@@ -61,6 +68,7 @@ const PENDING: Dictionary = {
 var routes: Dictionary = {
 	MENU: MENU_SCENE,
 	SOLO: SOLO_SCENE,
+	SOLO_TEST: SOLO_TEST_SCENE,
 	DECKS: DECKS_SCENE,
 }
 

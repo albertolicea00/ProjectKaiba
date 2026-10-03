@@ -1,9 +1,9 @@
 class_name MainMenu
 extends Control
 
-## The first screen. Five destinations (ARCHITECTURE.md section 4), one of which currently leads
-## somewhere: Solo. The other four are real roadmap entries with nothing behind them yet, and
-## they say so on the button rather than waiting to disappoint. A greyed-out button reads as
+## The first screen. Six destinations (ARCHITECTURE.md section 4), two of which currently lead
+## somewhere: Solo and Solo Test. The other four are real roadmap entries with nothing behind
+## them yet, and they say so on the button rather than waiting to disappoint. A greyed-out button reads as
 ## "this app is broken"; a button that says "not built yet" reads as "this is being built".
 ##
 ## Layer: L5 shell. It knows destination names and nothing else - no scenes, no duel, no core.
@@ -21,6 +21,7 @@ signal chose(destination: String)
 ## scene file is only a preview for the editor.
 const ENTRIES: Array[Dictionary] = [
 	{"node": "Solo", "id": "solo", "label": "Solo", "note": ""},
+	{"node": "SoloTest", "id": "solo_test", "label": "Solo Test", "note": ""},
 	{"node": "Host", "id": "host", "label": "Host Duel", "note": "not built yet"},
 	{"node": "Join", "id": "join", "label": "Join Duel", "note": "not built yet"},
 	{"node": "Decks", "id": "decks", "label": "Decks", "note": "not built yet"},
