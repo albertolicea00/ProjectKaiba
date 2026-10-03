@@ -34,7 +34,7 @@ if [ "$TARGET_HD" = false ] && [ "$TARGET_SD" = false ]; then
 fi
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PICS_DIR="$BASE_DIR/data/base/pics"
+PICS_DIR="$BASE_DIR/data/base/pics/cards"
 API_URL="https://db.ygoprodeck.com/api/v7/cardinfo.php"
 
 if [ -n "$LANGUAGE" ]; then

@@ -529,7 +529,7 @@ func _check_art_arrived() -> void:
 	var stats: Dictionary = _art.stats()
 	var cached: int = int(stats.get("cached", 0))
 	_expect(cached > 0,
-		"card faces decoded from data/base/pics (%d cached, %d bytes, %d misses)"
+		"card faces decoded from data/base/pics/cards (%d cached, %d bytes, %d misses)"
 			% [cached, int(stats.get("bytes", 0)), int(stats.get("misses", 0))])
 
 	# The back is one texture for the whole game and lives outside the LRU, so it has its own
@@ -537,7 +537,7 @@ func _check_art_arrived() -> void:
 	# face-down card on the board going blank.
 	var back: Texture2D = _art.back_texture()
 	_expect(back != null and back.get_width() > 0,
-		"the card back loaded from data/base/pics/back")
+		"the card back loaded from data/base/pics/cover/classic")
 
 
 func _stop(reason: String) -> void:

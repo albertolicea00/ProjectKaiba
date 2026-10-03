@@ -94,7 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   settled in their starting frame, so a blocking one released the barrier instantly.
 
 ### Added (interface)
-- `game/core/registry/card_art.gd` — runtime loader for `data/base/pics/`. The art lives outside
+- `game/core/registry/card_art.gd` — runtime loader for `data/base/pics/cards/`. The art lives outside
   `res://` so it is read with `Image.load_from_file()`, which keeps `data/` swappable. Decoding
   happens on a `WorkerThreadPool`; a cache miss returns null and queues, never blocking a frame.
   LRU budget scales with the tier: 64 MB for sd (~200 faces), 256 MB for hd (~90), because a

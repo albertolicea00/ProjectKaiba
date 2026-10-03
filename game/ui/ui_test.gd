@@ -135,7 +135,7 @@ static func pot_of_greed() -> Dictionary:
 		"setcodes": PackedInt32Array(),
 	}
 
-## Decoded size of `data/base/pics/back/hd.jpg`, measured rather than assumed. RGB8, no mipmaps.
+## Decoded size of `data/base/pics/cover/classic/hd.jpg`, measured rather than assumed. RGB8, no mipmaps.
 const BACK_SIZE := Vector2i(930, 1350)
 
 var _case_name: String = ""

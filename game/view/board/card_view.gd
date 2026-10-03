@@ -36,7 +36,7 @@ extends Node3D
 ## -------------------------------------------------------------------------------------------
 ## Art
 ## -------------------------------------------------------------------------------------------
-## A face-up card wears its real face from `data/base/pics/` when `CardArt` has one cached, and
+## A face-up card wears its real face from `data/base/pics/cards/` when `CardArt` has one cached, and
 ## a flat colour derived from its `card_id` when it does not. Both paths are normal: `CardArt`
 ## never blocks on disk, so the first look-up of a card almost always answers `null` and the
 ## face arrives a frame or two later through `refresh_art()`. The placeholder colour is what

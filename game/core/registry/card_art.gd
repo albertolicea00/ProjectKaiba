@@ -15,7 +15,7 @@ extends RefCounted
 ## -------------------------------------------------------------------------------------------
 ## Why this is not `load()`
 ## -------------------------------------------------------------------------------------------
-## The art lives in `data/base/pics/`, outside `res://`. It is not imported, has no `.import`
+## The art lives in `data/base/pics/cards/`, outside `res://`. It is not imported, has no `.import`
 ## sidecar and no UID, so `load()` and `ResourceLoader` cannot see it at all. The only route is
 ## `Image.load_from_file()` on a globalised OS path, then `ImageTexture.create_from_image()`.
 ##
@@ -129,7 +129,7 @@ const DEFAULT_BUDGET_BYTES_HD: int = 256 * 1024 * 1024
 
 ## Where the art lives relative to the Godot project, for the dev tree. An Android build keeps
 ## its art in external app storage and must call `set_roots()` with a real path.
-const DEFAULT_PICS_PATH: String = "res://../data/base/pics"
+const DEFAULT_PICS_PATH: String = "res://../data/base/cards/pics"
 
 ## The reverse side of every card, relative to the pics directory. One file, no tier variants -
 ## see the card-back note above before adding one.

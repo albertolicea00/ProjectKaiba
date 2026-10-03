@@ -10,7 +10,7 @@ extends SceneTree
 ## -------------------------------------------------------------------------------------------
 ## Run against the real files, or not at all
 ## -------------------------------------------------------------------------------------------
-## Every case here reads `data/base/pics/`. There are no fixtures and no fake JPEGs on purpose:
+## Every case here reads `data/base/pics/cards/`. There are no fixtures and no fake JPEGs on purpose:
 ## the things worth testing in a loader are "does this decode", "is a missing file survivable"
 ## and "does the byte budget hold against real decoded sizes", and a synthetic 4x4 image proves
 ## none of them. The texture sizes asserted below - 268x391 and 813x1185 - are what makes a case
@@ -57,7 +57,7 @@ func _init() -> void:
 	_empty_root = _sd_root.get_base_dir().path_join("ld")
 
 	if not _art_is_present():
-		print("SKIP  no artwork under %s - see data/base/pics/README.md" % _sd_root.get_base_dir())
+		print("SKIP  no artwork under %s - see data/base/pics/cards/README.md" % _sd_root.get_base_dir())
 		print("== 0 cases, 0 failed ==")
 		quit(0)
 		return
