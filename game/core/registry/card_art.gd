@@ -129,11 +129,18 @@ const DEFAULT_BUDGET_BYTES_HD: int = 256 * 1024 * 1024
 
 ## Where the art lives relative to the Godot project, for the dev tree. An Android build keeps
 ## its art in external app storage and must call `set_roots()` with a real path.
-const DEFAULT_PICS_PATH: String = "res://../data/base/cards/pics"
+const DEFAULT_PICS_PATH: String = "res://../data/base/pics"
 
-## The reverse side of every card, relative to the pics directory. One file, no tier variants -
-## see the card-back note above before adding one.
-const BACK_LEAF: String = "back/hd.jpg"
+## Card faces live one folder per resolution under here, named by card code.
+const CARDS_LEAF: String = "cards"
+
+## Card backs live one folder per theme, each holding one file per resolution. A back is a skin,
+## not a card, which is why it is themed and the faces are not.
+const COVER_LEAF: String = "cover"
+const DEFAULT_COVER: String = "classic"
+
+## Tier name as it appears on disk, for both faces and covers.
+const TIER_LEAF: Array[String] = ["sd", "hd"]
 
 ## Guards every `var` below it. Held only for bookkeeping - never across a file read.
 var _mutex: Mutex = Mutex.new()
@@ -194,6 +201,9 @@ var _back_texture: Texture2D = null
 ## Empty means nothing has been attempted yet.
 var _back_path: String = ""
 
+## Directory holding the current cover theme's per-tier files.
+var _cover_root: String = ""
+
 ## True once the back has been looked for at `_back_path` and was not there. Remembered for the
 ## same reason `_absent` is: a missing file is an answer, not an error to retry every frame.
 var _back_absent: bool = false
@@ -206,6 +216,7 @@ func _init() -> void:
 	_tier = default_tier()
 	_budget_bytes = default_budget_bytes(_tier)
 	set_roots(default_root(TIER_SD), default_root(TIER_HD))
+	set_cover_root(default_cover_root(DEFAULT_COVER))
 
 
 func _notification(what: int) -> void:
@@ -299,8 +310,13 @@ static func default_tier() -> int:
 ## The dev-tree location of a tier's art. Correct when running from the repo; an exported build
 ## ships its art elsewhere and must call `set_roots()`.
 static func default_root(tier: int) -> String:
-	var leaf: String = "hd" if tier == TIER_HD else "sd"
-	return ProjectSettings.globalize_path(DEFAULT_PICS_PATH).path_join(leaf).simplify_path()
+	var leaf: String = TIER_LEAF[TIER_HD] if tier == TIER_HD else TIER_LEAF[TIER_SD]
+	return default_pics_root().path_join(CARDS_LEAF).path_join(leaf).simplify_path()
+
+
+## The directory every other default path is built from.
+static func default_pics_root() -> String:
+	return ProjectSettings.globalize_path(DEFAULT_PICS_PATH).simplify_path()
 
 
 # ----------------------------------------------------------------------------------------------
@@ -395,18 +411,47 @@ func back_texture() -> Texture2D:
 ## are empty.
 func back_path() -> String:
 	_mutex.lock()
-	var sd: String = _roots[TIER_SD]
-	var hd: String = _roots[TIER_HD]
+	var dir: String = _cover_root
+	var tier: int = _tier
 	_mutex.unlock()
 
-	var base: String = ""
-	if not sd.is_empty():
-		base = sd.get_base_dir()
-	elif not hd.is_empty():
-		base = hd.get_base_dir()
-	else:
-		base = ProjectSettings.globalize_path(DEFAULT_PICS_PATH).simplify_path()
-	return base.path_join(BACK_LEAF).simplify_path()
+	if dir.is_empty():
+		dir = default_cover_root(DEFAULT_COVER)
+
+	# Prefer the tier in use, then fall back through the sizes that are most likely to exist.
+	# A back is one file; getting a larger one than asked for costs a few hundred kilobytes
+	# once, while getting none leaves every face-down card on the board blank.
+	var wanted: String = TIER_LEAF[TIER_HD] if tier == TIER_HD else TIER_LEAF[TIER_SD]
+	for leaf: String in [wanted, "hd", "sd", "ld"]:
+		var candidate: String = dir.path_join(leaf + ".jpg").simplify_path()
+		if FileAccess.file_exists(candidate):
+			return candidate
+	return dir.path_join(wanted + ".jpg").simplify_path()
+
+
+## Where a cover theme lives by default.
+static func default_cover_root(theme: String) -> String:
+	return default_pics_root().path_join(COVER_LEAF).path_join(theme).simplify_path()
+
+
+## Chooses the card back. Themes are directories under `pics/cover/`.
+func set_cover_theme(theme: String) -> void:
+	set_cover_root(default_cover_root(theme))
+
+
+## Points the card back at an explicit directory holding `<tier>.jpg` files.
+func set_cover_root(dir: String) -> void:
+	var normalised: String = _normalise_root(dir)
+	_mutex.lock()
+	if normalised == _cover_root:
+		_mutex.unlock()
+		return
+	_cover_root = normalised
+	# Drop the loaded back so the next request picks up the new theme.
+	_back_texture = null
+	_back_absent = false
+	_back_path = ""
+	_mutex.unlock()
 
 
 ## Decoded bytes the card back is holding, or 0 if it has not been loaded. Reported separately
