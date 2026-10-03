@@ -213,6 +213,27 @@ func set_card_id(value: int) -> void:
 ## it on every visible card every frame is a supported way to use it.
 func refresh_art(art: CardArt) -> void:
 	_apply_front(art)
+	_apply_back(art)
+
+
+## Puts the real card back on the reverse side, once.
+##
+## Every card in the game shares one back, so this is a single texture that `CardArt` keeps
+## outside its LRU - a back that got evicted under memory pressure would be absurd. The guard is
+## not an optimisation: `refresh_art()` runs every frame for every card on the board, and
+## writing an unchanged albedo on all of them sixty times a second is real work on a phone.
+func _apply_back(art: CardArt) -> void:
+	if _back_material == null or _back_material.albedo_texture != null:
+		return
+	if art == null:
+		return
+	var back: Texture2D = art.back_texture()
+	if back == null:
+		return
+	_back_material.albedo_texture = back
+	# The brown placeholder tinted the material; with a real image the albedo must be neutral or
+	# the back comes out muddy.
+	_back_material.albedo_color = Color.WHITE
 
 
 ## How solid this card is, 0 to 1. 1 is the normal state.

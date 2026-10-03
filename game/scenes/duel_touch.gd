@@ -532,6 +532,13 @@ func _check_art_arrived() -> void:
 		"card faces decoded from data/base/pics (%d cached, %d bytes, %d misses)"
 			% [cached, int(stats.get("bytes", 0)), int(stats.get("misses", 0))])
 
+	# The back is one texture for the whole game and lives outside the LRU, so it has its own
+	# check: a face that fails to load is a missing picture, a back that fails is every
+	# face-down card on the board going blank.
+	var back: Texture2D = _art.back_texture()
+	_expect(back != null and back.get_width() > 0,
+		"the card back loaded from data/base/pics/back")
+
 
 func _stop(reason: String) -> void:
 	if _stopping:
