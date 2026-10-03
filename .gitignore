@@ -41,6 +41,12 @@ game/bin/*
 data/**/*.jpg
 data/**/*.png
 data/**/*.lua
+# Audio. The sound set is 46 MB and carries its own licences; it is fetched, not versioned.
+# CREDITS.md is the exception - several effects are CC-BY and the attribution has to travel
+# with the project, so it is tracked deliberately.
+data/**/*.wav
+data/**/*.mp3
+data/**/*.ogg
 # `make data-scripts` clones ProjectIgnis/CardScripts in here, so this is a git working copy of
 # its own. Tracking anything inside it would fight the next `git pull`.
 data/base/script/
