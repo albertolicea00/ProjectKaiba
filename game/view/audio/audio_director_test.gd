@@ -464,13 +464,26 @@ func _drain(bank: SoundBank) -> void:
 
 ## Every `KIND_*` constant the translator declares, read off the script rather than listed here,
 ## so a kind added upstream shows up in this suite without anyone remembering to add it.
+##
+## Read from the **source text**, not from `GDScript.get_script_constant_map()`. That API returns
+## an empty dictionary for this script on Godot 4.6.3 - both through the global class name and
+## through an explicit `load()` - which made this helper silently return zero kinds. A loop over
+## zero kinds passes every assertion it makes, so the check this suite exists for was hollow
+## until a mapping entry with no matching kind exposed it from the other direction.
+const TRANSLATOR_SOURCE: String = "res://core/duel/event_translator.gd"
+
 func _all_kinds() -> PackedStringArray:
 	var out: PackedStringArray = PackedStringArray()
-	var constants: Dictionary = (EventTranslator as GDScript).get_script_constant_map()
-	for key: Variant in constants:
-		var name: String = str(key)
-		if name.begins_with("KIND_") and constants[key] is String:
-			out.append(str(constants[key]))
+	var text: String = FileAccess.get_file_as_string(TRANSLATOR_SOURCE)
+	if text.is_empty():
+		return out
+
+	var pattern := RegEx.new()
+	pattern.compile("^const\\s+KIND_\\w+\\s*:\\s*String\\s*=\\s*\"([^\"]+)\"")
+	for line: String in text.split("\n"):
+		var found: RegExMatch = pattern.search(line)
+		if found != null:
+			out.append(found.get_string(1))
 	out.sort()
 	return out
 
