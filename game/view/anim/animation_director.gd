@@ -314,7 +314,7 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 
 	var kind: String = str(intent.get("kind", ""))
 	if kind == EventTranslator.KIND_SUMMON and not leaving:
-		entry["tween"] = _build_summon_flight(intent, view, target, duration)
+		entry["tween"] = _build_summon_flight(intent, view, target, duration, to_anchor)
 		return
 
 	entry["tween"] = _arc(view, target, duration)
@@ -326,7 +326,8 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 ## face as a material swap, not a transform. A card arriving face-down never gets that callback,
 ## so a set monster cannot show its face for even one frame.
 func _build_summon_flight(
-		intent: Dictionary, view: CardView, target: Transform3D, duration: float) -> Tween:
+		intent: Dictionary, view: CardView, target: Transform3D, duration: float,
+		to_anchor: String) -> Tween:
 	var flight: CardFlight = CardFlight.between(view, view.global_transform, target)
 	flight.bulge = Vector3(0.0, SUMMON_RISE, 0.0)
 	flight.swell = SUMMON_SWELL
