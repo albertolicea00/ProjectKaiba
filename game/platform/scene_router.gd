@@ -42,11 +42,10 @@ const DECKS: String = "decks"
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
 const SOLO_SCENE: String = "res://scenes/duel_touch.tscn"
 const SOLO_TEST_SCENE: String = "res://scenes/solo_test.tscn"
-## `scenes/deck_editor.tscn` and not `ui/deck_editor/deck_editor.tscn`: the editor itself is a
-## widget that is handed its card data, and the scene named here is the host that looks that
-## data up for it. V1 - nothing under `game/ui/` may reach the native core - is the reason the
-## two are separate files, and this route is where the separation becomes visible.
-const DECKS_SCENE: String = "res://scenes/deck_editor.tscn"
+## Decks are chosen, not edited. See `DeckLibrary` for why: a `.ydk` built in any other
+## client works here untouched, and owning a deck format would cut this one off from all
+## of them.
+const DECKS_SCENE: String = "res://ui/deck_picker/deck_picker.tscn"
 
 ## The signal a hosted scene uses to ask for a different destination.
 const CHOSE_SIGNAL: String = "chose"
