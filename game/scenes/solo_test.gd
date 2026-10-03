@@ -212,6 +212,12 @@ func _ready() -> void:
 	# Hot seat: both hands belong to whoever is holding the device. See Honesty above.
 	_board.reveal_both_hands = true
 
+	# The only route to CONFIRM on a phone. `TouchSource` emits none - there is no finger
+	# gesture for it - so without these a handheld player cannot say yes to an optional effect
+	# or close a multi-card selection, and the duel parks with no way out.
+	_hud.confirmed.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CONFIRM}))
+	_hud.cancelled.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CANCEL}))
+
 	_hud.bind(_state)
 
 	# A separate layer from the HUD on purpose: `DuelHud` is what a networked client shows,
