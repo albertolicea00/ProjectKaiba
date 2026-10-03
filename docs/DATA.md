@@ -14,7 +14,10 @@ data/
 ├─ base/
 │  ├─ cards.cdb          SQLite card database
 │  ├─ script/            c<id>.lua, constant.lua, utility.lua, procedure scripts
-│  └─ pics/              card artwork (not obtainable from any official source)
+│  └─ pics/
+│     ├─ cards/<tier>/<code>.jpg    card faces, one folder per resolution
+│     ├─ cover/<theme>/<tier>.jpg   card backs; a back is a skin, so it is themed
+│     └─ field/                     field-spell art
 └─ packs/                built .pck asset packs (ARCHITECTURE.md section 8)
 ```
 
@@ -74,6 +77,18 @@ library from card scripts. Nothing in the official collection needs it.
 `BabelCDB` ships many `.cdb` files (one per set/era) rather than a single `cards.cdb`. They are
 plain SQLite and can be merged. `tools/cdb_check.py` (not written yet) should verify the merged
 result before it is used.
+
+### Artwork layout
+
+Tiers are `ld`, `sd`, `hd`, `fhd`, `qhd`, `uhd`. Only the ones you populate need to exist;
+`CardArt` picks `sd` on Android and `hd` elsewhere, and a missing face is a normal, remembered
+miss rather than an error.
+
+The card back is deliberately not a card: it lives under `cover/<theme>/` with one file per
+tier, so a future skin pack adds a directory rather than touching code. `CardArt.set_cover_theme()`
+switches themes; `classic` is the default. If the requested tier is absent it falls back through
+`hd`, `sd`, `ld` — one back that is larger than asked for costs a few hundred kilobytes once,
+while no back at all leaves every face-down card on the board blank.
 
 Artwork is not distributed by any of these projects and must be sourced separately. EDOPro
 downloads card images on demand from a third-party host rather than shipping them; any
