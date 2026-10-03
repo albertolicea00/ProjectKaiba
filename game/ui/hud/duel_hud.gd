@@ -76,7 +76,9 @@ const PHASE_NAMES: Dictionary = {
 @onready var _bottom_seat: Label = $Root/Column/BottomRow/BottomSeat/Box/Seat
 @onready var _bottom_life: Label = $Root/Column/BottomRow/BottomSeat/Box/Life
 @onready var _prompt_panel: PanelContainer = $Root/Column/BottomRow/Prompt
-@onready var _prompt_label: Label = $Root/Column/BottomRow/Prompt/Text
+@onready var _prompt_label: Label = $Root/Column/BottomRow/Prompt/Body/Text
+@onready var _prompt_confirm: Button = $Root/Column/BottomRow/Prompt/Body/Actions/Confirm
+@onready var _prompt_cancel: Button = $Root/Column/BottomRow/Prompt/Body/Actions/Cancel
 
 ## Which seat belongs to the person holding the device. `DuelState` does not know and should not
 ## - it is a board model, not a client - so it is configuration here. A hot seat duel leaves it
@@ -88,6 +90,19 @@ var local_player: int = DuelEnums.PLAYER.P0:
 
 var _state: DuelState = null
 var _prompt: String = ""
+
+## Raised when the player answers the pending prompt from the HUD rather than from a gesture.
+##
+## These exist because `CONFIRM` had **no touch binding at all**: `TouchSource` never called it
+## and nothing on screen did either, so on a phone there was no way to say yes to
+## `MSG_SELECT_YESNO`, no way to accept an optional effect, and no way to submit a multi-card
+## selection. The duel simply parked.
+##
+## Buttons rather than a new gesture on purpose. A yes/no question deserves a visible yes and a
+## visible no - hiding the only affirmative answer behind an undocumented flick would be a worse
+## version of the same bug.
+signal confirmed
+signal cancelled
 
 ## Life points as drawn, as the model has them, and how fast the first is chasing the second.
 var _shown: Array[float] = [0.0, 0.0]
@@ -102,6 +117,8 @@ var _snap: bool = true
 func _ready() -> void:
 	set_process(false)
 	refresh()
+	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
+	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
 	_paint_prompt()
 
 
@@ -249,6 +266,19 @@ func _result_text() -> String:
 # ----------------------------------------------------------------------------------------------
 # Prompt
 # ----------------------------------------------------------------------------------------------
+
+## What the prompt panel is currently showing, and whether it is showing at all.
+##
+## Exists so a test asks the HUD rather than reaching into its node tree. The previous version
+## indexed `Root/Column/BottomRow/Prompt/Text` directly and broke the moment the panel grew a
+## button row - a failure about the test's reach, not about the behaviour it was checking.
+func prompt_text() -> String:
+	return _prompt_label.text if _prompt_label != null else ""
+
+
+func prompt_is_visible() -> bool:
+	return _prompt_panel != null and _prompt_panel.visible
+
 
 func _paint_prompt() -> void:
 	_prompt_label.text = _prompt

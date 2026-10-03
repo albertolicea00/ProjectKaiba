@@ -148,10 +148,13 @@ visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 8
-mouse_filter = 2
 theme_override_styles/panel = SubResource("StyleBoxFlat_prompt")
 
-[node name="Text" type="Label" parent="Root/Column/BottomRow/Prompt"]
+[node name="Body" type="VBoxContainer" parent="Root/Column/BottomRow/Prompt"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Text" type="Label" parent="Root/Column/BottomRow/Prompt/Body"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.901961, 0.941176, 1, 1)
@@ -160,3 +163,18 @@ text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="Root/Column/BottomRow/Prompt/Body"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="Cancel" type="Button" parent="Root/Column/BottomRow/Prompt/Body/Actions"]
+layout_mode = 2
+custom_minimum_size = Vector2(132, 52)
+text = "No / Cancel"
+
+[node name="Confirm" type="Button" parent="Root/Column/BottomRow/Prompt/Body/Actions"]
+layout_mode = 2
+custom_minimum_size = Vector2(132, 52)
+text = "Yes / Confirm"
