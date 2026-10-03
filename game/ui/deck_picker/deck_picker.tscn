@@ -1,0 +1,66 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://ui/deck_picker/deck_picker.gd" id="1_picker"]
+
+[node name="DeckPicker" type="Control"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_picker")
+
+[node name="Root" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 24
+theme_override_constants/margin_top = 24
+theme_override_constants/margin_right = 24
+theme_override_constants/margin_bottom = 24
+
+[node name="Column" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="Root/Column"]
+layout_mode = 2
+text = "Choose a deck"
+
+[node name="Hint" type="Label" parent="Root/Column"]
+layout_mode = 2
+text = ""
+
+[node name="Body" type="HBoxContainer" parent="Root/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 16
+
+[node name="List" type="ItemList" parent="Root/Column/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.6
+
+[node name="Detail" type="RichTextLabel" parent="Root/Column/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+bbcode_enabled = true
+fit_content = true
+
+[node name="Actions" type="HBoxContainer" parent="Root/Column"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="Back" type="Button" parent="Root/Column/Actions"]
+layout_mode = 2
+custom_minimum_size = Vector2(140, 56)
+text = "Back"
+
+[node name="Play" type="Button" parent="Root/Column/Actions"]
+layout_mode = 2
+custom_minimum_size = Vector2(200, 56)
+text = "Play with this deck"
