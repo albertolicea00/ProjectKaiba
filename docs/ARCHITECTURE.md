@@ -540,6 +540,45 @@ The real VR phase (Phase 7+) is `RigVR` + `XRSource` + `UIWorld3D` + an `xr` pac
 
 Every phase ends in something runnable. No pure-infrastructure phases.
 
+### Where this actually is
+
+The phases below are the original plan. Work did not follow them in order, so this is the real
+state, kept here because a roadmap nobody trusts is worse than none.
+
+| phase | state |
+|---|---|
+| 0 — Data and toolchain | **done.** All three Android ABIs build; arm64 carries the 16 KB page flag |
+| 1 — Headless duel | **done.** `MsgParser` covers 62 of 97 opcodes; the rest degrade to `EV::UNHANDLED` |
+| 2 — First playable duel | **mostly done**, with one gap — see below |
+| 3 — Decks, LAN, replays | deck editor in progress; LAN and replays not started |
+| 4 — Polish and 3D | dynamic camera and summon/attack VFX landed early; no 3D models, no `PackManager` |
+
+Things that were built but never appeared in the plan: real card faces from `data/base/pics/`,
+the large card preview, zone markers, stable card handles, and the `cover/` themed card back.
+They came out of using the thing, which is the argument for shipping something playable early.
+
+### The gap worth naming: there is no L2
+
+`game/net/` does not exist. No `ITransport`, no `HostService`, no `ClientService`. Every duel
+scene talks to `KaibaCore` directly, which works for solo play and is why solo play arrived
+quickly.
+
+Three consequences, in order of when they bite:
+
+1. **Invariant V7 has nowhere to live.** Hidden-information filtering is supposed to happen in
+   `HostService` before the transport. Today nothing filters, because there is no transport and
+   both seats are the same process.
+2. **LAN cannot start without it.** Phase 3's `TcpTransport` plugs into an interface that was
+   never written.
+3. **The architecture diagram in section 1 describes a layer that is not there.** That is the
+   kind of drift that makes a document stop being worth reading.
+
+The fix is not large and the shape is already decided (section 5): `HostService` owns the
+`OCG_Duel` and the event filter, `ClientService` holds the mirrored `DuelState`, and solo play
+uses a `LoopbackTransport` so the single-player path exercises the same code as LAN. Doing it
+before LAN rather than during it is the difference between adding a layer and retrofitting one.
+
+
 **Phase 0 — Data and toolchain**
 Init submodules. Build `base.pck` with cdb + scripts + 2D art. SConstruct producing `libkaiba_core.so` for macOS (editor) and android-arm64. "Hello ocgcore": call `OCG_GetVersion` from GDScript.
 → *Exit: Godot prints "11.0" on Android.*
