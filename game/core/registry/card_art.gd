@@ -517,9 +517,6 @@ func clear() -> void:
 	_mutex.unlock()
 
 
-## Waits for every outstanding load. Called automatically when the last reference drops; a test
-## or a scene teardown may call it early. Blocking is the point: it is the only thing that
-## guarantees no worker is still inside this object when it stops existing.
 ## Waits for every outstanding decode and releases the self-reference that kept this object
 ## alive while they ran. Call it when a duel ends; without it the cache stays alive until the
 ## last task is reaped, which may be never if the process exits first.
