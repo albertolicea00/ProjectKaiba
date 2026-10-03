@@ -156,6 +156,9 @@ var _event_count: int = 0
 var _suppressed_logs: int = 0
 var _intents_this_selection: int = 0
 
+## The selection most recently handed to `SelectionController`, for re-arming after a RETRY.
+var _last_selection: Dictionary = {}
+
 ## Base elevation the rig was authored with, restored at the end of every flip.
 var _rest_elevation: float = 0.0
 var _flip_tween: Tween = null
@@ -387,9 +390,16 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.NEW_PHASE:
 			_record_phase()
 		DuelEnums.EV.RETRY:
+			# ocgcore turned the last answer down. It is well-formed - `respond()` already said
+			# so - but out of range for what was offered, typically a tap on a card the engine
+			# did not list. The engine does **not** re-send the selection, so re-arm the one we
+			# are still holding rather than waiting for a prompt that will never come.
+			#
+			# Not fatal here. A person mis-tapping is ordinary; ending their duel over it would
+			# be absurd. The headless audit still counts retries, so a self-driving run that
+			# produces one is still a failure.
 			_retries += 1
-			_fail("ocgcore rejected a response; the last answer was malformed for its selection")
-			_stop("retry")
+			_rearm_after_retry()
 			return
 
 	if type < FIRST_SELECT_EVENT or type > LAST_SELECT_EVENT:
@@ -398,9 +408,29 @@ func _handle(event: Dictionary) -> void:
 	_on_selection(event)
 
 
+## Puts the rejected selection back in front of the player.
+##
+## The camera deliberately does not move: this is the same decision they were already looking
+## at, and swinging the board would suggest something new had happened.
+func _rearm_after_retry() -> void:
+	if _last_selection.is_empty():
+		return
+	_selection.set_pending(_last_selection)
+	_intents_this_selection = 0
+	_focus.set_pending(_last_selection, _selection.pending_prompt())
+	_focus.note_rejected()
+	_board.clear_highlights()
+	_banner.refresh()
+	_idle_frames = 0
+
+
 ## A selection has arrived. It is parked, never answered here, and it never moves the camera.
 func _on_selection(event: Dictionary) -> void:
 	_selection.set_pending(event)
+	# Kept so a rejected answer can be re-asked. ocgcore does not re-send a selection it turned
+	# down (AGENTS.md section 8b trap 8), so if we forget it here there is nothing left to
+	# answer and the duel looks frozen.
+	_last_selection = event.duplicate(true)
 	_intents_this_selection = 0
 
 	var seat_before: int = _focus.seat_in_view
