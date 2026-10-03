@@ -118,6 +118,16 @@ const KIND_LP_CHANGE: String = "LP_CHANGE"
 const KIND_TURN_START: String = "TURN_START"
 const KIND_PHASE_CHANGE: String = "PHASE_CHANGE"
 
+## An equip card attaching to a monster. `MsgParser` has decoded `MSG_EQUIP` since batch 2 and
+## the sound set carries `equip.wav`, but nothing emitted a kind for it, so the event reached L3
+## and stopped there.
+const KIND_EQUIP: String = "EQUIP"
+
+## A coin toss or a die roll. Both are player-visible outcomes a card asked for, and both have
+## their own sound; neither had a kind.
+const KIND_COIN_TOSS: String = "COIN_TOSS"
+const KIND_DICE_ROLL: String = "DICE_ROLL"
+
 ## `KIND_SUMMON_ANNOUNCE` subkinds, so L4 can pick a different entrance per summon type.
 const SUMMON_NORMAL: String = "NORMAL"
 const SUMMON_SPECIAL: String = "SPECIAL"
@@ -243,6 +253,12 @@ func translate(event: Dictionary, state: DuelState = null) -> Array[Dictionary]:
 			_translate_new_turn(event, intents)
 		DuelEnums.EV.NEW_PHASE:
 			_translate_new_phase(event, intents)
+		DuelEnums.EV.EQUIP:
+			_translate_equip(event, intents)
+		DuelEnums.EV.TOSS_COIN:
+			_translate_toss(event, intents, KIND_COIN_TOSS)
+		DuelEnums.EV.TOSS_DICE:
+			_translate_toss(event, intents, KIND_DICE_ROLL)
 		_:
 			return intents
 
@@ -648,6 +664,25 @@ static func _base(kind: String) -> Dictionary:
 		"duration": float(profile["duration"]),
 		"blocking": bool(profile["blocking"]),
 	}
+
+
+## An equip card binding to its target. Both ends are packed loc_infos (msg_parser.cpp).
+func _translate_equip(event: Dictionary, intents: Array[Dictionary]) -> void:
+	var intent: Dictionary = _base(KIND_EQUIP)
+	intent["from_anchor"] = anchor_of(event.get("from", {}))
+	intent["to_anchor"] = anchor_of(event.get("to", {}))
+	intent["blocking"] = false
+	intents.append(intent)
+
+
+## A coin toss or die roll. The results are the point - a card resolves differently on them, so
+## they travel to L4 rather than being collapsed into "something was tossed".
+func _translate_toss(event: Dictionary, intents: Array[Dictionary], kind: String) -> void:
+	var intent: Dictionary = _base(kind)
+	intent["player"] = _as_int(event.get("player", 0), 0)
+	intent["results"] = event.get("results", [])
+	intent["blocking"] = false
+	intents.append(intent)
 
 
 ## Normalises a `loc_info` so every handler can index it without checking. Accepts the wire
