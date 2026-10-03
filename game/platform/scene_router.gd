@@ -11,10 +11,10 @@ extends Node
 ##     router.go("menu")
 ##     router.go("solo")
 ##
-## `menu` and `solo` are the two destinations that exist. `host`, `join`, `decks` and `replays`
-## are named in the menu because they are named in the roadmap, and choosing one lands back on
-## the menu carrying the line of `PENDING` that says why. An unknown name does the same thing
-## with a different line - a typo should put the player somewhere, not nowhere.
+## `menu`, `solo` and `decks` are the destinations that exist. `host`, `join` and `replays` are
+## named in the menu because they are named in the roadmap, and choosing one lands back on the
+## menu carrying the line of `PENDING` that says why. An unknown name does the same thing with a
+## different line - a typo should put the player somewhere, not nowhere.
 ##
 ## Layer: L5 shell. The router knows scene paths and destination names; it never reads the duel,
 ## the core or the model. Scenes talk back to it through one signal, `chose(destination)`,
@@ -31,9 +31,15 @@ signal changed(destination: String)
 
 const MENU: String = "menu"
 const SOLO: String = "solo"
+const DECKS: String = "decks"
 
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
 const SOLO_SCENE: String = "res://scenes/duel_touch.tscn"
+## `scenes/deck_editor.tscn` and not `ui/deck_editor/deck_editor.tscn`: the editor itself is a
+## widget that is handed its card data, and the scene named here is the host that looks that
+## data up for it. V1 - nothing under `game/ui/` may reach the native core - is the reason the
+## two are separate files, and this route is where the separation becomes visible.
+const DECKS_SCENE: String = "res://scenes/deck_editor.tscn"
 
 ## The signal a hosted scene uses to ask for a different destination.
 const CHOSE_SIGNAL: String = "chose"
@@ -47,7 +53,6 @@ const MESSAGE_METHOD: String = "show_message"
 const PENDING: Dictionary = {
 	"host": "Host Duel needs the LAN transport and the lobby - Phase 3. Nothing behind it yet.",
 	"join": "Join Duel needs LAN discovery and the lobby - Phase 3. Nothing behind it yet.",
-	"decks": "The deck editor and .ydk import arrive in Phase 3. Solo plays a fixed deck.",
 	"replays": "Replay recording and playback arrive in Phase 3. Nothing is recorded yet.",
 }
 
@@ -56,6 +61,7 @@ const PENDING: Dictionary = {
 var routes: Dictionary = {
 	MENU: MENU_SCENE,
 	SOLO: SOLO_SCENE,
+	DECKS: DECKS_SCENE,
 }
 
 var _current: String = ""
