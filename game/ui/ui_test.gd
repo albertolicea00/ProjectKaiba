@@ -1,7 +1,7 @@
 extends SceneTree
 
 ## Self-checking tests for the duel HUD, the card preview, the main menu, the scene router, the
-## board's zone markers and the card back.
+## deck editor, the board's zone markers and the card back.
 ##
 ##   godot --headless --path game --script res://ui/ui_test.gd
 ##
@@ -47,6 +47,7 @@ const MenuScript := preload("res://ui/main_menu/main_menu.gd")
 const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
 const RouterScript := preload("res://platform/scene_router.gd")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
+const DeckEditorScene := preload("res://ui/deck_editor/deck_editor.tscn")
 
 const HUD_TOP_LIFE := "Root/Column/TopRow/TopSeat/Box/Life"
 const HUD_TOP_SEAT := "Root/Column/TopRow/TopSeat/Box/Seat"
@@ -61,6 +62,21 @@ const MENU_BUTTONS := "Frame/Center/Column/Buttons"
 const MENU_STATUS := "Frame/Center/Column/Status"
 
 const UI_ROOT := "res://ui"
+
+## How many fake cards the virtualisation case feeds the editor. Not 14 595 - the point is the
+## ratio between entries and instantiated rows, and building a third of a million Dictionary
+## keys to prove it would make this suite slow for no extra evidence.
+const FAKE_CATALOGUE_SIZE := 5000
+
+## Real passcodes, used by the deck-editor cases as the identity of a hand-built fixture. They
+## are the same ones `core/deck/deck_test.gd` looks up in `data/base/cards.cdb`, so when that
+## suite says a card's type bits are what we claim, it is saying it about these cards.
+const CODE_FUSION := 45349196     # Archfiend Black Skull Dragon
+const CODE_SYNCHRO := 60992105    # Blackfeather Darkrage Dragon
+const CODE_XYZ := 98986900        # Thelematech Clatis
+const CODE_LINK := 7594154        # Zenna's Deceiving Doll Maidens
+const CODE_RITUAL := 60258960     # Legendary Flame Lord - a Ritual monster, so a MAIN deck card
+const CODE_SPELL := 55144522      # Pot of Greed
 
 ## Blue-Eyes White Dragon, as `KaibaCore.get_card_info()` returns it. Hand-built rather than
 ## looked up: V1 forbids anything under `game/ui/` from naming the core, and this file is under
@@ -151,7 +167,7 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	print("== DuelHud / CardPreview / MainMenu / SceneRouter / BoardView / CardArt tests ==")
+	print("== DuelHud / CardPreview / MainMenu / SceneRouter / DeckEditor / BoardView / CardArt tests ==")
 
 	_case_hud_reads_the_model()
 	_case_hud_rolls_life_points()
@@ -166,8 +182,14 @@ func _process(_delta: float) -> bool:
 
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
+	_case_router_reaches_the_deck_editor()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
+
+	_case_deck_editor_routes_a_tap_into_the_right_list()
+	_case_deck_editor_shows_the_verdict_live()
+	_case_deck_editor_virtualises_the_card_pool()
+	_case_deck_editor_filters_the_pool()
 
 	_case_zone_markers_sit_on_their_anchors()
 	_case_zone_markers_light_up()
@@ -515,8 +537,10 @@ func _case_router_sends_unbuilt_destinations_home() -> void:
 		_equal("%s explains itself" % destination, _text(router.current_scene(), MENU_STATUS),
 			str(RouterScript.PENDING[destination]))
 
+	# Any destination that is still pending will do; `decks` used to be the one named here and
+	# is a real scene now, which would have made this check boot a card database.
 	var before: Node = router.current_scene()
-	router.go("decks")
+	router.go("host")
 	_check("re-choosing does not rebuild the menu", router.current_scene() == before,
 		"the menu was replaced")
 
@@ -524,6 +548,35 @@ func _case_router_sends_unbuilt_destinations_home() -> void:
 	_equal("an unknown name still lands somewhere", router.current(), "menu")
 	_check("and says so", _text(router.current_scene(), MENU_STATUS).contains("no destination"),
 		"status read '%s'" % _text(router.current_scene(), MENU_STATUS))
+
+	_discard(router)
+	_end()
+
+
+## `decks` used to be a line of `PENDING`. It is a scene now, and the thing that proves it is
+## that the router no longer has an excuse for it.
+func _case_router_reaches_the_deck_editor() -> void:
+	_begin("router reaches the deck editor")
+	var router: RouterScript = _router()
+
+	_check("decks is no longer pending", not RouterScript.PENDING.has(RouterScript.DECKS),
+		"PENDING still explains it away")
+	_equal("decks routes at the host scene", RouterScript.DECKS_SCENE,
+		"res://scenes/deck_editor.tscn")
+	_check("that scene exists", ResourceLoader.exists(RouterScript.DECKS_SCENE),
+		"%s is missing" % RouterScript.DECKS_SCENE)
+	_equal("and the route table points there", str(router.routes[RouterScript.DECKS]),
+		RouterScript.DECKS_SCENE)
+
+	# Stubbed for the same reason solo is: the real scene loads a card database and scans the
+	# art tree, neither of which has anything to do with routing.
+	router.routes[RouterScript.DECKS] = _stub_scene("DecksStub")
+	router.go(RouterScript.MENU)
+	router.go(RouterScript.DECKS)
+
+	_equal("current", router.current(), "decks")
+	_equal("the menu was replaced", str(router.current_scene().name), "DecksStub")
+	_equal("only one scene is mounted", router.get_child_count(), 1)
 
 	_discard(router)
 	_end()
@@ -564,6 +617,169 @@ func _case_menu_offers_every_destination() -> void:
 	_equal("messages reach the screen", _text(menu, MENU_STATUS), "anything at all")
 
 	_discard(menu)
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# DeckEditor
+#
+# The editor is handed its card data and never looks anything up (V1). Everything below feeds it
+# hand-built Dictionaries shaped like the ones `scenes/deck_editor.gd` derives from the card
+# database, which is also what makes these cases runnable on a checkout with no `data/` at all.
+# ----------------------------------------------------------------------------------------------
+
+func _case_deck_editor_routes_a_tap_into_the_right_list() -> void:
+	_begin("a tap puts an extra-deck monster in extra and everything else in main")
+	var editor: DeckEditor = _deck_editor(_small_catalogue())
+
+	var catalogue: VirtualCardList = editor.catalogue_list()
+	_equal("every card is offered", catalogue.entry_count(), _small_catalogue().size())
+
+	for code: int in [CODE_FUSION, CODE_SYNCHRO, CODE_XYZ, CODE_LINK, CODE_RITUAL, CODE_SPELL]:
+		catalogue.activated.emit(code)
+
+	var deck: DeckModel = editor.deck()
+	_equal("four extra-deck monsters went to extra", deck.size(DeckModel.LIST.EXTRA), 4)
+	_equal("the ritual and the spell went to main", deck.size(DeckModel.LIST.MAIN), 2)
+	_check("the ritual specifically", deck.count_in(DeckModel.LIST.MAIN, CODE_RITUAL) == 1,
+		"it is not in main")
+	_equal("nothing was sided", deck.size(DeckModel.LIST.SIDE), 0)
+
+	# The side deck is a mode, not a gesture: a long press would be invisible on a phone.
+	var target: OptionButton = editor.get_node(DeckEditor.PATH_TARGET) as OptionButton
+	target.select(DeckEditor.TARGET.SIDE)
+	catalogue.activated.emit(CODE_FUSION)
+	_equal("a sided Fusion goes to side, not extra", deck.size(DeckModel.LIST.SIDE), 1)
+	_equal("and extra did not grow", deck.size(DeckModel.LIST.EXTRA), 4)
+
+	# A deck list shows one row per distinct card with a copy count, not one row per copy.
+	target.select(DeckEditor.TARGET.DECK)
+	catalogue.activated.emit(CODE_SPELL)
+	catalogue.activated.emit(CODE_SPELL)
+	_equal("three copies of the spell", deck.count_in(DeckModel.LIST.MAIN, CODE_SPELL), 3)
+	var main_list: VirtualCardList = editor.list_for(DeckModel.LIST.MAIN)
+	_equal("but two rows", main_list.entry_count(), 2)
+	_check("one of which counts them", _row_note(main_list, CODE_SPELL) == "x3",
+		"it read '%s'" % _row_note(main_list, CODE_SPELL))
+
+	# Tapping a deck row removes one copy.
+	main_list.activated.emit(CODE_SPELL)
+	_equal("a tap removed one", deck.count_in(DeckModel.LIST.MAIN, CODE_SPELL), 2)
+	editor.list_for(DeckModel.LIST.EXTRA).activated.emit(CODE_XYZ)
+	_equal("and from the extra deck too", deck.size(DeckModel.LIST.EXTRA), 3)
+
+	_discard(editor)
+	_end()
+
+
+func _case_deck_editor_shows_the_verdict_live() -> void:
+	_begin("the verdict is recomputed on every change and says what is wrong")
+	var editor: DeckEditor = _deck_editor(_small_catalogue())
+
+	var empty_verdict: Dictionary = editor.verdict()
+	_check("an empty deck is not legal", not bool(empty_verdict["ok"]), "it said legal")
+	_check("and the line says so", editor.verdict_text().contains("main deck needs 40 more"),
+		"it read '%s'" % editor.verdict_text())
+
+	# Three in the main deck plus one sided is still a fourth copy, and the line names the card
+	# rather than reporting a bare number.
+	var catalogue: VirtualCardList = editor.catalogue_list()
+	for i: int in 3:
+		catalogue.activated.emit(CODE_SPELL)
+	(editor.get_node(DeckEditor.PATH_TARGET) as OptionButton).select(DeckEditor.TARGET.SIDE)
+	catalogue.activated.emit(CODE_SPELL)
+
+	_check("four copies are reported", editor.verdict_text().contains("4 copies of Pot of Greed"),
+		"it read '%s'" % editor.verdict_text())
+	_equal("and structurally too", DeckValidator.issues_of(
+		editor.verdict(), DeckValidator.ISSUE.TOO_MANY_COPIES).size(), 1)
+
+	# Deck sizes are a parameter, so moving them moves the verdict without touching the deck.
+	# This is the shape a LAN host's `DeckSizes` arrives in.
+	editor.set_limits({"main_min": 3, "main_max": 3, "side_max": 1, "copies": 4})
+	_check("host limits are honoured", bool(editor.verdict()["ok"]),
+		"it read '%s'" % editor.verdict_text())
+	_check("and the line says it is legal", editor.verdict_text().begins_with("Legal:"),
+		"it read '%s'" % editor.verdict_text())
+	_check("the main header shows the applied range, not the default",
+		_text(editor, DeckEditor.PATH_HEADER[DeckModel.LIST.MAIN]).contains("(3-3)"),
+		"it read '%s'" % _text(editor, DeckEditor.PATH_HEADER[DeckModel.LIST.MAIN]))
+
+	_discard(editor)
+	_end()
+
+
+## The reason `VirtualCardList` exists: the real pool is 14 595 cards, and a node per card is
+## roughly 60 000 `Control`s once each row's icon and two labels are counted.
+func _case_deck_editor_virtualises_the_card_pool() -> void:
+	_begin("a large card pool instantiates a screenful of rows, not a list-ful")
+	var editor: DeckEditor = _deck_editor(_fake_catalogue(FAKE_CATALOGUE_SIZE))
+
+	var catalogue: VirtualCardList = editor.catalogue_list()
+	_equal("every card is in the list", catalogue.entry_count(), FAKE_CATALOGUE_SIZE)
+	_check("but only a handful of rows exist",
+		catalogue.pooled_rows() <= VirtualCardList.MAX_ROWS,
+		"%d rows instantiated" % catalogue.pooled_rows())
+	_check("which is far fewer than the entries", catalogue.pooled_rows() < FAKE_CATALOGUE_SIZE,
+		"%d rows for %d entries" % [catalogue.pooled_rows(), FAKE_CATALOGUE_SIZE])
+
+	# The scroll range covers the whole list even though the nodes do not.
+	var body: Control = catalogue.get_node("Body") as Control
+	_equal("the scroll range covers every entry", body.custom_minimum_size.y,
+		float(FAKE_CATALOGUE_SIZE * VirtualCardList.ROW_HEIGHT))
+
+	# Scrolling re-binds the same rows rather than making more of them.
+	var before: int = catalogue.pooled_rows()
+	catalogue.scroll_to(FAKE_CATALOGUE_SIZE - 1)
+	_equal("scrolling to the end made no new rows", catalogue.pooled_rows(), before)
+	_check("and bound a later entry", catalogue.first_bound() > 0,
+		"first_bound() is %d" % catalogue.first_bound())
+
+	_discard(editor)
+	_end()
+
+
+func _case_deck_editor_filters_the_pool() -> void:
+	_begin("search and the kind filter narrow the pool")
+	var editor: DeckEditor = _deck_editor(_small_catalogue())
+	var catalogue: VirtualCardList = editor.catalogue_list()
+	var search: LineEdit = editor.get_node(DeckEditor.PATH_SEARCH) as LineEdit
+	var kind: OptionButton = editor.get_node(DeckEditor.PATH_KIND) as OptionButton
+
+	search.text = "pot of"
+	search.text_changed.emit(search.text)
+	_equal("one card matches by name", catalogue.entry_count(), 1)
+	_equal("and it is the right one", int(catalogue.entry_at(0)["code"]), CODE_SPELL)
+
+	# A passcode is as good a needle as a name: it is what a `.ydk` actually carries.
+	search.text = str(CODE_LINK)
+	search.text_changed.emit(search.text)
+	_equal("a passcode finds its card", catalogue.entry_count(), 1)
+	_equal("by code", int(catalogue.entry_at(0)["code"]), CODE_LINK)
+
+	search.text = "POT OF GREED"
+	search.text_changed.emit(search.text)
+	_equal("search is case-insensitive", catalogue.entry_count(), 1)
+
+	search.text = ""
+	search.text_changed.emit("")
+	kind.select(DeckEditor.KIND.EXTRA)
+	kind.item_selected.emit(DeckEditor.KIND.EXTRA)
+	_equal("the extra-deck filter keeps exactly the four", catalogue.entry_count(), 4)
+
+	kind.select(DeckEditor.KIND.SPELL)
+	kind.item_selected.emit(DeckEditor.KIND.SPELL)
+	_equal("the spell filter keeps one", catalogue.entry_count(), 1)
+
+	kind.select(DeckEditor.KIND.ALL)
+	kind.item_selected.emit(DeckEditor.KIND.ALL)
+	_equal("and All brings them all back", catalogue.entry_count(), _small_catalogue().size())
+
+	search.text = "no such card anywhere"
+	search.text_changed.emit(search.text)
+	_equal("nothing matches", catalogue.entry_count(), 0)
+
+	_discard(editor)
 	_end()
 
 
@@ -736,7 +952,10 @@ func _case_card_back_is_outside_the_budget() -> void:
 		_end()
 		return
 
-	art.set_tier(CardArt.TIER_SD)
+	# Deliberately NOT switching tier before the sweep. The cover now ships one file per
+	# resolution under `pics/cover/<theme>/`, so changing tier legitimately changes which back
+	# is wanted; mixing that into the eviction test would blame the LRU for a reload the tier
+	# change asked for.
 	art.set_budget_bytes(268 * 391 * 3)
 	for code: int in codes:
 		art.request(code)
@@ -751,12 +970,23 @@ func _case_card_back_is_outside_the_budget() -> void:
 		"the LRU took the card back")
 	_equal("and still not in the cache's accounting", stats["cached"], 1)
 
-	# Neither of the two other things that drop faces may touch it.
+	# Nothing that drops faces may touch it.
 	art.clear()
 	_check("clear() leaves it", art.back_texture() == back, "clear() dropped the card back")
-	art.set_tier(CardArt.TIER_HD)
-	_check("and so does a tier switch - there is only one file, shared by both tiers",
-		art.back_texture() == back, "set_tier() dropped the card back")
+
+	# A tier change is the one thing that *should* replace it, because each tier has its own
+	# file. This is configuration, not memory pressure: the guarantee is that the back is never
+	# lost to eviction, not that it never changes.
+	var before_path: String = art.back_path()
+	art.set_tier(CardArt.TIER_SD)
+	_check("a tier change asks for that tier's own cover file",
+		art.back_path() != before_path,
+		"back_path() stayed at %s after switching tier" % before_path)
+	var small: Texture2D = art.back_texture()
+	_check("and that file loads", small != null, "the sd cover did not load")
+	if small != null:
+		_check("it is a different image, not the hd one again", small != back,
+			"the tier switch returned the same texture")
 
 	art.shutdown()
 	_end()
@@ -867,6 +1097,56 @@ func _duel_in_progress() -> DuelState:
 	state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": DuelEnums.PHASE.MAIN1})
 	state.apply({"t": DuelEnums.EV.DAMAGE, "player": DuelEnums.PLAYER.P1, "amount": 1000})
 	return state
+
+
+## A deck editor on screen, bound to `catalogue`. No `info_for` and no `CardArt`: a card the
+## catalogue does not list is exactly the `UNKNOWN_CODE` case, and the rows are allowed to have
+## no faces - `data/` is gitignored and these cases must run without it.
+func _deck_editor(catalogue: Array[Dictionary]) -> DeckEditor:
+	var editor: DeckEditor = DeckEditorScene.instantiate() as DeckEditor
+	root.add_child(editor)
+	editor.bind(catalogue)
+	return editor
+
+
+## Six cards, one of each routing outcome, in the shape `scenes/deck_editor.gd` builds: the four
+## keys the editor reads and nothing else. The type bitmasks are the real ones that
+## `data/base/cards.cdb` carries for these passcodes - `core/deck/deck_test.gd` is the case that
+## proves that against the database itself, which is why it can be asserted here.
+func _small_catalogue() -> Array[Dictionary]:
+	return [
+		_card(CODE_FUSION, "Archfiend Black Skull Dragon", DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.FUSION),
+		_card(CODE_SYNCHRO, "Blackfeather Darkrage Dragon",
+			DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.SYNCHRO),
+		_card(CODE_XYZ, "Thelematech Clatis",
+			DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.XYZ),
+		_card(CODE_LINK, "Zenna's Deceiving Doll Maidens",
+			DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.LINK),
+		_card(CODE_RITUAL, "Legendary Flame Lord",
+			DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.RITUAL),
+		_card(CODE_SPELL, "Pot of Greed", DuelEnums.TYPE.SPELL),
+	]
+
+
+## `count` distinct spells. Only the size matters: this is the virtualisation case's haystack.
+func _fake_catalogue(count: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i: int in count:
+		out.append(_card(i + 1, "Card %d" % (i + 1), DuelEnums.TYPE.SPELL))
+	return out
+
+
+func _card(code: int, card_name: String, type: int) -> Dictionary:
+	return {"code": code, "name": card_name, "type": type, "alias": 0}
+
+
+## The right-hand column of the row for `code` in a deck list, or "" if it has no row.
+func _row_note(list: VirtualCardList, code: int) -> String:
+	for i: int in list.entry_count():
+		var entry: Dictionary = list.entry_at(i)
+		if int(entry.get("code", 0)) == code:
+			return str(entry.get("note", ""))
+	return ""
 
 
 func _hud() -> HudScript:
