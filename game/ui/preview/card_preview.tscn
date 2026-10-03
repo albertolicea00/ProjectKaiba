@@ -1,0 +1,157 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://ui/preview/card_preview.gd" id="1_preview"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_panel"]
+content_margin_left = 26.0
+content_margin_top = 24.0
+content_margin_right = 26.0
+content_margin_bottom = 24.0
+bg_color = Color(0.054902, 0.0666667, 0.0862745, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.360784, 0.682353, 1, 0.5)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[node name="CardPreview" type="CanvasLayer"]
+layer = 10
+script = ExtResource("1_preview")
+
+[node name="Root" type="Control" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dimmer" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0.65)
+
+[node name="Frame" type="Control" parent="Root"]
+layout_mode = 1
+anchor_left = 0.07
+anchor_top = 0.06
+anchor_right = 0.93
+anchor_bottom = 0.94
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Frame"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_panel")
+
+[node name="Body" type="HBoxContainer" parent="Root/Frame/Panel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 28
+
+[node name="Art" type="AspectRatioContainer" parent="Root/Frame/Panel/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+ratio = 0.686047
+stretch_mode = 2
+
+[node name="Face" type="TextureRect" parent="Root/Frame/Panel/Body/Art"]
+layout_mode = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="NoArt" type="Label" parent="Root/Frame/Panel/Body/Art"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.498039, 0.54902, 0.619608, 1)
+theme_override_font_sizes/font_size = 20
+text = "no artwork"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Text" type="VBoxContainer" parent="Root/Frame/Panel/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.6
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="CardName" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_font_sizes/font_size = 34
+text = "-"
+autowrap_mode = 3
+
+[node name="TypeLine" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.360784, 0.682353, 1, 1)
+theme_override_font_sizes/font_size = 19
+text = "-"
+autowrap_mode = 3
+
+[node name="TraitLine" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 19
+text = ""
+autowrap_mode = 3
+
+[node name="StatLine" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_font_sizes/font_size = 23
+text = ""
+autowrap_mode = 3
+
+[node name="MarkerLine" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 18
+text = ""
+autowrap_mode = 3
+
+[node name="ScaleLine" type="Label" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 18
+text = ""
+autowrap_mode = 3
+
+[node name="DescScroll" type="ScrollContainer" parent="Root/Frame/Panel/Body/Text"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+horizontal_scroll_mode = 0
+
+[node name="Desc" type="Label" parent="Root/Frame/Panel/Body/Text/DescScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.843137, 0.882353, 0.941176, 1)
+theme_override_font_sizes/font_size = 18
+text = ""
+autowrap_mode = 3
