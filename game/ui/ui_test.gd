@@ -1,11 +1,29 @@
 extends SceneTree
 
-## Self-checking tests for the duel HUD, the main menu and the scene router.
+## Self-checking tests for the duel HUD, the card preview, the main menu, the scene router, the
+## board's zone markers and the card back.
 ##
 ##   godot --headless --path game --script res://ui/ui_test.gd
 ##
 ## Prints PASS or FAIL per case and exits non-zero if anything failed, so it can be wired into
 ## a Makefile target as a gate. Same shape as `core/duel/duel_state_test.gd`, no framework.
+##
+## ------------------------------------------------------------------------------------------
+## Why the board and the art cache are tested from the UI suite
+## ------------------------------------------------------------------------------------------
+## `BoardView`'s zone markers and `CardArt.back_texture()` are not UI, and in a tidier world
+## their checks would live beside `core/duel/duel_state_test.gd` and
+## `core/registry/card_art_test.gd`. They are here because this is the suite that exists and
+## adding a Makefile target was outside the change that wrote them. Both are headless-safe
+## measurements of real state, which is the only property that actually matters for where they
+## run. Move them when a `make test-ui` target appears.
+##
+## ------------------------------------------------------------------------------------------
+## Cases that need `data/`
+## ------------------------------------------------------------------------------------------
+## `data/` is gitignored (AGENTS.md section 9), so a checkout with no artwork is a normal state.
+## The card-back case prints SKIP and is not counted rather than reporting red for files it was
+## never supposed to have - the same contract `core/registry/card_art_test.gd` uses.
 ##
 ## ------------------------------------------------------------------------------------------
 ## Why the work happens in `_process` and not in `_init`
@@ -28,6 +46,7 @@ const HudScene := preload("res://ui/hud/duel_hud.tscn")
 const MenuScript := preload("res://ui/main_menu/main_menu.gd")
 const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
 const RouterScript := preload("res://platform/scene_router.gd")
+const PreviewScene := preload("res://ui/preview/card_preview.tscn")
 
 const HUD_TOP_LIFE := "Root/Column/TopRow/TopSeat/Box/Life"
 const HUD_TOP_SEAT := "Root/Column/TopRow/TopSeat/Box/Seat"
@@ -43,6 +62,82 @@ const MENU_STATUS := "Frame/Center/Column/Status"
 
 const UI_ROOT := "res://ui"
 
+## Blue-Eyes White Dragon, as `KaibaCore.get_card_info()` returns it. Hand-built rather than
+## looked up: V1 forbids anything under `game/ui/` from naming the core, and this file is under
+## `game/ui/`. The values are the ones `make duel-real` prints for that passcode - LIGHT Dragon,
+## level 8, 3000 / 2500 - so the fixture is a transcript, not an invention. Every key the C++
+## `get_card_info()` can write is present, including the ones the preview deliberately ignores,
+## so the preview is proved to tolerate the whole shape rather than a convenient subset.
+static func blue_eyes() -> Dictionary:
+	return {
+		"code": 89631139,
+		"name": "Blue-Eyes White Dragon",
+		"desc": "This legendary dragon is a powerful engine of destruction.",
+		"strings": PackedStringArray(["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""]),
+		"type": DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.NORMAL,
+		"level": 8,
+		"attribute": DuelEnums.ATTRIBUTE.LIGHT,
+		"race": DuelEnums.RACE.DRAGON,
+		"attack": 3000,
+		"defense": 2500,
+		"lscale": 0,
+		"rscale": 0,
+		"link_marker": 0,
+		"alias": 0,
+		"ot": 3,
+		"category": 0,
+		"setcodes": PackedInt32Array(),
+	}
+
+## A Link monster, which is the shape the preview is most able to get wrong: the cdb's `def`
+## column carries the marker bitmask instead of a defence, and `level` carries the link rating.
+## Markers are TOP | LEFT | RIGHT - 0200 | 0010 | 0040 octal in `ocgapi_constants.h`, so 168.
+static func link_monster() -> Dictionary:
+	return {
+		"code": 1861629,
+		"name": "Test Link Dragon",
+		"desc": "2+ monsters",
+		"strings": PackedStringArray(),
+		"type": DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.LINK,
+		"level": 3,
+		"attribute": DuelEnums.ATTRIBUTE.DARK,
+		"race": DuelEnums.RACE.CYBERSE,
+		"attack": 2300,
+		"defense": 0,
+		"lscale": 0,
+		"rscale": 0,
+		"link_marker": 128 | 8 | 32,
+		"alias": 0,
+		"ot": 3,
+		"category": 0,
+		"setcodes": PackedInt32Array(),
+	}
+
+## Pot of Greed. A spell, so every monster-only line has to disappear rather than read zero.
+static func pot_of_greed() -> Dictionary:
+	return {
+		"code": 55144522,
+		"name": "Pot of Greed",
+		"desc": "Draw 2 cards.",
+		"strings": PackedStringArray(),
+		"type": DuelEnums.TYPE.SPELL,
+		"level": 0,
+		"attribute": 0,
+		"race": 0,
+		"attack": 0,
+		"defense": 0,
+		"lscale": 0,
+		"rscale": 0,
+		"link_marker": 0,
+		"alias": 0,
+		"ot": 3,
+		"category": 0,
+		"setcodes": PackedInt32Array(),
+	}
+
+## Decoded size of `data/base/pics/back/hd.jpg`, measured rather than assumed. RGB8, no mipmaps.
+const BACK_SIZE := Vector2i(930, 1350)
+
 var _case_name: String = ""
 var _case_failures: PackedStringArray = []
 var _cases_run: int = 0
@@ -56,7 +151,7 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	print("== DuelHud / MainMenu / SceneRouter tests ==")
+	print("== DuelHud / CardPreview / MainMenu / SceneRouter / BoardView / CardArt tests ==")
 
 	_case_hud_reads_the_model()
 	_case_hud_rolls_life_points()
@@ -64,12 +159,22 @@ func _process(_delta: float) -> bool:
 	_case_hud_shows_the_pending_prompt()
 	_case_hud_without_a_model()
 
+	_case_preview_fills_itself_from_card_info()
+	_case_preview_hides_what_a_spell_has_no_room_for()
+	_case_preview_link_monster_has_markers_and_no_defence()
+	_case_preview_without_card_data()
+
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
 
+	_case_zone_markers_sit_on_their_anchors()
+	_case_zone_markers_light_up()
+	_case_card_back_is_outside_the_budget()
+
 	_case_no_widget_measures_the_screen()
+	_case_no_ui_file_names_the_core()
 
 	print("== %d cases, %d failed ==" % [_cases_run, _cases_failed])
 	quit(1 if _cases_failed > 0 else 0)
@@ -193,6 +298,172 @@ func _case_hud_without_a_model() -> void:
 
 
 # ----------------------------------------------------------------------------------------------
+# CardPreview
+# ----------------------------------------------------------------------------------------------
+
+func _case_preview_fills_itself_from_card_info() -> void:
+	_begin("preview fills every label from a get_card_info-shaped Dictionary")
+	var preview: CardPreview = _preview()
+
+	_check("starts hidden", not preview.is_showing(), "it was already showing")
+
+	preview.show_card(blue_eyes(), null)
+	_check("showing", preview.is_showing(), "show_card did not open it")
+	_equal("the code it believes it is showing", preview.shown_code(), 89631139)
+
+	_equal("name", _text(preview, CardPreview.PATH_NAME), "Blue-Eyes White Dragon")
+	_equal("type decoded from the TYPE bits", _text(preview, CardPreview.PATH_TYPE),
+		"Monster / Normal")
+	_equal("attribute and race decoded", _text(preview, CardPreview.PATH_TRAITS),
+		"LIGHT%sDragon" % CardPreview.PART_SEPARATOR)
+	_equal("level, attack and defence", _text(preview, CardPreview.PATH_STATS),
+		"Level 8%sATK 3000%sDEF 2500" % [CardPreview.PART_SEPARATOR, CardPreview.PART_SEPARATOR])
+	_equal("effect text verbatim", _text(preview, CardPreview.PATH_DESC), str(blue_eyes()["desc"]))
+
+	# Not a Link and not a Pendulum, so those two lines are absent rather than blank.
+	_check("no marker line", not _node(preview, CardPreview.PATH_MARKERS).visible,
+		"a non-Link card offered link markers")
+	_check("no scale line", not _node(preview, CardPreview.PATH_SCALES).visible,
+		"a non-Pendulum card offered scales")
+
+	# A null face is a normal argument: the art may not have decoded yet, or there may be none.
+	_check("says there is no artwork", _node(preview, CardPreview.PATH_NO_ART).visible,
+		"a null face left the art area silently empty")
+
+	# A real texture takes the place of that message, which is what a hover actually passes in.
+	var texture: Texture2D = PlaceholderTexture2D.new()
+	preview.show_card(blue_eyes(), texture)
+	var face: TextureRect = preview.get_node(CardPreview.PATH_FACE) as TextureRect
+	_check("the face it was handed", face.texture == texture, "got %s" % str(face.texture))
+	_check("and the no-artwork message is gone", not _node(preview, CardPreview.PATH_NO_ART).visible,
+		"it stayed visible under a real texture")
+
+	preview.hide_card()
+	_check("hide_card closes it", not preview.is_showing(), "still showing")
+	_check("and lets go of the face", face.texture == null,
+		"a hidden preview was still holding a texture")
+
+	_discard(preview)
+	_end()
+
+
+func _case_preview_hides_what_a_spell_has_no_room_for() -> void:
+	_begin("a spell shows no attribute, no level and no stats rather than zeroes")
+	var preview: CardPreview = _preview()
+	preview.show_card(pot_of_greed(), null)
+
+	_equal("name", _text(preview, CardPreview.PATH_NAME), "Pot of Greed")
+	# The cdb stores a Normal Spell as bare TYPE_SPELL with no second bit, so "Normal" has to be
+	# inferred from the absence of every subtype flag.
+	_equal("type", _text(preview, CardPreview.PATH_TYPE), "Spell / Normal")
+	_equal("effect text", _text(preview, CardPreview.PATH_DESC), "Draw 2 cards.")
+
+	for path: String in [CardPreview.PATH_TRAITS, CardPreview.PATH_STATS,
+			CardPreview.PATH_MARKERS, CardPreview.PATH_SCALES]:
+		_check("%s is hidden" % path.get_file(), not _node(preview, path).visible,
+			"it read '%s'" % _text(preview, path))
+
+	_discard(preview)
+	_end()
+
+
+## The one shape most likely to be rendered wrong. `card_db.cpp` moves the cdb's `def` column
+## into `link_marker` for a Link monster and zeroes `defense`, so a preview that printed a
+## defence would print "DEF 0" - a plausible lie, which is worse than an obvious one.
+func _case_preview_link_monster_has_markers_and_no_defence() -> void:
+	_begin("a Link monster shows its markers, its rating, and no defence at all")
+	var preview: CardPreview = _preview()
+	preview.show_card(link_monster(), null)
+
+	var stats: String = _text(preview, CardPreview.PATH_STATS)
+	_equal("rating and attack", stats,
+		"LINK-3%sATK 2300" % CardPreview.PART_SEPARATOR)
+	_check("no defence anywhere in the stat line", not stats.contains("DEF"),
+		"it read '%s'" % stats)
+	_check("and no level either - a Link monster has none", not stats.contains("Level"),
+		"it read '%s'" % stats)
+
+	_check("the marker line is visible", _node(preview, CardPreview.PATH_MARKERS).visible,
+		"a Link monster showed no markers")
+	_equal("markers decoded in reading order", _text(preview, CardPreview.PATH_MARKERS),
+		"Markers: Top, Left, Right")
+
+	# Straight off the bitmask, so the decode is checked without the panel in the way. 0200,
+	# 0010 and 0040 octal from ocgapi_constants.h.
+	_equal("link_marker_names decodes the raw mask",
+		CardPreview.link_marker_names(128 | 8 | 32), PackedStringArray(["Top", "Left", "Right"]))
+	_equal("the corners too",
+		CardPreview.link_marker_names(64 | 256 | 1 | 4),
+		PackedStringArray(["Top-Left", "Top-Right", "Bottom-Left", "Bottom-Right"]))
+
+	_equal("type line names Link", _text(preview, CardPreview.PATH_TYPE),
+		"Monster / Link / Effect")
+
+	# An Xyz carries a Rank in the same column a Level lives in, and ocgcore writes an unknown
+	# ATK or DEF as a negative number rather than as a sentinel worth printing.
+	var xyz: Dictionary = blue_eyes()
+	xyz["type"] = DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.XYZ
+	xyz["level"] = 4
+	xyz["attack"] = -2
+	xyz["defense"] = -2
+	preview.show_card(xyz, null)
+	_equal("an Xyz has a Rank, and '?' is a value", _text(preview, CardPreview.PATH_STATS),
+		"Rank 4%sATK ?%sDEF ?" % [CardPreview.PART_SEPARATOR, CardPreview.PART_SEPARATOR])
+
+	# Pendulum scales live in their own line because they are not stats.
+	var pendulum: Dictionary = blue_eyes()
+	pendulum["type"] = DuelEnums.TYPE.MONSTER | DuelEnums.TYPE.EFFECT | DuelEnums.TYPE.PENDULUM
+	pendulum["lscale"] = 4
+	pendulum["rscale"] = 8
+	preview.show_card(pendulum, null)
+	_check("a Pendulum shows its scales", _node(preview, CardPreview.PATH_SCALES).visible,
+		"the scale line stayed hidden")
+	_equal("scales", _text(preview, CardPreview.PATH_SCALES), "Pendulum Scale 4 / 8")
+
+	_discard(preview)
+	_end()
+
+
+func _case_preview_without_card_data() -> void:
+	_begin("an empty Dictionary says so instead of showing a panel full of blanks")
+	var preview: CardPreview = _preview()
+
+	# `get_card_info()` answers {} for a passcode the database does not have: a token, a card
+	# from a set we do not ship, or a code that arrived over the network.
+	preview.show_card({}, null)
+
+	_check("it still opens", preview.is_showing(), "an unknown card closed the panel")
+	_equal("the name says what happened", _text(preview, CardPreview.PATH_NAME),
+		CardPreview.UNKNOWN_NAME)
+	_check("the name is not blank", not _text(preview, CardPreview.PATH_NAME).strip_edges().is_empty(),
+		"the name label was empty")
+	_equal("the type line is a placeholder, not an empty string",
+		_text(preview, CardPreview.PATH_TYPE), CardPreview.EMPTY)
+	_equal("and the text area explains itself", _text(preview, CardPreview.PATH_DESC),
+		CardPreview.UNKNOWN_DESC)
+	_equal("no code is claimed", preview.shown_code(), 0)
+
+	for path: String in [CardPreview.PATH_TRAITS, CardPreview.PATH_STATS,
+			CardPreview.PATH_MARKERS, CardPreview.PATH_SCALES]:
+		_check("%s stays out of the way" % path.get_file(), not _node(preview, path).visible,
+			"it read '%s'" % _text(preview, path))
+
+	# Half a row is also a real answer: `get_card_info()` fills the numeric half from
+	# OCG_CardData and the text half from the cdb's text table, and returns whichever it found.
+	preview.show_card({"code": 42, "type": DuelEnums.TYPE.TRAP | DuelEnums.TYPE.CONTINUOUS}, null)
+	_equal("a row with data but no text still gets a title",
+		_text(preview, CardPreview.PATH_NAME), "Card 42")
+	_equal("and its type is still decoded", _text(preview, CardPreview.PATH_TYPE),
+		"Trap / Continuous")
+
+	preview.hide_card()
+	_check("hidden", not preview.is_showing(), "still showing")
+
+	_discard(preview)
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
 # SceneRouter
 # ----------------------------------------------------------------------------------------------
 
@@ -297,6 +568,201 @@ func _case_menu_offers_every_destination() -> void:
 
 
 # ----------------------------------------------------------------------------------------------
+# BoardView zone markers
+# ----------------------------------------------------------------------------------------------
+
+## The whole point of building the markers off the anchors rather than off the layout arithmetic
+## a second time. A marker that has drifted is worse than no marker: it tells a player a card
+## goes somewhere it does not.
+func _case_zone_markers_sit_on_their_anchors() -> void:
+	_begin("every zone marker sits within a millimetre of the anchor it represents")
+	var board: BoardView = _board()
+
+	var names: PackedStringArray = board.zone_marker_names()
+	# 17 playable zones per seat: 5 monster, 2 extra monster, 5 spell & trap, field, graveyard,
+	# banished, deck, extra deck. Counted from DuelEnums rather than typed as "34".
+	var per_player: int = (
+		DuelEnums.MAIN_MONSTER_ZONES + DuelEnums.EXTRA_MONSTER_ZONES
+		+ DuelEnums.SPELL_TRAP_ZONES + 5)
+	_equal("one marker per playable zone per seat", names.size(),
+		per_player * DuelEnums.PLAYER_COUNT)
+
+	var worst: float = 0.0
+	var worst_name: String = ""
+	var strays: PackedStringArray = PackedStringArray()
+	for anchor: String in names:
+		if not board.anchor_names().has(anchor):
+			strays.append(anchor)
+			continue
+		var drift: float = board.zone_marker_transform(anchor).origin.distance_to(
+			board.anchor_position(anchor))
+		if drift > worst:
+			worst = drift
+			worst_name = anchor
+	_check("every marker names a real anchor", strays.is_empty(),
+		"strays: %s" % ", ".join(strays))
+	_check("worst drift is under a millimetre", worst < 0.001,
+		"%s is %.4f m from its anchor" % [worst_name, worst])
+	print("        worst marker drift: %s %.4f mm" % [worst_name, worst * 1000.0])
+
+	# The only offset there is meant to be, and it has to clear the table without reaching the
+	# cards. Either way round it z-fights something.
+	var lift: float = board.zone_marker_transform("MZ_P0_0").origin.y
+	_check("markers float above the table top", lift > 0.0, "lift was %.5f m" % lift)
+	_check("and stay under the cards", lift < BoardView.CARD_LIFT,
+		"lift %.5f m vs card lift %.5f m" % [lift, BoardView.CARD_LIFT])
+
+	# Role is carried by the shape, not only by the colour: three distinct meshes.
+	_equal("monster zone role", board.zone_marker_role("MZ_P0_2"), BoardView.ZoneRole.MONSTER)
+	_equal("extra monster zone role", board.zone_marker_role("EMZ_P1_0"), BoardView.ZoneRole.MONSTER)
+	_equal("spell & trap role", board.zone_marker_role("ST_P0_4"), BoardView.ZoneRole.SPELL_TRAP)
+	_equal("field zone role", board.zone_marker_role("FZ_P1"), BoardView.ZoneRole.SPELL_TRAP)
+	for pile: String in ["GY_P0", "BANISH_P0", "DECK_P1", "EXTRA_P1"]:
+		_equal("%s role" % pile, board.zone_marker_role(pile), BoardView.ZoneRole.PILE)
+	_equal("an anchor with no marker reports no role", board.zone_marker_role("HAND_P0"), -1)
+
+	var monster: MeshInstance3D = board.get_node("ZoneMarkers/MZ_P0_0") as MeshInstance3D
+	var spell: MeshInstance3D = board.get_node("ZoneMarkers/ST_P0_0") as MeshInstance3D
+	var pile_marker: MeshInstance3D = board.get_node("ZoneMarkers/GY_P0") as MeshInstance3D
+	_check("monster and spell & trap are different geometry", monster.mesh != spell.mesh,
+		"both roles share one mesh, so only the colour tells them apart")
+	_check("and so is a pile", pile_marker.mesh != monster.mesh and pile_marker.mesh != spell.mesh,
+		"a pile shares a mesh with a zone")
+
+	# Shared, not per-instance: the marker set must cost a fixed number of resources.
+	var other_monster: MeshInstance3D = board.get_node("ZoneMarkers/MZ_P1_3") as MeshInstance3D
+	_check("meshes are shared between markers of a role", other_monster.mesh == monster.mesh,
+		"every marker allocated its own mesh")
+	_check("so are materials", other_monster.material_override == monster.material_override,
+		"every marker allocated its own material")
+
+	# Hands, players and NOWHERE are not places a card is "placed", so they have no outline.
+	for anchor: String in ["HAND_P0", "HAND_P1", "PLAYER_P0", BoardView.ANCHOR_NOWHERE]:
+		_check("%s has no marker" % anchor, not names.has(anchor), "it got one")
+
+	# A marker must never be able to answer a pick ray - that is CardView's job alone.
+	var colliders: PackedStringArray = PackedStringArray()
+	for anchor: String in names:
+		var marker: Node = board.get_node("ZoneMarkers/%s" % anchor)
+		if marker.get_child_count() > 0:
+			colliders.append(anchor)
+	_check("no marker carries a collider", colliders.is_empty(),
+		"these have children: %s" % ", ".join(colliders))
+
+	# The markers live beside the anchors, never inside them: `anchor_names()` is the vocabulary
+	# L3 and L4 share and a marker appearing in it would be a new, meaningless anchor.
+	_equal("the anchor list is untouched", board.anchor_names().size(),
+		board.get_node("ZoneAnchors").get_child_count())
+
+	_discard(board)
+	_end()
+
+
+func _case_zone_markers_light_up() -> void:
+	_begin("a legal target lights up, and one call sets the whole state")
+	var board: BoardView = _board()
+
+	board.highlight_zones(PackedStringArray(["MZ_P0_1", "MZ_P0_3"]))
+	_equal("the zones asked for", board.highlighted_zones(),
+		PackedStringArray(["MZ_P0_1", "MZ_P0_3"]))
+
+	var lit: MeshInstance3D = board.get_node("ZoneMarkers/MZ_P0_1") as MeshInstance3D
+	var dark: MeshInstance3D = board.get_node("ZoneMarkers/MZ_P0_0") as MeshInstance3D
+	_equal("a lit zone wears the highlight colour",
+		(lit.material_override as StandardMaterial3D).albedo_color, BoardView.COLOUR_HIGHLIGHT)
+	_equal("an unlit one keeps its role colour",
+		(dark.material_override as StandardMaterial3D).albedo_color, BoardView.COLOUR_MONSTER)
+
+	# One call is the whole state, so a caller never has to remember what it lit last time.
+	board.highlight_zones(PackedStringArray(["ST_P1_0"]))
+	_equal("the previous set is gone", board.highlighted_zones(), PackedStringArray(["ST_P1_0"]))
+	_equal("and the zone it left went back to its role colour",
+		(lit.material_override as StandardMaterial3D).albedo_color, BoardView.COLOUR_MONSTER)
+
+	# The same anchor grammar as everything else, aliases included.
+	board.highlight_zones(PackedStringArray(["PZ_P0_0", "PZ_P0_1"]))
+	_equal("a pendulum zone lights the spell & trap zone it actually is",
+		board.highlighted_zones(),
+		PackedStringArray(["ST_P0_0", "ST_P0_%d" % (DuelEnums.SPELL_TRAP_ZONES - 1)]))
+
+	# V13's spirit: an anchor with no marker warns and is skipped, never crashes.
+	print("        the next warning is this check doing its job")
+	board.highlight_zones(PackedStringArray(["MZ_P1_2", "HAND_P0", "NOT_AN_ANCHOR"]))
+	_equal("the unknown names are dropped and the real one survives",
+		board.highlighted_zones(), PackedStringArray(["MZ_P1_2"]))
+
+	board.clear_highlights()
+	_equal("clear_highlights turns everything off", board.highlighted_zones().size(), 0)
+
+	_discard(board)
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# CardArt - the card back
+# ----------------------------------------------------------------------------------------------
+
+## `back_texture()` is the one thing in `CardArt` that is not a face, and the one thing that must
+## never be evicted: every face-down card, both decks, both extra decks and the opponent's hand
+## wear it, so losing it under memory pressure would blank most of the board at exactly the
+## moment memory was tight - and then reload it on the next frame.
+func _case_card_back_is_outside_the_budget() -> void:
+	var art: CardArt = CardArt.new()
+	if not FileAccess.file_exists(art.back_path()):
+		print("SKIP  the card back loads and survives an LRU sweep (no %s)" % art.back_path())
+		return
+
+	_begin("the card back loads and survives an LRU sweep")
+
+	var back: Texture2D = art.back_texture()
+	_check("it loaded", back != null, "back_texture() returned null")
+	if back != null:
+		_equal("it is the real file, at its real size", back.get_size(), Vector2(BACK_SIZE))
+	_equal("its decoded cost is reported", art.back_bytes(), BACK_SIZE.x * BACK_SIZE.y * 3)
+	_check("and is not counted against the face budget", int(art.stats()["bytes"]) == 0,
+		"stats() reported %d bytes with only the back loaded" % int(art.stats()["bytes"]))
+	_equal("nor as a cache entry", art.stats()["cached"], 0)
+	_check("a second call is the same texture, not a second decode",
+		art.back_texture() == back, "it reloaded")
+	print("        card back: %s, %d bytes decoded, outside the %d byte budget" % [
+		art.back_path().get_file(), art.back_bytes(), art.budget_bytes()])
+
+	# Now actually run the LRU over the top of it: a budget of one face, then six faces loaded.
+	var codes: PackedInt32Array = _sample_codes(CardArt.default_root(CardArt.TIER_SD), 6)
+	if codes.size() < 6:
+		_check("needed six faces on disk to force an eviction", false,
+			"found %d" % codes.size())
+		art.shutdown()
+		_end()
+		return
+
+	art.set_tier(CardArt.TIER_SD)
+	art.set_budget_bytes(268 * 391 * 3)
+	for code: int in codes:
+		art.request(code)
+	art.shutdown()
+	for code: int in codes:
+		art.texture_for(code)
+
+	var stats: Dictionary = art.stats()
+	_check("the sweep really did evict", int(stats["cached"]) < codes.size(),
+		"all %d faces survived a one-face budget" % int(stats["cached"]))
+	_check("the back is still the same object", art.back_texture() == back,
+		"the LRU took the card back")
+	_equal("and still not in the cache's accounting", stats["cached"], 1)
+
+	# Neither of the two other things that drop faces may touch it.
+	art.clear()
+	_check("clear() leaves it", art.back_texture() == back, "clear() dropped the card back")
+	art.set_tier(CardArt.TIER_HD)
+	_check("and so does a tier switch - there is only one file, shared by both tiers",
+		art.back_texture() == back, "set_tier() dropped the card back")
+
+	art.shutdown()
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
 # ARCHITECTURE.md section 10 rule 4
 # ----------------------------------------------------------------------------------------------
 
@@ -323,6 +789,51 @@ func _case_no_widget_measures_the_screen() -> void:
 			_check("%s is clean" % path, not text.contains(needle), "it contains '%s'" % needle)
 
 	_end()
+
+
+## V1: L4 and L5 never import anything from L1. The card preview is the file this is actually
+## about - it renders card data and the shortest route to card data is the core - but the rule
+## is the directory's, so the whole directory is scanned.
+##
+## A widget that reached the core directly would work today and would be unusable the first time
+## a card is previewed from a replay, from a deck list or from across the network, none of which
+## have a live core to ask.
+func _case_no_ui_file_names_the_core() -> void:
+	_begin("no file under game/ui/ names the core")
+
+	# Spelled in halves so that this file is not itself a hit for the thing it forbids.
+	# `ClassDB.instantiate` is here because it is the actual back door: the core is registered
+	# by the GDExtension and `ClassDB.instantiate("<the core>")` reaches it without the name
+	# ever appearing as an identifier.
+	var needles: Array[String] = [
+		"Kaiba" + "Core",
+		"ClassDB." + "instantiate",
+		"OCG" + "_",
+	]
+
+	var files: PackedStringArray = _ui_files(UI_ROOT)
+	_check("there are files to scan", files.size() > 0, "found none under %s" % UI_ROOT)
+
+	for path: String in files:
+		# Comment lines are stripped first. The invariant is about what the code *does*, and
+		# several files under here explain the rule by quoting the forbidden name - which is
+		# the opposite of breaking it. `ui/hud/duel_hud.gd` has said so since it was written.
+		var text: String = _without_comments(FileAccess.get_file_as_string(path))
+		_check("%s was readable" % path, not text.strip_edges().is_empty(), "read nothing")
+		for needle: String in needles:
+			_check("%s is clean" % path, not text.contains(needle), "it contains '%s'" % needle)
+
+	_end()
+
+
+## Drops whole-line GDScript comments. Deliberately crude: it does not try to understand strings
+## or trailing comments, because the needles it exists to serve never appear in either.
+func _without_comments(text: String) -> String:
+	var kept: PackedStringArray = PackedStringArray()
+	for line: String in text.split("\n"):
+		if not line.strip_edges().begins_with("#"):
+			kept.append(line)
+	return "\n".join(kept)
 
 
 ## Every script and scene under a directory, recursively. Source-tree only: an exported build
@@ -368,6 +879,39 @@ func _router() -> RouterScript:
 	var router: RouterScript = RouterScript.new()
 	root.add_child(router)
 	return router
+
+
+func _preview() -> CardPreview:
+	var preview: CardPreview = PreviewScene.instantiate() as CardPreview
+	root.add_child(preview)
+	return preview
+
+
+## A board with no duel behind it. `BoardView` builds its table, its anchors and its markers on
+## first touch, so nothing else is needed to measure the geometry.
+func _board() -> BoardView:
+	var board: BoardView = BoardView.new()
+	root.add_child(board)
+	return board
+
+
+## The first `count` passcodes with a file under `dir`, in directory order. Discovered rather
+## than hardcoded so the suite does not depend on which art someone happens to have downloaded.
+func _sample_codes(dir: String, count: int) -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	var handle: DirAccess = DirAccess.open(dir)
+	if handle == null:
+		return out
+	handle.list_dir_begin()
+	var entry: String = handle.get_next()
+	while entry != "" and out.size() < count:
+		if entry.ends_with(".jpg"):
+			var code: int = int(entry.get_basename())
+			if code > 0:
+				out.append(code)
+		entry = handle.get_next()
+	handle.list_dir_end()
+	return out
 
 
 func _stub_scene(node_name: String) -> PackedScene:
