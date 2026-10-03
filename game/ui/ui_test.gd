@@ -48,7 +48,6 @@ const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
 const RouterScript := preload("res://platform/scene_router.gd")
 const BannerScene := preload("res://ui/hud/hot_seat_banner.tscn")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
-const DeckEditorScene := preload("res://ui/deck_editor/deck_editor.tscn")
 
 const HUD_TOP_LIFE := "Root/Column/TopRow/TopSeat/Box/Life"
 const HUD_TOP_SEAT := "Root/Column/TopRow/TopSeat/Box/Seat"
@@ -179,7 +178,7 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	print("== DuelHud / SeatFocus / HotSeatBanner / CardPreview / MainMenu / SceneRouter / DeckEditor / BoardView / CardArt tests ==")
+	print("== DuelHud / SeatFocus / HotSeatBanner / CardPreview / MainMenu / SceneRouter / DeckPicker / BoardView / CardArt tests ==")
 
 	_case_hud_reads_the_model()
 	_case_hud_rolls_life_points()
@@ -201,14 +200,9 @@ func _process(_delta: float) -> bool:
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
 	_case_router_reaches_solo_test()
-	_case_router_reaches_the_deck_editor()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
 
-	_case_deck_editor_routes_a_tap_into_the_right_list()
-	_case_deck_editor_shows_the_verdict_live()
-	_case_deck_editor_virtualises_the_card_pool()
-	_case_deck_editor_filters_the_pool()
 
 	_case_zone_markers_sit_on_their_anchors()
 	_case_zone_markers_light_up()
@@ -217,6 +211,11 @@ func _process(_delta: float) -> bool:
 	_case_hot_seat_reveals_hands_not_face_downs()
 	_case_the_overlay_goes_neutral_after_a_win()
 	_case_a_refused_answer_is_announced()
+
+	_case_the_library_finds_ydk_decks()
+	_case_the_picker_lists_and_reports_a_choice()
+	_case_an_empty_library_says_where_to_put_files()
+	_case_router_reaches_the_deck_picker()
 
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
@@ -920,39 +919,6 @@ func _case_router_reaches_solo_test() -> void:
 	_end()
 
 
-## `decks` used to be a line of `PENDING`. It is a scene now, and the thing that proves it is
-## that the router no longer has an excuse for it.
-func _case_router_reaches_the_deck_editor() -> void:
-	_begin("router reaches the deck editor")
-	var router: RouterScript = _router()
-
-	_check("decks is no longer pending", not RouterScript.PENDING.has(RouterScript.DECKS),
-		"PENDING still explains it away")
-	_equal("decks routes at the host scene", RouterScript.DECKS_SCENE,
-		"res://scenes/deck_editor.tscn")
-	_check("that scene exists", ResourceLoader.exists(RouterScript.DECKS_SCENE),
-		"%s is missing" % RouterScript.DECKS_SCENE)
-	_equal("and the route table points there", str(router.routes[RouterScript.DECKS]),
-		RouterScript.DECKS_SCENE)
-
-	# Stubbed for the same reason solo is: the real scene loads a card database and scans the
-	# art tree, neither of which has anything to do with routing.
-	router.routes[RouterScript.DECKS] = _stub_scene("DecksStub")
-	router.go(RouterScript.MENU)
-	router.go(RouterScript.DECKS)
-
-	_equal("current", router.current(), "decks")
-	_equal("the menu was replaced", str(router.current_scene().name), "DecksStub")
-	_equal("only one scene is mounted", router.get_child_count(), 1)
-
-	_discard(router)
-	_end()
-
-
-# ----------------------------------------------------------------------------------------------
-# MainMenu
-# ----------------------------------------------------------------------------------------------
-
 func _case_menu_offers_every_destination() -> void:
 	_begin("menu offers the six destinations and says which are not built")
 	var menu: MenuScript = MenuScene.instantiate() as MenuScript
@@ -989,170 +955,11 @@ func _case_menu_offers_every_destination() -> void:
 
 
 # ----------------------------------------------------------------------------------------------
-# DeckEditor
+# DeckPicker
 #
 # The editor is handed its card data and never looks anything up (V1). Everything below feeds it
-# hand-built Dictionaries shaped like the ones `scenes/deck_editor.gd` derives from the card
+# hand-built Dictionaries shaped like the ones the picker derives from the card
 # database, which is also what makes these cases runnable on a checkout with no `data/` at all.
-# ----------------------------------------------------------------------------------------------
-
-func _case_deck_editor_routes_a_tap_into_the_right_list() -> void:
-	_begin("a tap puts an extra-deck monster in extra and everything else in main")
-	var editor: DeckEditor = _deck_editor(_small_catalogue())
-
-	var catalogue: VirtualCardList = editor.catalogue_list()
-	_equal("every card is offered", catalogue.entry_count(), _small_catalogue().size())
-
-	for code: int in [CODE_FUSION, CODE_SYNCHRO, CODE_XYZ, CODE_LINK, CODE_RITUAL, CODE_SPELL]:
-		catalogue.activated.emit(code)
-
-	var deck: DeckModel = editor.deck()
-	_equal("four extra-deck monsters went to extra", deck.size(DeckModel.LIST.EXTRA), 4)
-	_equal("the ritual and the spell went to main", deck.size(DeckModel.LIST.MAIN), 2)
-	_check("the ritual specifically", deck.count_in(DeckModel.LIST.MAIN, CODE_RITUAL) == 1,
-		"it is not in main")
-	_equal("nothing was sided", deck.size(DeckModel.LIST.SIDE), 0)
-
-	# The side deck is a mode, not a gesture: a long press would be invisible on a phone.
-	var target: OptionButton = editor.get_node(DeckEditor.PATH_TARGET) as OptionButton
-	target.select(DeckEditor.TARGET.SIDE)
-	catalogue.activated.emit(CODE_FUSION)
-	_equal("a sided Fusion goes to side, not extra", deck.size(DeckModel.LIST.SIDE), 1)
-	_equal("and extra did not grow", deck.size(DeckModel.LIST.EXTRA), 4)
-
-	# A deck list shows one row per distinct card with a copy count, not one row per copy.
-	target.select(DeckEditor.TARGET.DECK)
-	catalogue.activated.emit(CODE_SPELL)
-	catalogue.activated.emit(CODE_SPELL)
-	_equal("three copies of the spell", deck.count_in(DeckModel.LIST.MAIN, CODE_SPELL), 3)
-	var main_list: VirtualCardList = editor.list_for(DeckModel.LIST.MAIN)
-	_equal("but two rows", main_list.entry_count(), 2)
-	_check("one of which counts them", _row_note(main_list, CODE_SPELL) == "x3",
-		"it read '%s'" % _row_note(main_list, CODE_SPELL))
-
-	# Tapping a deck row removes one copy.
-	main_list.activated.emit(CODE_SPELL)
-	_equal("a tap removed one", deck.count_in(DeckModel.LIST.MAIN, CODE_SPELL), 2)
-	editor.list_for(DeckModel.LIST.EXTRA).activated.emit(CODE_XYZ)
-	_equal("and from the extra deck too", deck.size(DeckModel.LIST.EXTRA), 3)
-
-	_discard(editor)
-	_end()
-
-
-func _case_deck_editor_shows_the_verdict_live() -> void:
-	_begin("the verdict is recomputed on every change and says what is wrong")
-	var editor: DeckEditor = _deck_editor(_small_catalogue())
-
-	var empty_verdict: Dictionary = editor.verdict()
-	_check("an empty deck is not legal", not bool(empty_verdict["ok"]), "it said legal")
-	_check("and the line says so", editor.verdict_text().contains("main deck needs 40 more"),
-		"it read '%s'" % editor.verdict_text())
-
-	# Three in the main deck plus one sided is still a fourth copy, and the line names the card
-	# rather than reporting a bare number.
-	var catalogue: VirtualCardList = editor.catalogue_list()
-	for i: int in 3:
-		catalogue.activated.emit(CODE_SPELL)
-	(editor.get_node(DeckEditor.PATH_TARGET) as OptionButton).select(DeckEditor.TARGET.SIDE)
-	catalogue.activated.emit(CODE_SPELL)
-
-	_check("four copies are reported", editor.verdict_text().contains("4 copies of Pot of Greed"),
-		"it read '%s'" % editor.verdict_text())
-	_equal("and structurally too", DeckValidator.issues_of(
-		editor.verdict(), DeckValidator.ISSUE.TOO_MANY_COPIES).size(), 1)
-
-	# Deck sizes are a parameter, so moving them moves the verdict without touching the deck.
-	# This is the shape a LAN host's `DeckSizes` arrives in.
-	editor.set_limits({"main_min": 3, "main_max": 3, "side_max": 1, "copies": 4})
-	_check("host limits are honoured", bool(editor.verdict()["ok"]),
-		"it read '%s'" % editor.verdict_text())
-	_check("and the line says it is legal", editor.verdict_text().begins_with("Legal:"),
-		"it read '%s'" % editor.verdict_text())
-	_check("the main header shows the applied range, not the default",
-		_text(editor, DeckEditor.PATH_HEADER[DeckModel.LIST.MAIN]).contains("(3-3)"),
-		"it read '%s'" % _text(editor, DeckEditor.PATH_HEADER[DeckModel.LIST.MAIN]))
-
-	_discard(editor)
-	_end()
-
-
-## The reason `VirtualCardList` exists: the real pool is 14 595 cards, and a node per card is
-## roughly 60 000 `Control`s once each row's icon and two labels are counted.
-func _case_deck_editor_virtualises_the_card_pool() -> void:
-	_begin("a large card pool instantiates a screenful of rows, not a list-ful")
-	var editor: DeckEditor = _deck_editor(_fake_catalogue(FAKE_CATALOGUE_SIZE))
-
-	var catalogue: VirtualCardList = editor.catalogue_list()
-	_equal("every card is in the list", catalogue.entry_count(), FAKE_CATALOGUE_SIZE)
-	_check("but only a handful of rows exist",
-		catalogue.pooled_rows() <= VirtualCardList.MAX_ROWS,
-		"%d rows instantiated" % catalogue.pooled_rows())
-	_check("which is far fewer than the entries", catalogue.pooled_rows() < FAKE_CATALOGUE_SIZE,
-		"%d rows for %d entries" % [catalogue.pooled_rows(), FAKE_CATALOGUE_SIZE])
-
-	# The scroll range covers the whole list even though the nodes do not.
-	var body: Control = catalogue.get_node("Body") as Control
-	_equal("the scroll range covers every entry", body.custom_minimum_size.y,
-		float(FAKE_CATALOGUE_SIZE * VirtualCardList.ROW_HEIGHT))
-
-	# Scrolling re-binds the same rows rather than making more of them.
-	var before: int = catalogue.pooled_rows()
-	catalogue.scroll_to(FAKE_CATALOGUE_SIZE - 1)
-	_equal("scrolling to the end made no new rows", catalogue.pooled_rows(), before)
-	_check("and bound a later entry", catalogue.first_bound() > 0,
-		"first_bound() is %d" % catalogue.first_bound())
-
-	_discard(editor)
-	_end()
-
-
-func _case_deck_editor_filters_the_pool() -> void:
-	_begin("search and the kind filter narrow the pool")
-	var editor: DeckEditor = _deck_editor(_small_catalogue())
-	var catalogue: VirtualCardList = editor.catalogue_list()
-	var search: LineEdit = editor.get_node(DeckEditor.PATH_SEARCH) as LineEdit
-	var kind: OptionButton = editor.get_node(DeckEditor.PATH_KIND) as OptionButton
-
-	search.text = "pot of"
-	search.text_changed.emit(search.text)
-	_equal("one card matches by name", catalogue.entry_count(), 1)
-	_equal("and it is the right one", int(catalogue.entry_at(0)["code"]), CODE_SPELL)
-
-	# A passcode is as good a needle as a name: it is what a `.ydk` actually carries.
-	search.text = str(CODE_LINK)
-	search.text_changed.emit(search.text)
-	_equal("a passcode finds its card", catalogue.entry_count(), 1)
-	_equal("by code", int(catalogue.entry_at(0)["code"]), CODE_LINK)
-
-	search.text = "POT OF GREED"
-	search.text_changed.emit(search.text)
-	_equal("search is case-insensitive", catalogue.entry_count(), 1)
-
-	search.text = ""
-	search.text_changed.emit("")
-	kind.select(DeckEditor.KIND.EXTRA)
-	kind.item_selected.emit(DeckEditor.KIND.EXTRA)
-	_equal("the extra-deck filter keeps exactly the four", catalogue.entry_count(), 4)
-
-	kind.select(DeckEditor.KIND.SPELL)
-	kind.item_selected.emit(DeckEditor.KIND.SPELL)
-	_equal("the spell filter keeps one", catalogue.entry_count(), 1)
-
-	kind.select(DeckEditor.KIND.ALL)
-	kind.item_selected.emit(DeckEditor.KIND.ALL)
-	_equal("and All brings them all back", catalogue.entry_count(), _small_catalogue().size())
-
-	search.text = "no such card anywhere"
-	search.text_changed.emit(search.text)
-	_equal("nothing matches", catalogue.entry_count(), 0)
-
-	_discard(editor)
-	_end()
-
-
-# ----------------------------------------------------------------------------------------------
-# BoardView zone markers
 # ----------------------------------------------------------------------------------------------
 
 ## The whole point of building the markers off the anchors rather than off the layout arithmetic
@@ -1507,17 +1314,7 @@ func _board_with_set_cards() -> DuelState:
 	return state
 
 
-## A deck editor on screen, bound to `catalogue`. No `info_for` and no `CardArt`: a card the
-## catalogue does not list is exactly the `UNKNOWN_CODE` case, and the rows are allowed to have
-## no faces - `data/` is gitignored and these cases must run without it.
-func _deck_editor(catalogue: Array[Dictionary]) -> DeckEditor:
-	var editor: DeckEditor = DeckEditorScene.instantiate() as DeckEditor
-	root.add_child(editor)
-	editor.bind(catalogue)
-	return editor
-
-
-## Six cards, one of each routing outcome, in the shape `scenes/deck_editor.gd` builds: the four
+## Six cards, one of each routing outcome: the four
 ## keys the editor reads and nothing else. The type bitmasks are the real ones that
 ## `data/base/cards.cdb` carries for these passcodes - `core/deck/deck_test.gd` is the case that
 ## proves that against the database itself, which is why it can be asserted here.
@@ -1546,15 +1343,6 @@ func _fake_catalogue(count: int) -> Array[Dictionary]:
 
 func _card(code: int, card_name: String, type: int) -> Dictionary:
 	return {"code": code, "name": card_name, "type": type, "alias": 0}
-
-
-## The right-hand column of the row for `code` in a deck list, or "" if it has no row.
-func _row_note(list: VirtualCardList, code: int) -> String:
-	for i: int in list.entry_count():
-		var entry: Dictionary = list.entry_at(i)
-		if int(entry.get("code", 0)) == code:
-			return str(entry.get("note", ""))
-	return ""
 
 
 func _hud() -> HudScript:
@@ -1734,6 +1522,104 @@ func _case_a_refused_answer_is_announced() -> void:
 	focus.set_pending({"t": DuelEnums.EV.SELECT_CHAIN, "player": DuelEnums.PLAYER.P1}, "respond?")
 	_check("a fresh selection is not still flagged as refused",
 		not focus.decision_text().contains("refused"), "got %s" % focus.decision_text())
+	_end()
+
+
+
+# ----------------------------------------------------------------------------------------------
+# DeckPicker
+#
+# Decks are authored elsewhere and arrive as `.ydk`. There is no editor on purpose: owning a
+# deck format would cut this client off from every other one, while reading theirs costs a
+# parser and gains every deck the player already has.
+# ----------------------------------------------------------------------------------------------
+
+func _case_the_library_finds_ydk_decks() -> void:
+	_begin("the library finds .ydk decks and reads their counts")
+
+	var entries: Array[Dictionary] = DeckLibrary.entries()
+	if entries.is_empty():
+		print("SKIP  no decks installed - drop a .ydk in %s" % DeckLibrary.BUNDLED_DIR)
+		_end()
+		return
+
+	var first: Dictionary = entries[0]
+	_check("an entry carries a name", not str(first.get("name", "")).is_empty(), "name was blank")
+	_check("and a path a parser can open",
+		FileAccess.file_exists(str(first.get("path", ""))), "path does not exist")
+	_check("the extension is not part of the name",
+		not str(first.get("name", "")).ends_with(".ydk"), "name kept its extension")
+	_check("counts came from parsing, not from the file name",
+		int(first.get("main", 0)) > 0, "main count was zero")
+
+	# The counts the list shows must be the counts the deck actually has, or the picker is
+	# describing a different deck than the one it loads.
+	var loaded: DeckModel = DeckLibrary.load_deck(first)
+	_equal("main matches the loaded deck", loaded.size(DeckModel.LIST.MAIN), int(first.get("main", 0)))
+	_equal("extra matches", loaded.size(DeckModel.LIST.EXTRA), int(first.get("extra", 0)))
+	_equal("side matches", loaded.size(DeckModel.LIST.SIDE), int(first.get("side", 0)))
+	_end()
+
+
+func _case_the_picker_lists_and_reports_a_choice() -> void:
+	_begin("the picker lists what the library found and reports the choice")
+
+	var picker: DeckPicker = preload("res://ui/deck_picker/deck_picker.tscn").instantiate()
+	root.add_child(picker)
+
+	var entries: Array[Dictionary] = DeckLibrary.entries()
+	if entries.is_empty():
+		_check("with nothing installed it offers nothing", picker.selected_entry().is_empty(),
+			"a selection appeared from an empty library")
+		picker.queue_free()
+		_end()
+		return
+
+	_check("it selects something so the button is never a dead end",
+		not picker.selected_entry().is_empty(), "nothing was selected")
+
+	# Merged, not assigned. A GDScript lambda captures by value, so `chosen = entry` inside one
+	# rebinds the lambda's own copy and the outer variable never moves - the signal fires and the
+	# test still reads an empty Dictionary.
+	var chosen: Dictionary = {}
+	picker.chose.connect(func(entry: Dictionary) -> void: chosen.merge(entry, true))
+	picker._commit()
+
+	_check("committing emits the entry", not chosen.is_empty(), "nothing was emitted")
+	_check("and it is the one that was selected",
+		str(chosen.get("path", "")) == str(picker.selected_entry().get("path", "")),
+		"emitted a different deck than the one shown")
+
+	picker.queue_free()
+	_end()
+
+
+func _case_an_empty_library_says_where_to_put_files() -> void:
+	_begin("an empty library names the folders instead of dead-ending")
+
+	var picker: DeckPicker = preload("res://ui/deck_picker/deck_picker.tscn").instantiate()
+	root.add_child(picker)
+	var text: String = picker._empty_text()
+
+	_check("it says there is nothing", text.contains(DeckPicker.EMPTY_TITLE),
+		"got %s" % text)
+	_check("it names at least one folder to drop a file into",
+		text.contains("/") or text.contains("not created yet"), "no path was offered")
+	_check("and says other clients' decks work unchanged",
+		text.to_lower().contains("edopro"), "did not mention where decks come from")
+
+	picker.queue_free()
+	_end()
+
+
+func _case_router_reaches_the_deck_picker() -> void:
+	_begin("the decks destination reaches the picker, not an editor")
+
+	_check("the route points at the picker scene",
+		SceneRouter.DECKS_SCENE.contains("deck_picker"),
+		"got %s" % SceneRouter.DECKS_SCENE)
+	_check("and that scene exists", ResourceLoader.exists(SceneRouter.DECKS_SCENE),
+		"%s is not loadable" % SceneRouter.DECKS_SCENE)
 	_end()
 
 
