@@ -93,6 +93,10 @@ const POT_OF_GREED: int = 55144522
 const TRAP_HOLE: int = 4206964
 const DECK_SIZE: int = 40
 
+## Set when a chosen deck is loaded, for the log line and the HUD.
+var _deck_name: String = ""
+var _extra_for_play: PackedInt32Array = PackedInt32Array()
+
 const START_LP: int = 8000
 const START_HAND: int = 5
 const DRAW_COUNT: int = 1
@@ -305,15 +309,19 @@ func _start_duel() -> void:
 	for root: String in SCRIPT_ROOTS:
 		_core.add_script_root(root)
 
+	# Resolved once: both seats play the same list, and asking twice would parse the file twice.
+	var main_deck: PackedInt32Array = _deck_for_play()
 	if _art != null:
-		_art.preload_codes(_build_deck())
+		_art.preload_codes(main_deck)
 
 	var started: Dictionary = _core.start_duel({
 		"start_lp": START_LP,
 		"start_hand": START_HAND,
 		"draw_count": DRAW_COUNT,
-		"deck_p0": _build_deck(),
-		"deck_p1": _build_deck(),
+		"deck_p0": main_deck,
+		"deck_p1": main_deck,
+		"extra_p0": _extra_for_play,
+		"extra_p1": _extra_for_play,
 	})
 	if not bool(started.get("ok", false)):
 		_fail("start_duel failed: %s" % started.get("error", "?"))
@@ -324,16 +332,48 @@ func _start_duel() -> void:
 	_handle({
 		"t": DuelEnums.EV.START,
 		"lp": [START_LP, START_LP],
-		"deck": [DECK_SIZE, DECK_SIZE],
+		"deck": [main_deck.size(), main_deck.size()],
 		"extra": [0, 0],
 		"first": 0,
 	})
 	_board.sync_from_state(_state)
-	print("[solo] hot seat duel started. Both seats are yours; the frame colour is whose half you are looking at.")
+	print("[solo] %s - %d main, %d extra. Both seats are yours; the frame colour is whose half you are looking at." % [
+		_deck_name if not _deck_name.is_empty() else "built-in deck", main_deck.size(), _extra_for_play.size()])
 	_running = true
 	set_process(true)
 
 
+## The deck both seats play.
+##
+## Whatever the player chose in the picker, loaded from its `.ydk` every time rather than
+## cached - the file is the truth, so editing it in EDOPro and coming back picks up the edit.
+## Falls back to the built-in list when no deck is installed, so a fresh checkout still boots
+## into a playable duel instead of a dead end.
+func _deck_for_play() -> PackedInt32Array:
+	# The headless audit asserts things only the built-in list can produce - a trap is the only
+	# card a tap can *set*, because ocgcore offers every monster as both `summon` and `mset` and
+	# every spell as both `activate` and `sset`, so a tap always lands on the face-up command.
+	# Running the audit against whatever deck happens to be installed would make a green gate
+	# depend on the player's deck folder, which is the opposite of what a gate is for.
+	if _headless:
+		return _build_deck()
+
+	var entry: Dictionary = DeckLibrary.chosen()
+	if entry.is_empty():
+		return _build_deck()
+
+	var deck: DeckModel = DeckLibrary.load_deck(entry)
+	var main: PackedInt32Array = deck.cards(DeckModel.LIST.MAIN)
+	if main.is_empty():
+		return _build_deck()
+
+	_deck_name = str(entry.get("name", ""))
+	_extra_for_play = deck.cards(DeckModel.LIST.EXTRA)
+	return main
+
+
+## The built-in fallback: a deck of known cards that exercises summon, set, trap and a draw
+## effect. Used only when no `.ydk` is installed.
 func _build_deck() -> PackedInt32Array:
 	var deck: PackedInt32Array = PackedInt32Array()
 	for index: int in DECK_SIZE:
