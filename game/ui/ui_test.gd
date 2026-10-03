@@ -216,6 +216,7 @@ func _process(_delta: float) -> bool:
 
 	_case_hot_seat_reveals_hands_not_face_downs()
 	_case_the_overlay_goes_neutral_after_a_win()
+	_case_a_refused_answer_is_announced()
 
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
@@ -1694,6 +1695,45 @@ func _case_the_overlay_goes_neutral_after_a_win() -> void:
 		"got %s" % focus.view_text())
 	_check("and the decision line says so plainly",
 		focus.decision_text().contains("over"), "got %s" % focus.decision_text())
+	_end()
+
+
+
+## A refused answer must be visible, and the selection must come back.
+##
+## This is the shape of a bug that froze the duel: `respond()` returns ok for any well-formed
+## intent, so the scene cleared the pending selection; ocgcore then rejected it as out of range
+## and sent MSG_RETRY, which **does not carry the selection with it** (AGENTS.md section 8b
+## trap 8). With nothing pending and no new prompt coming, the board stopped accepting input
+## and looked frozen. Re-arming is only half the fix - from the player's side a refused tap and
+## an ignored tap are indistinguishable, so it has to say so.
+func _case_a_refused_answer_is_announced() -> void:
+	_begin("a refused answer is announced and the selection comes back")
+
+	var focus := SeatFocus.new()
+	focus.observe({"t": DuelEnums.EV.START, "first": DuelEnums.PLAYER.P0})
+
+	var prompt := {"t": DuelEnums.EV.SELECT_IDLECMD, "player": DuelEnums.PLAYER.P0}
+	focus.set_pending(prompt, "choose a card")
+	_check("the overlay is not crying refusal before anything is refused",
+		not focus.decision_text().contains("refused"), "got %s" % focus.decision_text())
+
+	# The engine turned it down; the scene puts the same selection back.
+	focus.set_pending(prompt, "choose a card")
+	focus.note_rejected()
+
+	_check("it is still asking", focus.is_waiting(), "the selection did not come back")
+	_check("and says the answer was refused", focus.decision_text().contains("refused"),
+		"got %s" % focus.decision_text())
+	_check("naming the seat that has to choose again",
+		focus.decision_text().contains(focus.seat_name(focus.decision_seat).to_upper()),
+		"got %s" % focus.decision_text())
+
+	# An answer the engine accepts ends the complaint.
+	focus.clear_pending()
+	focus.set_pending({"t": DuelEnums.EV.SELECT_CHAIN, "player": DuelEnums.PLAYER.P1}, "respond?")
+	_check("a fresh selection is not still flagged as refused",
+		not focus.decision_text().contains("refused"), "got %s" % focus.decision_text())
 	_end()
 
 
