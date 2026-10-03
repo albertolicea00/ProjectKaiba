@@ -97,6 +97,13 @@ const EFFECT_FOR_KIND: Dictionary = {
 	# ---- movement ---------------------------------------------------------------------------
 	# The unclassified residue of `move_kind()`: a card went somewhere none of the named kinds
 	# describe. Sounding it would mean guessing, and guessing wrong on every odd move.
+	# Three sounds that shipped with the set but had nothing to attach to until the translator
+	# learned to emit these kinds. MsgParser had been decoding MSG_EQUIP, MSG_TOSS_COIN and
+	# MSG_TOSS_DICE since batch 2; the events simply stopped at L3. EDOPro sounds all three.
+	EventTranslator.KIND_EQUIP: "equip",
+	EventTranslator.KIND_COIN_TOSS: "coinflip",
+	EventTranslator.KIND_DICE_ROLL: "diceroll",
+
 	EventTranslator.KIND_MOVE: SILENT,
 	EventTranslator.KIND_SUMMON: "summon",
 	EventTranslator.KIND_SPECIAL_SUMMON: "specialsummon",
