@@ -46,7 +46,7 @@ extends RefCounted
 ## What it cannot answer yet
 ## -------------------------------------------------------------------------------------------
 ## `MSG_SELECT_OPTION` needs an intent that names an option, and `MSG_SORT_CARD` needs one that
-## names an order. The five-verb vocabulary has no way to express either, so both are answered
+## names an order. The six-verb vocabulary has no way to express either, so both are answered
 ## with their least-destructive default (first option, decline the sort) and flagged by
 ## `can_answer()`. `MSG_SELECT_COUNTER`, `MSG_SELECT_UNSELECT_CARD` and the `MSG_ANNOUNCE_*`
 ## family are not answered at all - `MsgParser` does not even parse them yet.
@@ -57,6 +57,9 @@ extends RefCounted
 # ----------------------------------------------------------------------------------------------
 
 const KIND_SELECT_CARD: String = "SELECT_CARD"
+## "Play this card the other way." Same card, same fields as SELECT_CARD; what differs is which
+## of the commands ocgcore offered for it the player meant.
+const KIND_SELECT_ALT: String = "SELECT_ALT"
 const KIND_SELECT_ZONE: String = "SELECT_ZONE"
 const KIND_POINT_AT: String = "POINT_AT"
 const KIND_CONFIRM: String = "CONFIRM"
@@ -66,10 +69,23 @@ const KIND_CANCEL: String = "CANCEL"
 ## in several at once - a monster as both `summon` and `mset`, a spell as both `activate` and
 ## `sset` - and nothing in the request says which the player meant.
 ##
-## The order encodes "the most committal reading of a tap wins", which is what a one-gesture
-## vocabulary can express. A HUD that wants the other readings has the whole event and can ask;
-## that is a Phase 4 question, not something to fake here.
+## The order encodes "the most committal reading of a tap wins", which is what one gesture can
+## express. `IDLE_ALT_PRIORITY` is the other half of the answer: the vocabulary now has a second
+## verb, so the player says which reading they meant instead of this table guessing.
 const IDLE_PRIORITY: Array[String] = ["activate", "summon", "spsummon", "mset", "sset", "repos"]
+
+## The same lists, in the order a `SELECT_ALT` reads them: set before play.
+##
+## This closed a real hole rather than adding a convenience. With `IDLE_PRIORITY` alone there
+## was **no way to set a monster at all** - a monster in hand is offered as both `summon` and
+## `mset`, and `summon` always won; the only card a player could ever set was a trap, because a
+## trap appears in `sset` and in nothing else.
+##
+## The tail is the fallback, and it is what makes the gesture safe to use on any card: a card
+## the engine offered only one way still plays that way rather than doing nothing. Setting is a
+## *preference*, not a demand, because the alternative is a gesture that silently fails on a
+## monster already on the field and the player cannot tell why.
+const IDLE_ALT_PRIORITY: Array[String] = ["mset", "sset", "summon", "activate", "spsummon", "repos"]
 
 ## Same, for the battle phase. Attacking is what a tap in the battle phase means.
 const BATTLE_PRIORITY: Array[String] = ["attack", "activate"]
@@ -229,9 +245,17 @@ func resolve(input: Dictionary) -> Dictionary:
 	if kind == KIND_POINT_AT or kind == "":
 		return {}
 
+	# Outside the idle phase there is no "other way" to play a card, and a gesture that does
+	# nothing wherever it is not special is a gesture players stop trusting. So every other
+	# selection reads SELECT_ALT as the plain selection it also is. The intent is unchanged; only
+	# the local reading of it is.
+	if kind == KIND_SELECT_ALT and _type != DuelEnums.EV.SELECT_IDLECMD:
+		kind = KIND_SELECT_CARD
+
 	match _type:
 		DuelEnums.EV.SELECT_IDLECMD:
-			return _resolve_command(input, IDLE_PRIORITY, "to_bp", "to_ep")
+			var priority: Array[String] = IDLE_ALT_PRIORITY if kind == KIND_SELECT_ALT else IDLE_PRIORITY
+			return _resolve_command(input, priority, "to_bp", "to_ep")
 		DuelEnums.EV.SELECT_BATTLECMD:
 			return _resolve_command(input, BATTLE_PRIORITY, "to_m2", "to_ep")
 		DuelEnums.EV.SELECT_PLACE:
@@ -261,6 +285,9 @@ func resolve(input: Dictionary) -> Dictionary:
 ## BATTLE_COMMANDS - the names there are deliberately the same strings `MsgParser` uses).
 func _resolve_command(input: Dictionary, priority: Array[String], advance: String, finish: String) -> Dictionary:
 	var kind: String = str(input.get("kind", ""))
+	# Which priority list to walk was decided by the caller; from here a card is a card.
+	if kind == KIND_SELECT_ALT:
+		kind = KIND_SELECT_CARD
 
 	if kind == KIND_CONFIRM:
 		if bool(_pending.get(advance, false)):

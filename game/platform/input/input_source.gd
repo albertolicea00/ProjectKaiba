@@ -21,10 +21,20 @@ extends Node
 ## -------------------------------------------------------------------------------------------
 ##
 ##   {"kind": "SELECT_CARD", "handle": int, "card_id": int, "anchor": String}
+##   {"kind": "SELECT_ALT",  "handle": int, "card_id": int, "anchor": String}
 ##   {"kind": "SELECT_ZONE", "anchor": String}
 ##   {"kind": "POINT_AT",    "anchor": String, "handle": int}
 ##   {"kind": "CONFIRM"}
 ##   {"kind": "CANCEL"}
+##
+## `SELECT_ALT` is "play this card the other way". It carries exactly the same fields as
+## `SELECT_CARD` and means the same card; what differs is which of the commands the engine
+## offered for that card the player wants. ocgcore offers a monster in hand as both `summon`
+## and `mset`, and a spell as both `activate` and `sset`, and nothing in the request says which
+## one a tap meant. With one gesture the only consistent rule is "the face-up one wins", which
+## left **no way at all to set a monster** - a tap could only ever set a trap, because a trap
+## appears in `sset` alone. That is a hole in the input vocabulary, not in the rules layer, and
+## this is the verb that fills it.
 ##
 ## **An `InputIntent` never carries a screen coordinate.** Not as a convenience, not for a
 ## tooltip, not "just for now". The moment one does, every consumer downstream gains the right
@@ -50,10 +60,99 @@ extends Node
 signal intent(data: Dictionary)
 
 const KIND_SELECT_CARD: String = "SELECT_CARD"
+const KIND_SELECT_ALT: String = "SELECT_ALT"
 const KIND_SELECT_ZONE: String = "SELECT_ZONE"
 const KIND_POINT_AT: String = "POINT_AT"
 const KIND_CONFIRM: String = "CONFIRM"
 const KIND_CANCEL: String = "CANCEL"
+
+
+# ----------------------------------------------------------------------------------------------
+# The binding table
+# ----------------------------------------------------------------------------------------------
+
+## Every verb in the vocabulary, with the gesture that produces it on each device.
+##
+## **This table is the source, not a description of one.** `TouchSource` and `MouseSource`
+## implement what it says, `ui/controls/controls_screen.gd` renders it, and `ui/ui_test.gd`
+## asserts that every `KIND_*` constant above appears in it. A controls screen written by hand
+## drifts the first time somebody adds a gesture, and a controls screen that lies is worse than
+## no controls screen at all - the player stops trusting the one place that was supposed to tell
+## them what the app does.
+##
+## Keys, all `String`:
+##
+##   kind    the `InputIntent` kind this binding produces
+##   label   the verb, as a player would name it
+##   does    what the duel does with it
+##   touch   the gesture on a phone, or "" where the device has none
+##   pc      the gesture on a desktop, or "" where the device has none
+##
+## An empty column is a statement, not an omission: it means that device genuinely cannot
+## produce that verb today, and the screen prints so. Filling one in with a gesture that is not
+## implemented is the one edit this table must never take.
+##
+## Both columns are always present, always labelled, and the screen never asks how big the
+## window is to decide which to show (ARCHITECTURE.md section 10 rule 4). A phone that is cast
+## to a monitor, a desktop with a touchscreen and a tablet with a keyboard are all one build.
+const BINDINGS: Array[Dictionary] = [
+	{
+		"kind": KIND_SELECT_CARD,
+		"label": "Select a card",
+		"does": "Plays it the usual way: summon a monster, activate a spell, declare an attack.",
+		"touch": "Tap the card",
+		"pc": "Left click",
+	},
+	{
+		"kind": KIND_SELECT_ALT,
+		"label": "Set a card",
+		"does": "Plays it the other way: set a monster face-down, set a spell instead of activating it.",
+		"touch": "Short drag downwards on the card",
+		"pc": "Middle click, or Shift + left click",
+	},
+	{
+		"kind": KIND_SELECT_ZONE,
+		"label": "Choose a zone",
+		"does": "Answers a request for a place - where a summoned monster goes, which zone to set into.",
+		"touch": "Tap the empty zone",
+		"pc": "Left click the empty zone",
+	},
+	{
+		"kind": KIND_POINT_AT,
+		"label": "Look at a card",
+		"does": "Shows the card up close. Never counts as an answer, so it is always safe.",
+		"touch": "Press and hold",
+		"pc": "Hover the cursor over it",
+	},
+	{
+		"kind": KIND_CONFIRM,
+		"label": "Confirm",
+		"does": "Says yes, finishes a multi-card selection, or moves to the next phase.",
+		# A button, not a gesture. `TouchSource` still emits no CONFIRM - there is no finger
+		# movement for it - so the prompt panel in `DuelHud` carries a visible Yes/Confirm the
+		# whole time a selection is pending. That is the better answer anyway: a yes/no question
+		# deserves a visible yes, and hiding the only affirmative behind an undocumented flick
+		# would be a worse version of the gap it replaced.
+		"touch": "Yes / Confirm button on the prompt",
+		"pc": "Enter or Space, or the Yes / Confirm button",
+	},
+	{
+		"kind": KIND_CANCEL,
+		"label": "Cancel",
+		"does": "Says no, drops what has been picked so far, or ends the turn.",
+		"touch": "Two-finger tap",
+		"pc": "Right click, or Escape",
+	},
+]
+
+
+## The row of `BINDINGS` for `kind`, or `{}`. Lookup rather than a second table, so there is
+## still exactly one place a gesture is written down.
+static func binding_for(kind: String) -> Dictionary:
+	for row: Dictionary in BINDINGS:
+		if str(row.get("kind", "")) == kind:
+			return row
+	return {}
 
 ## No anchor. A tap on the sky, or on felt far from every zone.
 const ANCHOR_NONE: String = ""
@@ -113,6 +212,26 @@ func select_at(screen_position: Vector2) -> void:
 	if anchor == ANCHOR_NONE:
 		return
 	intent.emit({"kind": KIND_SELECT_ZONE, "anchor": anchor})
+
+
+## The same tap, meaning "the other way round". Emits `SELECT_ALT` when it hit a card and
+## nothing otherwise: bare table has no second reading, so a drag that landed on felt is simply
+## not an answer. The pick is identical to `select_at()` - the difference is entirely in the
+## verb, which is the point. L3 decides what "the other way" means for the selection it is
+## holding; this node does not know and must not guess.
+func select_alt_at(screen_position: Vector2) -> void:
+	var hit: Dictionary = _pick(screen_position)
+	if hit.is_empty():
+		return
+	var handle: int = int(hit.get("handle", 0))
+	if handle == 0:
+		return
+	intent.emit({
+		"kind": KIND_SELECT_ALT,
+		"handle": handle,
+		"card_id": int(hit.get("card_id", 0)),
+		"anchor": str(hit.get("anchor", ANCHOR_NONE)),
+	})
 
 
 ## A hover or a long press landed here. Same raycast, no commitment: `POINT_AT` is a request to

@@ -10,11 +10,18 @@ extends InputSource
 ## -------------------------------------------------------------------------------------------
 ## Bindings
 ## -------------------------------------------------------------------------------------------
-##   left click     SELECT_CARD / SELECT_ZONE
-##   right click    CANCEL
-##   move           POINT_AT, but only when the thing under the cursor actually changed
-##   Enter / Space  CONFIRM
-##   Escape         CANCEL
+##   left click           SELECT_CARD / SELECT_ZONE
+##   middle click         SELECT_ALT - "set this card"
+##   Shift + left click   SELECT_ALT, the discoverable alias
+##   right click          CANCEL
+##   move                 POINT_AT, but only when the thing under the cursor actually changed
+##   Enter / Space        CONFIRM
+##   Escape               CANCEL
+##
+## Two bindings for one verb on purpose. Middle click is the fast one and the one a player
+## keeps; Shift + click is the one they can be *told*, and the one that still works on a
+## trackpad, which has no middle button at all. Neither is a mode: both are a single click that
+## resolves immediately, so nothing on screen has to change to advertise which one is armed.
 ##
 ## The two keys are not decoration. A mouse has no gesture that means "yes, that is my whole
 ## answer", and several selections - `MSG_SELECT_YESNO`, a multi-card `MSG_SELECT_CARD` - cannot
@@ -54,7 +61,14 @@ func _on_button(event: InputEventMouseButton) -> void:
 		return
 	match event.button_index:
 		MOUSE_BUTTON_LEFT:
-			select_at(event.position)
+			# Shift is read here rather than tracked as state: a modifier that is remembered
+			# between events is a mode, and a mode that is invisible is a trap.
+			if event.shift_pressed:
+				select_alt_at(event.position)
+			else:
+				select_at(event.position)
+		MOUSE_BUTTON_MIDDLE:
+			select_alt_at(event.position)
 		MOUSE_BUTTON_RIGHT:
 			cancel()
 
