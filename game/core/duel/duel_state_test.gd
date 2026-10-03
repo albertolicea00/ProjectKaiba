@@ -51,6 +51,7 @@ func _init() -> void:
 	_case_handle_shuffle_keeps_the_set()
 	_case_handle_never_reused()
 	_case_translate_stamps_handles()
+	_case_spell_zones_never_turn_a_card()
 
 	_case_selection_idlecmd_maps_a_tap_to_a_list_index()
 	_case_selection_battlecmd_and_phase_advance()
@@ -1202,6 +1203,29 @@ func _confirm() -> Dictionary:
 
 func _cancel() -> Dictionary:
 	return {"kind": SelectionController.KIND_CANCEL}
+
+
+
+func _case_spell_zones_never_turn_a_card() -> void:
+	_begin("a set spell sits upright, only monsters turn sideways")
+
+	# ocgcore has one `position` field for every card type, so a *set* spell or trap arrives as
+	# FACEDOWN_DEFENSE - the same value a defending monster carries. Reading that bit straight
+	# into a rotation is what laid every set spell on its side in its zone.
+	_check("a set spell is reported as defence by the model",
+		(DuelEnums.POSITION.FACEDOWN_DEFENSE & DuelEnums.POSITION.DEFENSE) != 0,
+		"the engine's set-spell position no longer carries the defence bit")
+
+	_check("but its zone refuses the turn",
+		not BoardView.zone_turns("ST_P0_2"), "ST_P0_2 would be drawn sideways")
+	_check("and so does the field zone",
+		not BoardView.zone_turns("FZ_P0"), "FZ_P0 would be drawn sideways")
+
+	_check("while a monster zone still turns",
+		BoardView.zone_turns("MZ_P0_0"), "a defending monster would stay upright")
+	_check("including the extra monster zones",
+		BoardView.zone_turns("EMZ_P0_1"), "EMZ_P0_1 would stay upright")
+	_end()
 
 
 ## START is host-synthesised; ocgcore never emits it (AGENTS.md section 8b.1).
