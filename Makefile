@@ -54,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors touch data-scripts bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors touch test-ui solo-test data-scripts bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -304,3 +304,17 @@ touch:
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/duel_touch.tscn 2>&1 | tee /tmp/kaiba_touch.log
 	@grep -q "all checks passed" /tmp/kaiba_touch.log || (echo "FAIL: touch duel"; exit 1)
+
+# The UI suite. Was not in any gate until now, which is how `make duel` quietly rotted once.
+test-ui:
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) --script res://ui/ui_test.gd 2>&1 | tee /tmp/kaiba_ui.log
+	@grep -q ", 0 failed" /tmp/kaiba_ui.log || (echo "FAIL: ui suite"; exit 1)
+
+# Solo Test: the hot-seat mode. Headless it drives both seats and audits the seat policy.
+solo-test:
+	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb missing, see docs/DATA.md"; exit 1)
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/solo_test.tscn 2>&1 | tee /tmp/kaiba_solo.log
+	@grep -q "no face-down card revealed itself" /tmp/kaiba_solo.log || (echo "FAIL: solo test"; exit 1)
+	@grep -qv "FAIL" /tmp/kaiba_solo.log || (echo "FAIL: solo test reported a failure"; exit 1)
