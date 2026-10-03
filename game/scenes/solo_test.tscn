@@ -1,0 +1,55 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://scenes/solo_test.gd" id="1_soloTest"]
+[ext_resource type="Script" path="res://view/board/board_view.gd" id="2_board"]
+[ext_resource type="Script" path="res://view/board/card_pool.gd" id="3_pool"]
+[ext_resource type="Script" path="res://platform/camera/rig_mobile.gd" id="4_rig"]
+[ext_resource type="Script" path="res://view/anim/animation_director.gd" id="5_director"]
+[ext_resource type="Script" path="res://platform/input/touch_source.gd" id="6_touch"]
+[ext_resource type="Script" path="res://platform/input/mouse_source.gd" id="7_mouse"]
+
+[sub_resource type="ProceduralSkyMaterial" id="SkyMaterial_1"]
+sky_horizon_color = Color(0.18, 0.2, 0.23, 1)
+ground_horizon_color = Color(0.18, 0.2, 0.23, 1)
+ground_bottom_color = Color(0.08, 0.09, 0.1, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("SkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+ambient_light_source = 3
+ambient_light_sky_contribution = 0.6
+
+[node name="SoloTest" type="Node3D"]
+script = ExtResource("1_soloTest")
+
+[node name="World3D" type="Node3D" parent="."]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="World3D"]
+environment = SubResource("Environment_1")
+
+[node name="Sun" type="DirectionalLight3D" parent="World3D"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 2, 0)
+light_energy = 1.2
+
+[node name="BoardView" type="Node3D" parent="World3D"]
+script = ExtResource("2_board")
+
+[node name="CardPool" type="Node3D" parent="World3D/BoardView"]
+script = ExtResource("3_pool")
+
+[node name="CameraRig" type="Node3D" parent="World3D"]
+script = ExtResource("4_rig")
+
+[node name="AnimationDirector" type="Node" parent="."]
+script = ExtResource("5_director")
+
+[node name="InputLayer" type="Node" parent="."]
+
+[node name="TouchSource" type="Node" parent="InputLayer"]
+script = ExtResource("6_touch")
+
+[node name="MouseSource" type="Node" parent="InputLayer"]
+script = ExtResource("7_mouse")

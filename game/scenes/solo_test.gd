@@ -1,0 +1,850 @@
+extends Node3D
+
+## A hot-seat duel you can actually read: one person answers both seats, and the mode's whole
+## job is making it obvious which seat that currently is.
+##
+##   godot --path game res://scenes/solo_test.tscn                # play it
+##   godot --headless --path game res://scenes/solo_test.tscn     # self-checks, then quits
+##
+## Layer: L5. Like `scenes/duel_touch.gd` it is allowed to see L1, L3, L4 and L5 at once,
+## because wiring them together is all it does. Nothing under `game/ui/`, `game/view/` or
+## `game/platform/` may do the same; this file is the seam that keeps V1 true.
+##
+## -------------------------------------------------------------------------------------------
+## What this adds over duel_touch
+## -------------------------------------------------------------------------------------------
+## `duel_touch.gd` already plays a real duel from touch input and already answers both seats
+## from one `SelectionController`. It is the regression gate for the input path and is left
+## alone. What it does not do is tell you *whose* half of the board you are looking at: the
+## camera never leaves seat 0 and `DuelHud.local_player` is fixed, so a duel played from both
+## sides is mechanically correct and visually unreadable.
+##
+## Three things are added here, and all three are presentation:
+##
+##   1. `SeatFocus`     the policy: which seat is in view, which seat is being asked.
+##   2. `HotSeatBanner` the overlay: seat colour, phase and step, who must decide, and the
+##                      banner for a prompt belonging to the half that is not in view.
+##   3. the flip        a readable camera transition on turn change, built from `CameraRig`'s
+##                      public exports so the rig itself stays a swappable slot.
+##
+## -------------------------------------------------------------------------------------------
+## The camera rule, and why it is not "follow the prompt"
+## -------------------------------------------------------------------------------------------
+## **The camera flips on turn change only. Never on a mid-turn prompt.**
+##
+## `CameraRig.seat` mirrors the view and would happily follow `SeatFocus.decision_seat`. It
+## must not: the non-turn player is handed priority constantly through `MSG_SELECT_CHAIN`, so
+## the camera would swing on nearly every action and settle never. Instead an off-seat prompt
+## raises a banner and lights the zones involved, and the player reads the far half upside down
+## for that one decision.
+##
+## This is the same rule the animation layer follows. `CameraRig.cue()` is advisory precisely
+## so a VR rig can ignore every framing command - moving a camera that a person's head is not
+## moving is how you make them sick - and a mode whose legibility depended on constant camera
+## motion would not survive that port.
+##
+## -------------------------------------------------------------------------------------------
+## Honesty
+## -------------------------------------------------------------------------------------------
+## No cheats, no undo, no peek past the model.
+##
+## Both hands are drawn face-up, because in a hot seat duel both of them are yours - you are
+## testing the game, not playing against someone. That is a view decision about cards you are
+## already entitled to see, and it is the only reason `reveal_both_hands` exists.
+##
+## It is **not** a hole in invariant V7. Hidden information is blanked by `HostService` before
+## an event leaves the host, so a networked client never receives the opposing hand's codes in
+## the first place; there would be nothing here to reveal. A card the model reports as code 0
+## still draws as a back, and a face-down card is drawn from the model's own position bits from
+## both seats. A test mode that lied about visibility would hide exactly the bugs it exists to
+## find.
+##
+## -------------------------------------------------------------------------------------------
+## The headless run
+## -------------------------------------------------------------------------------------------
+## Headless has no renderer and no finger, so the checks are about state. `_synthesise_intent()`
+## builds the `InputIntent` a tap would have produced and everything from there on is the code a
+## real tap runs through. The run plays several turns so that a turn change - and the seat flip
+## it causes - actually happens, and then asserts on what the focus and the overlay hold.
+
+const CORE_CLASS: String = "KaibaCore"
+const CDB_PATH: String = "res://../data/base/cards.cdb"
+const SCRIPT_ROOTS: Array[String] = [
+	"res://../data/base/script",
+	"res://../data/base/script/official",
+	"res://../data/base/script/unofficial",
+	"res://../data/base/script/pre-release",
+]
+
+## Same deck as `scenes/duel_touch.gd`, for the same reason: it offers real choices. A level 4
+## vanilla is offered as both `summon` and `mset`; Pot of Greed as both `activate` and `sset`.
+const BEATERS: Array[int] = [11091375, 14898066, 33256280, 35052053]
+const BIG: int = 89631139
+const POT_OF_GREED: int = 55144522
+
+## Trap Hole. The only card in this deck that a tap can turn into a **set** card, and the one
+## the honesty check needs on the board.
+##
+## `SelectionController.IDLE_PRIORITY` resolves a tapped card against `activate`, `summon`,
+## `spsummon`, `mset`, `sset`, `repos` in that order, and a monster in hand is offered as both
+## `summon` and `mset` while a spell is offered as both `activate` and `sset` - so for every
+## other card in this deck the tap lands on the face-up command first. A trap is only ever
+## `sset`, which makes it the one way to reach a face-down card from input alone.
+const TRAP_HOLE: int = 4206964
+const DECK_SIZE: int = 40
+
+const START_LP: int = 8000
+const START_HAND: int = 5
+const DRAW_COUNT: int = 1
+
+const FIRST_SELECT_EVENT: int = DuelEnums.EV.SELECT_BATTLECMD
+const LAST_SELECT_EVENT: int = DuelEnums.EV.SELECT_UNSELECT_CARD
+
+const MAX_EVENTS_PER_FRAME: int = 64
+const IDLE_FRAMES_BEFORE_GIVING_UP: int = 900
+const MAX_FRAMES: int = 20000
+const MAX_INTENTS_PER_SELECTION: int = 16
+
+const HEADLESS_DURATION_SCALE: float = 0.05
+
+## How many seat flips the headless run wants before it is satisfied. Two means the view
+## followed the turn player out to the other seat and back, which is a full cycle; one would
+## only prove it can leave.
+const FLIPS_WANTED: int = 2
+
+## Turn 1 for the first player, turn 2 for the other, turn 3 back again.
+const TURNS_WANTED: int = 3
+
+# --- the flip ---------------------------------------------------------------------------------
+
+## Seconds each half of the camera transition takes. The view rises to near top-down, changes
+## seat at the apex where the half-turn is barely a rotation, and settles back down. A snap
+## across the table is disorienting; this reads as the board being turned round.
+const FLIP_SECONDS: float = 0.45
+
+## Elevation at the apex, in degrees above the table. `CameraRig` clamps at 89.
+const FLIP_ELEVATION: float = 88.0
+
+const HUD_SCENE: PackedScene = preload("res://ui/hud/duel_hud.tscn")
+const BANNER_SCENE: PackedScene = preload("res://ui/hud/hot_seat_banner.tscn")
+
+@onready var _board: BoardView = $World3D/BoardView
+@onready var _director: AnimationDirector = $AnimationDirector
+@onready var _rig: CameraRig = $World3D/CameraRig
+@onready var _touch: TouchSource = $InputLayer/TouchSource
+@onready var _mouse: MouseSource = $InputLayer/MouseSource
+
+var _art: CardArt = null
+var _audio: AudioDirector = null
+var _hud: DuelHud = null
+var _banner: HotSeatBanner = null
+
+var _core: Object = null
+var _state: DuelState = DuelState.new()
+var _translator: EventTranslator = EventTranslator.new()
+var _selection: SelectionController = null
+var _focus: SeatFocus = SeatFocus.new()
+
+var _headless: bool = false
+var _failures: PackedStringArray = PackedStringArray()
+
+var _running: bool = false
+var _stopping: bool = false
+var _frames: int = 0
+var _idle_frames: int = 0
+var _event_count: int = 0
+var _suppressed_logs: int = 0
+var _intents_this_selection: int = 0
+
+## Base elevation the rig was authored with, restored at the end of every flip.
+var _rest_elevation: float = 0.0
+var _flip_tween: Tween = null
+
+# --- what the headless player has already done ------------------------------------------------
+var _set_trap: bool = false
+var _summoned: bool = false
+
+# --- evidence ---------------------------------------------------------------------------------
+
+## Every prompt seen, as `{"seat": int, "in_view": int, "event": int}`, recorded at the moment
+## the prompt arrived. The off-seat ones are the whole point: the view must not have moved.
+var _prompts: Array[Dictionary] = []
+var _offscreen_prompts: int = 0
+var _camera_moved_on_prompt: int = 0
+var _decision_mismatches: int = 0
+
+## phase bit -> the string the readout produced for it.
+var _phases_seen: Dictionary = {}
+var _blank_phase_readouts: int = 0
+
+## Seat the view held when each `NEW_TURN` was applied, against the turn player it named.
+var _turn_changes: int = 0
+var _seat_lagged_turn: int = 0
+
+## Face-down cards checked from both seats, and any that leaked their face.
+var _facedown_checks: int = 0
+var _set_zones_audited: int = 0
+var _facedown_leaks: PackedStringArray = PackedStringArray()
+var _sideways_sets: PackedStringArray = PackedStringArray()
+
+var _answers_from_intents: int = 0
+var _retries: int = 0
+
+
+func _ready() -> void:
+	set_process(false)
+	_headless = DisplayServer.get_name() == "headless" or OS.get_cmdline_args().has("--headless")
+
+	_selection = SelectionController.new(_state)
+
+	_rest_elevation = _rig.elevation
+	_rig.activate()
+
+	_hud = HUD_SCENE.instantiate() as DuelHud
+	add_child(_hud)
+	# Hot seat: both hands belong to whoever is holding the device. See Honesty above.
+	_board.reveal_both_hands = true
+
+	_hud.bind(_state)
+
+	# A separate layer from the HUD on purpose: `DuelHud` is what a networked client shows,
+	# where there is one local seat and none of this applies. Everything the banner draws is
+	# specific to one person playing both halves.
+	_banner = BANNER_SCENE.instantiate() as HotSeatBanner
+	add_child(_banner)
+	_banner.bind(_state, _focus)
+
+	_art = CardArt.new()
+	CardView.art_source = _art
+
+	_director.bind(_board)
+	# Advisory only - the rig decides whether to take a cue (CameraRig.cue()).
+	_director.camera_cue.connect(_rig.cue)
+	if _headless:
+		_director.duration_scale = HEADLESS_DURATION_SCALE
+	_director.queue_drained.connect(_on_queue_drained)
+
+	_audio = AudioDirector.new()
+	_audio.name = "AudioDirector"
+	add_child(_audio)
+	_audio.bind(_director)
+	_audio.set_music_context(AudioDirector.MUSIC_DUEL)
+
+	for source: InputSource in [_touch, _mouse]:
+		source.bind(_rig, _board)
+		source.intent.connect(_on_intent)
+
+	_apply_seat(_focus.seat_in_view)
+	_start_duel()
+
+
+func _process(_delta: float) -> void:
+	if _art != null:
+		_board.refresh_art(_art)
+
+	if _hud != null:
+		_hud.refresh()
+		_hud.set_prompt(_selection.pending_prompt() if _selection != null else "")
+	if _banner != null:
+		_banner.refresh()
+
+	_frames += 1
+	if _frames > MAX_FRAMES:
+		_stop("frame budget exhausted")
+		return
+	if not _running:
+		return
+
+	var drained: int = 0
+	while drained < MAX_EVENTS_PER_FRAME:
+		var event: Variant = _core.poll_event()
+		if event == null:
+			break
+		drained += 1
+		_handle(event as Dictionary)
+		if _stopping:
+			return
+
+	if _headless and _selection.is_waiting():
+		_drive_headless()
+		return
+
+	if drained > 0:
+		_idle_frames = 0
+		return
+	_idle_frames += 1
+	if _idle_frames >= IDLE_FRAMES_BEFORE_GIVING_UP:
+		_stop("no further events; the duel thread has gone quiet")
+
+
+# ----------------------------------------------------------------------------------------------
+# Duel
+# ----------------------------------------------------------------------------------------------
+
+func _start_duel() -> void:
+	if not ClassDB.class_exists(CORE_CLASS):
+		_fail("%s is not registered; the GDExtension did not load. Run: make host" % CORE_CLASS)
+		_stop("no core")
+		return
+	_core = ClassDB.instantiate(CORE_CLASS)
+
+	if not FileAccess.file_exists(ProjectSettings.globalize_path(CDB_PATH)):
+		_fail("%s is missing; see docs/DATA.md" % CDB_PATH)
+		_stop("no card database")
+		return
+
+	var loaded: Dictionary = _core.load_card_database(CDB_PATH)
+	if not bool(loaded.get("ok", false)):
+		_fail("could not load %s: %s" % [CDB_PATH, loaded.get("error", "?")])
+		_stop("no card database")
+		return
+	print("[solo] card database loaded: %d cards" % int(loaded.get("count", 0)))
+	for root: String in SCRIPT_ROOTS:
+		_core.add_script_root(root)
+
+	if _art != null:
+		_art.preload_codes(_build_deck())
+
+	var started: Dictionary = _core.start_duel({
+		"start_lp": START_LP,
+		"start_hand": START_HAND,
+		"draw_count": DRAW_COUNT,
+		"deck_p0": _build_deck(),
+		"deck_p1": _build_deck(),
+	})
+	if not bool(started.get("ok", false)):
+		_fail("start_duel failed: %s" % started.get("error", "?"))
+		_stop("duel did not start")
+		return
+
+	# ocgcore never emits MSG_START (AGENTS.md section 8b.1); the host synthesises it.
+	_handle({
+		"t": DuelEnums.EV.START,
+		"lp": [START_LP, START_LP],
+		"deck": [DECK_SIZE, DECK_SIZE],
+		"extra": [0, 0],
+		"first": 0,
+	})
+	_board.sync_from_state(_state)
+	print("[solo] hot seat duel started. Both seats are yours; the frame colour is whose half you are looking at.")
+	_running = true
+	set_process(true)
+
+
+func _build_deck() -> PackedInt32Array:
+	var deck: PackedInt32Array = PackedInt32Array()
+	for index: int in DECK_SIZE:
+		if index % 10 == 0:
+			deck.append(BIG)
+		elif index % 7 == 0:
+			deck.append(TRAP_HOLE)
+		elif index % 5 == 0:
+			deck.append(POT_OF_GREED)
+		else:
+			deck.append(BEATERS[index % BEATERS.size()])
+	return deck
+
+
+func _handle(event: Dictionary) -> void:
+	var type: int = int(event.get("t", -1))
+
+	# 1000-1099 are DuelThread lifecycle events, not ocgcore opcodes.
+	match type:
+		1000:
+			return
+		1001:
+			_stop("duel ended cleanly")
+			return
+		1002, 1003:
+			if type == 1002 and not event.has("log_type"):
+				_fail("core error at stage '%s': %s" % [event.get("stage", "?"), event.get("detail", "?")])
+				_stop("core reported a fatal error")
+				return
+			_suppressed_logs += 1
+			return
+
+	_event_count += 1
+
+	# L3 first - the model is authoritative and updates instantly. Then Level 2, which is lossy
+	# and never stored (V9), and only after `apply()` so handles resolve at the destination.
+	_state.apply(event)
+	var intents: Array[Dictionary] = _translator.translate(event, _state)
+	if not intents.is_empty():
+		_director.enqueue(intents)
+
+	# The view policy. `observe()` moves the seat on START and NEW_TURN and on nothing else.
+	if _focus.observe(event):
+		_begin_flip()
+
+	match type:
+		DuelEnums.EV.NEW_TURN:
+			_turn_changes += 1
+			if _focus.seat_in_view != _state.turn_player:
+				_seat_lagged_turn += 1
+			_stop_if_satisfied()
+			if _stopping:
+				return
+		DuelEnums.EV.NEW_PHASE:
+			_record_phase()
+		DuelEnums.EV.RETRY:
+			_retries += 1
+			_fail("ocgcore rejected a response; the last answer was malformed for its selection")
+			_stop("retry")
+			return
+
+	if type < FIRST_SELECT_EVENT or type > LAST_SELECT_EVENT:
+		return
+
+	_on_selection(event)
+
+
+## A selection has arrived. It is parked, never answered here, and it never moves the camera.
+func _on_selection(event: Dictionary) -> void:
+	_selection.set_pending(event)
+	_intents_this_selection = 0
+
+	var seat_before: int = _focus.seat_in_view
+	_focus.set_pending(event, _selection.pending_prompt())
+
+	if _focus.decision_seat != int(event.get("player", 0)):
+		_decision_mismatches += 1
+	if _focus.seat_in_view != seat_before:
+		_camera_moved_on_prompt += 1
+
+	_prompts.append({
+		"event": _focus.decision_event,
+		"seat": _focus.decision_seat,
+		"in_view": _focus.seat_in_view,
+	})
+	if _focus.is_asking_offscreen():
+		_offscreen_prompts += 1
+
+	_highlight_for(event)
+	_banner.refresh()
+
+	print("[solo] %s -> %s (looking from %s)%s" % [
+		DuelEnums.ev_name(_focus.decision_event),
+		SeatFocus.seat_name(_focus.decision_seat),
+		SeatFocus.seat_name(_focus.seat_in_view),
+		"  [BANNER]" if _focus.is_asking_offscreen() else ""])
+
+
+## Lights the zones a prompt is about, so an off-seat decision can be read without turning the
+## board. Only anchors that actually carry a zone marker are offered: a hand is not a zone and
+## `BoardView` would warn about it.
+func _highlight_for(event: Dictionary) -> void:
+	var markers: PackedStringArray = _board.zone_marker_names()
+	var wanted: Dictionary = {}
+
+	for key: String in ["summon", "mset", "sset", "spsummon", "repos", "activate", "attack",
+			"cards", "chains"]:
+		for entry: Variant in (event.get(key, []) as Array):
+			var at: Dictionary = (entry as Dictionary).get("at", {}) as Dictionary
+			if at.is_empty():
+				continue
+			var anchor: String = EventTranslator.anchor_of(at)
+			if markers.has(anchor):
+				wanted[anchor] = true
+
+	if int(event.get("t", 0)) == DuelEnums.EV.SELECT_PLACE:
+		for place: Dictionary in _selection.free_places():
+			var anchor: String = EventTranslator.anchor_of(place)
+			if markers.has(anchor):
+				wanted[anchor] = true
+
+	var anchors: PackedStringArray = PackedStringArray()
+	for anchor: Variant in wanted:
+		anchors.append(str(anchor))
+	_board.highlight_zones(anchors)
+
+
+# ----------------------------------------------------------------------------------------------
+# The flip
+# ----------------------------------------------------------------------------------------------
+
+## Turns the board round to the new turn player. Built entirely from `CameraRig`'s exported
+## properties, so the rig stays a slot a VR origin can be dropped into (ARCHITECTURE.md
+## section 10 rule 2) and nothing here knows what a camera is.
+func _begin_flip() -> void:
+	var seat: int = _focus.seat_in_view
+	var seconds: float = FLIP_SECONDS * (HEADLESS_DURATION_SCALE if _headless else 1.0)
+
+	_banner.announce("Turn %d - the board is turning to %s" % [
+		maxi(_state.turn_count, 1), SeatFocus.seat_name(seat)])
+
+	if _flip_tween != null and _flip_tween.is_valid():
+		_flip_tween.kill()
+
+	if seconds <= 0.0:
+		_apply_seat(seat)
+		_rig.elevation = _rest_elevation
+		_banner.announce("")
+		return
+
+	_flip_tween = create_tween()
+	_flip_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_flip_tween.tween_property(_rig, "elevation", FLIP_ELEVATION, seconds)
+	# At the apex the view is almost straight down, where a half turn about the table centre is
+	# a rotation rather than a jump across the room.
+	_flip_tween.tween_callback(_apply_seat.bind(seat))
+	_flip_tween.tween_property(_rig, "elevation", _rest_elevation, seconds)
+	_flip_tween.tween_callback(_banner.announce.bind(""))
+
+
+## Hands the new seat to everything that is allowed to know about it. One place, so the camera,
+## the HUD's idea of "you" and the hand the board draws face-up can never disagree.
+func _apply_seat(seat: int) -> void:
+	_rig.seat = seat
+	_hud.local_player = seat
+	# Which hand faces the camera. Both are legible either way in this mode - see Honesty above -
+	# so this is orientation, not permission. A face-down card is face-down from both seats.
+	_board.viewer_player = seat
+	if _running:
+		_board.sync_from_state(_state)
+	_banner.refresh()
+
+
+# ----------------------------------------------------------------------------------------------
+# Input
+# ----------------------------------------------------------------------------------------------
+
+func _on_intent(data: Dictionary) -> void:
+	var kind: String = str(data.get("kind", ""))
+
+	if not _selection.is_waiting():
+		if kind == InputSource.KIND_POINT_AT:
+			print("[solo] point at %s" % str(data.get("anchor", "-")))
+		return
+
+	var type: int = _selection.pending_type()
+	var answer: Dictionary = _selection.resolve(data)
+	if answer.is_empty():
+		return
+
+	var responded: Dictionary = _core.respond(type, answer)
+	if not bool(responded.get("ok", false)):
+		_fail("respond(%s, %s) failed: %s" % [
+			DuelEnums.ev_name(type), str(answer), responded.get("error", "?")])
+		_stop("respond failed")
+		return
+
+	_answers_from_intents += 1
+	_selection.clear()
+	_focus.clear_pending()
+	_board.clear_highlights()
+	_banner.refresh()
+	_idle_frames = 0
+
+	_stop_if_satisfied()
+
+
+## A full turn cycle is turn 1 for the first player, turn 2 for the other - which is the flip -
+## and turn 3 back again, which is the flip home. Anything less proves the view can leave but
+## not that it comes back.
+func _stop_if_satisfied() -> void:
+	if not _headless or _stopping:
+		return
+	if _focus.flips < FLIPS_WANTED or _turn_changes < TURNS_WANTED:
+		return
+	if not _set_trap:
+		return
+	_stop("a full turn cycle played out and the view followed the turn player both ways")
+
+
+## Whether this idle request offers a trap to set, and where in the `sset` list it is. A spell
+## would be offered as `activate` first, so only a trap can be reached this way.
+func _trap_in(event: Dictionary) -> bool:
+	return _trap_index(event) >= 0
+
+
+func _trap_index(event: Dictionary) -> int:
+	var list: Array = event.get("sset", []) as Array
+	for index: int in range(list.size()):
+		var at: Dictionary = (list[index] as Dictionary).get("at", {}) as Dictionary
+		var card: DuelCard = _state.card_at(
+			int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
+		if card != null and card.code == TRAP_HOLE:
+			return index
+	return -1
+
+
+# ----------------------------------------------------------------------------------------------
+# The headless player
+# ----------------------------------------------------------------------------------------------
+
+func _drive_headless() -> void:
+	_intents_this_selection += 1
+	if _intents_this_selection > MAX_INTENTS_PER_SELECTION:
+		_fail("%s absorbed %d intents without producing an answer" % [
+			DuelEnums.ev_name(_selection.pending_type()), _intents_this_selection - 1])
+		_stop("selection stuck")
+		return
+
+	var intent: Dictionary = _synthesise_intent()
+	if intent.is_empty():
+		_fail("no intent could be synthesised for %s" % DuelEnums.ev_name(_selection.pending_type()))
+		_stop("nothing to touch")
+		return
+	_on_intent(intent)
+
+
+## Chooses a card, never a response. Turning "this card" into a command plus a list index is
+## `SelectionController`'s job; if this function did it the run would prove nothing.
+##
+## A confirm on an idle or battle command is "advance the phase", so repeated confirms walk the
+## turn out to its end phase and into the next one - which is how this run reaches a turn change
+## without scripting the duel.
+func _synthesise_intent() -> Dictionary:
+	var event: Dictionary = _selection.pending_event()
+
+	match _selection.pending_type():
+		DuelEnums.EV.SELECT_IDLECMD:
+			# A set card first. It is the card this mode must draw honestly - face-down, no
+			# passcode, and upright rather than on its side - and nothing else on this board
+			# can prove any of that.
+			if not _set_trap and _trap_in(event):
+				_set_trap = true
+				return _tap(event, "sset", _trap_index(event))
+			if not _summoned and not (event.get("summon", []) as Array).is_empty():
+				_summoned = true
+				return _tap(event, "summon", 0)
+			return {"kind": InputSource.KIND_CONFIRM}
+
+		DuelEnums.EV.SELECT_BATTLECMD:
+			return {"kind": InputSource.KIND_CONFIRM}
+
+		DuelEnums.EV.SELECT_PLACE:
+			var free: Array[Dictionary] = _selection.free_places()
+			if free.is_empty():
+				return {"kind": InputSource.KIND_CANCEL}
+			return {
+				"kind": InputSource.KIND_SELECT_ZONE,
+				"anchor": EventTranslator.anchor_of(free[0]),
+			}
+
+		DuelEnums.EV.SELECT_CARD, DuelEnums.EV.SELECT_TRIBUTE:
+			var picked: Array[int] = _selection.picks()
+			if picked.size() >= maxi(1, int(event.get("min", 1))):
+				return {"kind": InputSource.KIND_CONFIRM}
+			var cards: Array = event.get("cards", []) as Array
+			for index: int in range(cards.size()):
+				if not picked.has(index):
+					return _tap(event, "cards", index)
+			return {"kind": InputSource.KIND_CONFIRM}
+
+		DuelEnums.EV.SELECT_CHAIN:
+			return {"kind": InputSource.KIND_CANCEL}
+
+	return {"kind": InputSource.KIND_CONFIRM}
+
+
+func _tap(event: Dictionary, key: String, index: int) -> Dictionary:
+	var list: Array = event.get(key, []) as Array
+	if index < 0 or index >= list.size():
+		return {}
+	var entry: Dictionary = list[index] as Dictionary
+	var at: Dictionary = entry.get("at", {}) as Dictionary
+	if at.is_empty():
+		return {}
+
+	var card: DuelCard = _state.card_at(
+		int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
+	if card == null:
+		_fail("DuelState has no card at %s, which the engine offered as %s[%d]" % [str(at), key, index])
+		return {}
+
+	return {
+		"kind": InputSource.KIND_SELECT_CARD,
+		"handle": card.handle,
+		"card_id": card.code,
+		"anchor": EventTranslator.anchor_of(at),
+	}
+
+
+# ----------------------------------------------------------------------------------------------
+# Evidence
+# ----------------------------------------------------------------------------------------------
+
+## The phase readout, recorded as the readout itself produces it. Asserting on `PHASE_NAMES`
+## would be asserting on the table; this asserts on what reaches the screen.
+func _record_phase() -> void:
+	var phase: int = _state.phase
+	var text: String = SeatFocus.phase_name(phase)
+	_phases_seen[phase] = text
+	if text.strip_edges().is_empty() or text.begins_with("PHASE("):
+		_blank_phase_readouts += 1
+
+
+## Re-reads every face-down card on the board from both seats. The claim is narrow and exact: a
+## card the model holds face-down is drawn face-down whichever seat the camera is behind, and a
+## set spell or trap is not laid on its side.
+func _audit_facedown() -> void:
+	var restore: int = _board.viewer_player
+
+	for seat: int in range(DuelEnums.PLAYER_COUNT):
+		_board.viewer_player = seat
+		_board.sync_from_state(_state)
+
+		for player: int in range(DuelEnums.PLAYER_COUNT):
+			for sequence: int in range(DuelEnums.MAIN_MONSTER_ZONES):
+				_audit_zone(_state.main_monster[player][sequence],
+					"MZ_P%d_%d" % [player, sequence], seat)
+			for sequence: int in range(DuelEnums.SPELL_TRAP_ZONES):
+				_audit_zone(_state.spell_trap[player][sequence],
+					"ST_P%d_%d" % [player, sequence], seat)
+
+			# A deck is face-down for everybody, and stays that way when the camera changes
+			# sides. It is the cheapest standing proof that the flip is a camera move and not
+			# a visibility switch - a mode that leaked one would leak the other.
+			if not _state.deck[player].is_empty():
+				_audit_pile("DECK_P%d" % player, seat)
+
+	_board.viewer_player = restore
+	_board.sync_from_state(_state)
+
+
+## Every card drawn at a pile anchor must be a back. Unlike a zone there is no per-card model
+## position to compare against: the pile itself is face-down, so any face at all is a leak.
+func _audit_pile(anchor: String, seat: int) -> void:
+	var view: CardView = _board.view_at(anchor)
+	if view == null:
+		_facedown_leaks.append("%s has no view from seat %d" % [anchor, seat])
+		return
+	_facedown_checks += 1
+	if view.face_up:
+		_facedown_leaks.append("%s showed a face from seat %d" % [anchor, seat])
+	if view.card_id != 0:
+		_facedown_leaks.append("%s carried a passcode from seat %d" % [anchor, seat])
+
+
+func _audit_zone(slot: Variant, anchor: String, seat: int) -> void:
+	var card: DuelCard = slot as DuelCard
+	if card == null or not card.is_face_down():
+		return
+	var view: CardView = _board.view_at(anchor)
+	if view == null:
+		_facedown_leaks.append("%s has no view from seat %d" % [anchor, seat])
+		return
+
+	_facedown_checks += 1
+	if view.face_up:
+		_facedown_leaks.append("%s showed its face from seat %d" % [anchor, seat])
+	if view.card_id != 0:
+		_facedown_leaks.append("%s carried its passcode from seat %d" % [anchor, seat])
+
+	if not BoardView.zone_turns(anchor):
+		_set_zones_audited += 1
+
+	# `BoardView.zone_turns()` is the one place that decides this. A set spell or trap is
+	# `FACEDOWN_DEFENSE` in the model because position is one field shared by every card type,
+	# and reading that bit straight into a rotation lays it on its side in its zone.
+	if view.defense and not BoardView.zone_turns(anchor):
+		_sideways_sets.append("%s from seat %d" % [anchor, seat])
+
+
+# ----------------------------------------------------------------------------------------------
+# Reporting
+# ----------------------------------------------------------------------------------------------
+
+func _on_queue_drained() -> void:
+	if _running:
+		_board.sync_from_state(_state)
+
+
+func _stop(reason: String) -> void:
+	if _stopping:
+		return
+	_stopping = true
+	_running = false
+	set_process(false)
+
+	if _flip_tween != null and _flip_tween.is_valid():
+		_flip_tween.kill()
+	_rig.elevation = _rest_elevation
+
+	_director.skip_all()
+	_board.sync_from_state(_state)
+
+	print("[solo] %s" % reason)
+	print("[solo] %d events, %d answers from input, %d turn changes, %d seat flips, %d core log lines suppressed" % [
+		_event_count, _answers_from_intents, _turn_changes, _focus.flips, _suppressed_logs])
+	print(_state.describe())
+
+	_check_results()
+
+	if _art != null:
+		_art.shutdown()
+	if _core != null:
+		_core.end_duel()
+
+	if _failures.is_empty():
+		print("[solo] all checks passed")
+	else:
+		print("[solo] %d check(s) failed" % _failures.size())
+
+	if _headless:
+		get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+func _check_results() -> void:
+	if not _headless:
+		return
+
+	_audit_facedown()
+
+	_expect(_set_trap, "a card was set face-down from input alone")
+
+	_expect(_answers_from_intents > 0,
+		"selections were answered from InputIntents (got %d)" % _answers_from_intents)
+	_expect(_retries == 0, "ocgcore accepted every answer (no MSG_RETRY)")
+
+	_expect(_turn_changes >= FLIPS_WANTED,
+		"the duel played through %d turn changes" % _turn_changes)
+	_expect(_focus.flips >= FLIPS_WANTED,
+		"the seat in view followed the turn player across %d turn changes (got %d flips)"
+			% [_turn_changes, _focus.flips])
+	_expect(_seat_lagged_turn == 0,
+		"the seat in view matched the new turn player on every NEW_TURN (%d did not)"
+			% _seat_lagged_turn)
+
+	_expect(_camera_moved_on_prompt == 0,
+		"no prompt moved the seat in view (%d did)" % _camera_moved_on_prompt)
+	_expect(_prompts.size() > 0, "at least one prompt was recorded (got %d)" % _prompts.size())
+	_expect(_decision_mismatches == 0,
+		"the decision indicator named the seat every event named (%d did not)"
+			% _decision_mismatches)
+	print("[solo]   %d prompts, %d of them for the seat that was not in view" % [
+		_prompts.size(), _offscreen_prompts])
+
+	_expect(_phases_seen.size() > 0, "the phase readout was exercised (%d distinct phases)"
+		% _phases_seen.size())
+	_expect(_blank_phase_readouts == 0,
+		"every phase the duel entered had a name (%d blanks)" % _blank_phase_readouts)
+	for phase: Variant in _phases_seen:
+		print("[solo]   phase 0x%X -> %s" % [int(phase), str(_phases_seen[phase])])
+
+	_expect(_facedown_checks > 0,
+		"face-down cards were audited from both seats (%d checks)" % _facedown_checks)
+	_expect(_set_zones_audited > 0,
+		"a set spell or trap zone was among them (%d)" % _set_zones_audited)
+	_expect(_facedown_leaks.is_empty(),
+		"no face-down card revealed itself%s" % (
+			"" if _facedown_leaks.is_empty() else " (%s)" % ", ".join(_facedown_leaks)))
+	_expect(_sideways_sets.is_empty(),
+		"no set spell or trap was drawn sideways%s" % (
+			"" if _sideways_sets.is_empty() else " (%s)" % ", ".join(_sideways_sets)))
+
+	_expect(_banner.seat_colour() != Color.BLACK,
+		"the overlay is painting the seat in view a colour of its own")
+
+
+func _expect(condition: bool, what: String) -> void:
+	if condition:
+		print("  PASS  %s" % what)
+	else:
+		_fail(what)
+
+
+func _fail(what: String) -> void:
+	print("  FAIL  %s" % what)
+	_failures.append(what)

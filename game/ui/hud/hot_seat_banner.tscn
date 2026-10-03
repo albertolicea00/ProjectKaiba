@@ -1,0 +1,206 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://ui/hud/hot_seat_banner.gd" id="1_banner"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_edge"]
+resource_local_to_scene = true
+bg_color = Color(0, 0, 0, 0)
+border_width_left = 7
+border_width_top = 7
+border_width_right = 7
+border_width_bottom = 7
+border_color = Color(0.980392, 0.690196, 0.278431, 0.85)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip"]
+resource_local_to_scene = true
+content_margin_left = 18.0
+content_margin_top = 8.0
+content_margin_right = 18.0
+content_margin_bottom = 8.0
+bg_color = Color(0.054902, 0.0666667, 0.0862745, 0.86)
+border_width_bottom = 4
+border_color = Color(0.980392, 0.690196, 0.278431, 0.85)
+corner_radius_top_left = 10
+corner_radius_top_right = 10
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner"]
+resource_local_to_scene = true
+content_margin_left = 26.0
+content_margin_top = 16.0
+content_margin_right = 26.0
+content_margin_bottom = 16.0
+bg_color = Color(0.0784314, 0.109804, 0.156863, 0.92)
+border_width_left = 6
+border_width_top = 2
+border_width_right = 6
+border_width_bottom = 2
+border_color = Color(0.439216, 0.701961, 1, 0.85)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="HotSeatBanner" type="CanvasLayer"]
+layer = 2
+script = ExtResource("1_banner")
+
+[node name="Edge" type="Panel" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_edge")
+
+[node name="Root" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 20
+
+[node name="Column" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="TopBand" type="HBoxContainer" parent="Root/Column"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+theme_override_constants/separation = 14
+
+[node name="SeatChip" type="PanelContainer" parent="Root/Column/TopBand"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
+
+[node name="Box" type="VBoxContainer" parent="Root/Column/TopBand/SeatChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="Caption" type="Label" parent="Root/Column/TopBand/SeatChip/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 14
+text = "Board shown from"
+horizontal_alignment = 1
+
+[node name="Value" type="Label" parent="Root/Column/TopBand/SeatChip/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.980392, 0.690196, 0.278431, 1)
+theme_override_font_sizes/font_size = 26
+text = "PLAYER 1 - taking this turn"
+horizontal_alignment = 1
+
+[node name="DecisionChip" type="PanelContainer" parent="Root/Column/TopBand"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
+
+[node name="Box" type="VBoxContainer" parent="Root/Column/TopBand/DecisionChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 1
+
+[node name="Value" type="Label" parent="Root/Column/TopBand/DecisionChip/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.439216, 0.701961, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "nobody is being asked"
+horizontal_alignment = 1
+
+[node name="Detail" type="Label" parent="Root/Column/TopBand/DecisionChip/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.843137, 0.882353, 0.941176, 1)
+theme_override_font_sizes/font_size = 15
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="PhaseBand" type="HBoxContainer" parent="Root/Column"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="PhasePanel" type="PanelContainer" parent="Root/Column/PhaseBand"]
+layout_mode = 2
+size_flags_vertical = 0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
+
+[node name="Box" type="VBoxContainer" parent="Root/Column/PhaseBand/PhasePanel"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Track" type="Label" parent="Root/Column/PhaseBand/PhasePanel/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.701961, 0.760784, 0.839216, 1)
+theme_override_font_sizes/font_size = 18
+text = "draw  >  standby  >  main 1  >  battle  >  main 2  >  end"
+horizontal_alignment = 1
+
+[node name="Step" type="Label" parent="Root/Column/PhaseBand/PhasePanel/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "Not started"
+horizontal_alignment = 1
+
+[node name="Middle" type="Control" parent="Root/Column"]
+layout_mode = 2
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BottomBand" type="HBoxContainer" parent="Root/Column"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="Banner" type="PanelContainer" parent="Root/Column/BottomBand"]
+visible = false
+layout_mode = 2
+size_flags_vertical = 8
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_banner")
+
+[node name="Box" type="VBoxContainer" parent="Root/Column/BottomBand/Banner"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Root/Column/BottomBand/Banner/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.439216, 0.701961, 1, 1)
+theme_override_font_sizes/font_size = 28
+text = ""
+horizontal_alignment = 1
+
+[node name="Detail" type="Label" parent="Root/Column/BottomBand/Banner/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.901961, 0.941176, 1, 1)
+theme_override_font_sizes/font_size = 19
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
