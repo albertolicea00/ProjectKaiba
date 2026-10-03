@@ -1,7 +1,8 @@
 extends SceneTree
 
 ## Self-checking tests for the duel HUD, the card preview, the main menu, the scene router, the
-## deck editor, the board's zone markers and the card back.
+## deck editor, the controls screen, the input sources, `SelectionController`'s reading of them,
+## the board's zone markers and the card back.
 ##
 ##   godot --headless --path game --script res://ui/ui_test.gd
 ##
@@ -11,6 +12,12 @@ extends SceneTree
 ## ------------------------------------------------------------------------------------------
 ## Why the board and the art cache are tested from the UI suite
 ## ------------------------------------------------------------------------------------------
+## The input cases are here for the same reason, and with the same caveat: `TouchSource`,
+## `MouseSource` and `SelectionController` are L5 and L3, not UI. They are in this suite because
+## `make test-ui` is the gate that runs on a checkout with no `data/` and no attached device,
+## and a gesture that is only exercised by `make touch` and `make solo-test` is a gesture that
+## goes unchecked on most runs. Move them when an input suite exists.
+##
 ## `BoardView`'s zone markers and `CardArt.back_texture()` are not UI, and in a tidier world
 ## their checks would live beside `core/duel/duel_state_test.gd` and
 ## `core/registry/card_art_test.gd`. They are here because this is the suite that exists and
@@ -48,6 +55,14 @@ const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
 const RouterScript := preload("res://platform/scene_router.gd")
 const BannerScene := preload("res://ui/hud/hot_seat_banner.tscn")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
+const ControlsScene := preload("res://ui/controls/controls_screen.tscn")
+
+## Read for its `KIND_*` constants as **source text**, not through
+## `GDScript.get_script_constant_map()`. That API returns an empty dictionary on Godot 4.6.3,
+## and a loop over zero constants passes every assertion it makes - the failure mode that made
+## `view/audio/audio_director_test.gd` hollow until something caught it from the other side.
+## This is the same technique, for the same reason.
+const INPUT_SOURCE_SCRIPT := "res://platform/input/input_source.gd"
 
 const HUD_TOP_LIFE := "Root/Column/TopRow/TopSeat/Box/Life"
 const HUD_TOP_SEAT := "Root/Column/TopRow/TopSeat/Box/Seat"
@@ -55,8 +70,6 @@ const HUD_BOTTOM_LIFE := "Root/Column/BottomRow/BottomSeat/Box/Life"
 const HUD_BOTTOM_SEAT := "Root/Column/BottomRow/BottomSeat/Box/Seat"
 const HUD_TURN := "Root/Column/TopRow/Turn/Box/Count"
 const HUD_PHASE := "Root/Column/TopRow/Turn/Box/Phase"
-const HUD_PROMPT := "Root/Column/BottomRow/Prompt/Text"
-const HUD_PROMPT_PANEL := "Root/Column/BottomRow/Prompt"
 
 const BANNER_SEAT := "Root/Column/TopBand/SeatChip/Box/Value"
 const BANNER_SEAT_CAPTION := "Root/Column/TopBand/SeatChip/Box/Caption"
@@ -165,6 +178,42 @@ static func pot_of_greed() -> Dictionary:
 ## Decoded size of `data/base/pics/cover/classic/hd.jpg`, measured rather than assumed. RGB8, no mipmaps.
 const BACK_SIZE := Vector2i(930, 1350)
 
+## -------------------------------------------------------------------------------------------
+## Input sources with the raycast taken out
+## -------------------------------------------------------------------------------------------
+## Only `_pick()` needs a camera, a board and a populated world. Everything the gesture cases
+## are actually about - when a drag becomes a set, which button means what, the shape of the
+## emitted intent - sits above it and runs here unmodified. Overriding the one method that needs
+## a world is what makes these cases runnable headless on a checkout with no `data/` at all.
+##
+## The alternative, binding a real rig and a real board and seating a real card, would test the
+## raycast a third time (`make touch` and `make solo-test` both do) and the gestures zero times.
+
+## What the stubbed pick always reports: Blue-Eyes, held in player 0's hand.
+const PICK_HANDLE := 77
+const PICK_CODE := 89631139
+const PICK_ANCHOR := "HAND_P0"
+
+
+class StubTouch extends TouchSource:
+	## Every screen position `_pick()` was asked about, in order. The set gesture has to resolve
+	## to the card under the drag's **origin**, not under the lifted finger, and this is how that
+	## is asserted rather than assumed.
+	var picked: Array[Vector2] = []
+
+	func _pick(screen_position: Vector2) -> Dictionary:
+		picked.append(screen_position)
+		return {"handle": PICK_HANDLE, "card_id": PICK_CODE, "anchor": PICK_ANCHOR}
+
+
+class StubMouse extends MouseSource:
+	var picked: Array[Vector2] = []
+
+	func _pick(screen_position: Vector2) -> Dictionary:
+		picked.append(screen_position)
+		return {"handle": PICK_HANDLE, "card_id": PICK_CODE, "anchor": PICK_ANCHOR}
+
+
 var _case_name: String = ""
 var _case_failures: PackedStringArray = []
 var _cases_run: int = 0
@@ -202,6 +251,13 @@ func _process(_delta: float) -> bool:
 	_case_router_reaches_solo_test()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
+	_case_router_reaches_controls()
+
+	_case_a_downward_drag_sets_and_a_tap_does_not()
+	_case_middle_click_and_shift_click_both_set()
+	_case_alt_prefers_the_set_command_and_falls_back()
+	_case_the_controls_table_documents_every_kind()
+	_case_the_controls_screen_shows_both_columns()
 
 
 	_case_zone_markers_sit_on_their_anchors()
@@ -216,6 +272,8 @@ func _process(_delta: float) -> bool:
 	_case_the_picker_lists_and_reports_a_choice()
 	_case_an_empty_library_says_where_to_put_files()
 	_case_router_reaches_the_deck_picker()
+
+	_case_every_verb_is_reachable_on_a_phone()
 
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
@@ -305,7 +363,7 @@ func _case_hud_shows_the_pending_prompt() -> void:
 	var hud: HudScript = _hud()
 	hud.bind(state)
 
-	_check("no prompt, no panel", not _node(hud, HUD_PROMPT_PANEL).visible, "panel was visible")
+	_check("no prompt, no panel", not hud.prompt_is_visible(), "panel was visible")
 
 	var selection: SelectionController = SelectionController.new(state)
 	selection.set_pending({"t": DuelEnums.EV.SELECT_IDLECMD})
@@ -313,13 +371,13 @@ func _case_hud_shows_the_pending_prompt() -> void:
 	hud.set_prompt(prompt)
 
 	_check("prompt is not empty", not prompt.is_empty(), "pending_prompt() returned nothing")
-	_equal("prompt reaches the label verbatim", _text(hud, HUD_PROMPT), prompt)
-	_check("panel appears", _node(hud, HUD_PROMPT_PANEL).visible, "panel stayed hidden")
+	_equal("prompt reaches the label verbatim", hud.prompt_text(), prompt)
+	_check("panel appears", hud.prompt_is_visible(), "panel stayed hidden")
 
 	selection.clear()
 	hud.set_prompt(selection.pending_prompt())
-	_equal("cleared prompt clears the label", _text(hud, HUD_PROMPT), "")
-	_check("panel hides again", not _node(hud, HUD_PROMPT_PANEL).visible, "panel stayed visible")
+	_equal("cleared prompt clears the label", hud.prompt_text(), "")
+	_check("panel hides again", not hud.prompt_is_visible(), "panel stayed visible")
 
 	_discard(hud)
 	_end()
@@ -920,7 +978,7 @@ func _case_router_reaches_solo_test() -> void:
 
 
 func _case_menu_offers_every_destination() -> void:
-	_begin("menu offers the six destinations and says which are not built")
+	_begin("menu offers the seven destinations and says which are not built")
 	var menu: MenuScript = MenuScene.instantiate() as MenuScript
 	root.add_child(menu)
 
@@ -928,8 +986,8 @@ func _case_menu_offers_every_destination() -> void:
 	menu.chose.connect(func(destination: String) -> void: chosen.append(destination))
 
 	var buttons: Node = menu.get_node(MENU_BUTTONS)
-	_equal("six entries", MenuScript.ENTRIES.size(), 6)
-	_equal("six buttons", buttons.get_child_count(), 6)
+	_equal("seven entries", MenuScript.ENTRIES.size(), 7)
+	_equal("seven buttons", buttons.get_child_count(), 7)
 
 	for entry: Dictionary in MenuScript.ENTRIES:
 		var button: Button = buttons.get_node_or_null(str(entry["node"])) as Button
@@ -945,13 +1003,432 @@ func _case_menu_offers_every_destination() -> void:
 		button.pressed.emit()
 
 	_equal("every press was reported", chosen,
-		["solo", "solo_test", "host", "join", "decks", "replays"])
+		["solo", "solo_test", "controls", "host", "join", "decks", "replays"])
 
 	menu.show_message("anything at all")
 	_equal("messages reach the screen", _text(menu, MENU_STATUS), "anything at all")
 
 	_discard(menu)
 	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# Input: gestures
+#
+# There was no way to set a monster face-down. ocgcore offers a monster in hand as both `summon`
+# and `mset`, and `SelectionController.IDLE_PRIORITY` always takes the face-up one, so a tap
+# could only ever set a **trap** - the one card type that appears in `sset` and nowhere else.
+# `SELECT_ALT` is the verb that closes it, and these are the cases that prove each end of it.
+# ----------------------------------------------------------------------------------------------
+
+## The touch binding. A short downward drag sets; everything else that is not a tap still does
+## nothing, which is the half that matters most - the gesture has to be cheap to *avoid*.
+func _case_a_downward_drag_sets_and_a_tap_does_not() -> void:
+	_begin("a downward drag sets the card under its origin, and a tap does not")
+
+	var source: StubTouch = StubTouch.new()
+	root.add_child(source)
+	var seen: Array[Dictionary] = []
+	source.intent.connect(func(data: Dictionary) -> void: seen.append(data))
+
+	# The threshold is a different order of movement from a tap, not a slightly bigger one.
+	_check("the set distance clears the tap slop by a wide margin",
+		TouchSource.SET_DRAG_DISTANCE >= 2.0 * TouchSource.TAP_SLOP,
+		"%.0f px is not clear of %.0f px of finger wander"
+			% [TouchSource.SET_DRAG_DISTANCE, TouchSource.TAP_SLOP])
+
+	# A plain tap, with the few pixels of wander a real finger puts on one.
+	_tap_screen(source, Vector2(400, 400), Vector2(404, 403))
+	_equal("a tap emits exactly one intent", seen.size(), 1)
+	_equal("and it is a plain selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+
+	# Down past the threshold.
+	seen.clear()
+	source.picked.clear()
+	_drag_screen(source, Vector2(400, 400), [Vector2(400, 440)], Vector2(400, 400 + TouchSource.SET_DRAG_DISTANCE + 8.0))
+	_equal("a downward drag emits exactly one intent", seen.size(), 1)
+	_equal("and it is the alternative selection",
+		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_ALT)
+	_equal("carrying the card handle", int(seen[0].get("handle", 0)), PICK_HANDLE)
+	_equal("and its anchor", str(seen[0].get("anchor", "")), PICK_ANCHOR)
+	_check("and it resolved at the origin, not at the lifted finger",
+		source.picked.size() > 0 and source.picked[source.picked.size() - 1] == Vector2(400, 400),
+		"picked at %s" % str(source.picked))
+
+	# Rule 5: whatever it carries, it is never a screen coordinate.
+	for key: String in ["position", "screen_position", "point", "at"]:
+		_check("the intent carries no %s" % key, not seen[0].has(key),
+			"SELECT_ALT leaked a coordinate under '%s'" % key)
+
+	# Three drags that must NOT set: short, upward, and sideways.
+	var rejected: Array[Dictionary] = [
+		{"to": Vector2(400, 400 + TouchSource.SET_DRAG_DISTANCE - 1.0), "why": "too short"},
+		{"to": Vector2(400, 400 - 120.0), "why": "upward"},
+		{"to": Vector2(520, 430), "why": "mostly sideways"},
+	]
+	for entry: Dictionary in rejected:
+		seen.clear()
+		_drag_screen(source, Vector2(400, 400), [entry["to"] as Vector2], entry["to"] as Vector2)
+		_equal("a %s drag emits nothing" % str(entry["why"]), seen.size(), 0)
+
+	# The same rule, read straight off the gesture, so the boundary is pinned and not inferred
+	# from whichever sample positions happen to be above.
+	_check("exactly at the threshold counts",
+		TouchSource.is_set_drag(Vector2.ZERO, Vector2(0, TouchSource.SET_DRAG_DISTANCE)),
+		"the threshold itself was rejected")
+	_check("one pixel short does not",
+		not TouchSource.is_set_drag(Vector2.ZERO, Vector2(0, TouchSource.SET_DRAG_DISTANCE - 1.0)),
+		"a drag under the threshold was accepted")
+	_check("the diagonal limit is a cone, not a quadrant",
+		not TouchSource.is_set_drag(Vector2.ZERO, Vector2(100, 120)),
+		"a 40-degree drag was accepted as straight down")
+
+	_discard(source)
+	_end()
+
+
+## The PC binding. Two gestures for one verb on purpose: middle click is the one a player keeps,
+## Shift + click is the one they can be told and the one a trackpad can produce at all.
+func _case_middle_click_and_shift_click_both_set() -> void:
+	_begin("middle click and Shift + left click both set, plain left click does not")
+
+	var source: StubMouse = StubMouse.new()
+	root.add_child(source)
+	var seen: Array[Dictionary] = []
+	source.intent.connect(func(data: Dictionary) -> void: seen.append(data))
+
+	_click(source, MOUSE_BUTTON_LEFT, false)
+	_equal("left click emits one intent", seen.size(), 1)
+	_equal("and it is a plain selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+
+	seen.clear()
+	_click(source, MOUSE_BUTTON_MIDDLE, false)
+	_equal("middle click emits one intent", seen.size(), 1)
+	_equal("and it is the alternative selection",
+		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_ALT)
+
+	seen.clear()
+	_click(source, MOUSE_BUTTON_LEFT, true)
+	_equal("Shift + left click emits one intent", seen.size(), 1)
+	_equal("and it is the same alternative selection",
+		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_ALT)
+	_equal("carrying the same card handle", int(seen[0].get("handle", 0)), PICK_HANDLE)
+
+	# Shift is read per event, never remembered. A modifier that outlives its event is a mode.
+	seen.clear()
+	_click(source, MOUSE_BUTTON_LEFT, false)
+	_equal("the next unmodified click is plain again",
+		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+
+	# Long press is the preview and stays the preview; nothing above moved it.
+	seen.clear()
+	_click(source, MOUSE_BUTTON_RIGHT, false)
+	_equal("right click still cancels", str(seen[0].get("kind", "")), InputSource.KIND_CANCEL)
+
+	_discard(source)
+	_end()
+
+
+## The L3 end. `SELECT_ALT` prefers the set command and falls back to the face-up one, because a
+## gesture that silently does nothing on a card the engine offered only one way is worse than a
+## gesture that does the obvious thing.
+func _case_alt_prefers_the_set_command_and_falls_back() -> void:
+	_begin("SELECT_ALT answers mset for a monster offered both ways, and summon when it was not")
+
+	var state: DuelState = _hand_of_five()
+	var controller := SelectionController.new(state)
+
+	# Shaped as `native/src/msg_parser.cpp` parse_select_idlecmd writes it. Card 1002 is offered
+	# both ways, 1003 only as a summon, 1005 both as an activation and as a set.
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_IDLECMD,
+		"player": DuelEnums.PLAYER.P0,
+		"summon": [
+			{"card": 1002, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 1, "pos": 0}},
+			{"card": 1003, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 2, "pos": 0}},
+		],
+		"mset": [
+			{"card": 1002, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 1, "pos": 0}},
+		],
+		"activate": [
+			{"card": 1005, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 4, "pos": 0}},
+		],
+		"sset": [
+			{"card": 1005, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 4, "pos": 0}},
+		],
+		"spsummon": [],
+		"repos": [],
+		"to_bp": true,
+		"to_ep": true,
+	})
+
+	# The monster offered both ways: this is the pair that had no second reading before.
+	_equal("tapping it summons", controller.resolve(_card_intent(state, 1, false)),
+		{"cmd": "summon", "index": 0})
+	_equal("the alternative sets it", controller.resolve(_card_intent(state, 1, true)),
+		{"cmd": "mset", "index": 0})
+
+	# Offered one way only. The alternative must not evaporate.
+	_equal("a monster offered only as a summon is still summoned",
+		controller.resolve(_card_intent(state, 2, true)), {"cmd": "summon", "index": 1})
+
+	# The spell side of the same hole.
+	_equal("tapping a spell activates it", controller.resolve(_card_intent(state, 4, false)),
+		{"cmd": "activate", "index": 0})
+	_equal("the alternative sets it", controller.resolve(_card_intent(state, 4, true)),
+		{"cmd": "sset", "index": 0})
+
+	# A card the request never offered answers nothing, whichever verb asked.
+	_equal("an unoffered card is still unoffered",
+		controller.resolve(_card_intent(state, 0, true)), {})
+
+	# The two tables have to describe the same six lists, or one of them is addressing commands
+	# the other cannot reach.
+	var normal: Array[String] = SelectionController.IDLE_PRIORITY.duplicate()
+	var alternative: Array[String] = SelectionController.IDLE_ALT_PRIORITY.duplicate()
+	normal.sort()
+	alternative.sort()
+	_equal("both orderings cover the same commands", normal, alternative)
+	_equal("and the alternative leads with the set commands",
+		[SelectionController.IDLE_ALT_PRIORITY[0], SelectionController.IDLE_ALT_PRIORITY[1]],
+		["mset", "sset"])
+
+	# Outside the idle phase there is no other way to play a card, so the verb degrades to a
+	# plain selection rather than becoming a gesture that does nothing wherever it is not special.
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_BATTLECMD,
+		"player": DuelEnums.PLAYER.P0,
+		"attack": [
+			{"card": 1003, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 2, "pos": 0}},
+		],
+		"activate": [],
+		"to_m2": true,
+		"to_ep": true,
+	})
+	_equal("in the battle phase it reads as a plain selection",
+		controller.resolve(_card_intent(state, 2, true)), {"cmd": "attack", "index": 0})
+
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# Controls
+# ----------------------------------------------------------------------------------------------
+
+## The case the controls screen exists for. Every `KIND_*` constant on `InputSource` must appear
+## in `InputSource.BINDINGS`, so a verb added upstream fails this suite instead of quietly going
+## undocumented - which is the failure mode that makes a controls screen worse than none.
+func _case_the_controls_table_documents_every_kind() -> void:
+	_begin("the controls table documents every input kind")
+
+	var kinds: PackedStringArray = _all_input_kinds()
+	_check("the source declares its kinds", kinds.size() >= 6,
+		"found %d KIND_* constants in %s" % [kinds.size(), INPUT_SOURCE_SCRIPT])
+
+	for kind: String in kinds:
+		var binding: Dictionary = InputSource.binding_for(kind)
+		_check("%s is documented" % kind, not binding.is_empty(), "no row in BINDINGS")
+		if binding.is_empty():
+			continue
+		_check("%s has a label" % kind, not str(binding.get("label", "")).strip_edges().is_empty(),
+			"empty label")
+		_check("%s says what it does" % kind,
+			not str(binding.get("does", "")).strip_edges().is_empty(), "empty description")
+		_check("%s names at least one gesture" % kind,
+			not (str(binding.get("touch", "")).is_empty() and str(binding.get("pc", "")).is_empty()),
+			"neither device can produce it")
+
+	# And from the other side: a typo'd key in the table would read as coverage.
+	for row: Dictionary in InputSource.BINDINGS:
+		_check("table row %s is a real kind" % str(row.get("kind", "")),
+			kinds.has(str(row.get("kind", ""))),
+			"BINDINGS holds a kind no constant declares")
+	_equal("one row per kind, no duplicates", InputSource.BINDINGS.size(), kinds.size())
+
+	# A report rather than an assertion: the gestures that exist today, so a reviewer sees them
+	# without opening the table, and so a verb with a hole in one column is visible.
+	for row: Dictionary in InputSource.BINDINGS:
+		print("        %-12s touch: %-34s pc: %s" % [
+			str(row.get("kind", "")),
+			str(row.get("touch", "")) if not str(row.get("touch", "")).is_empty() else "-",
+			str(row.get("pc", "")) if not str(row.get("pc", "")).is_empty() else "-"])
+
+	_check("an undeclared kind is not claimed as documented",
+		InputSource.binding_for("NOT_A_KIND").is_empty(),
+		"binding_for() answered for a kind that does not exist")
+	_end()
+
+
+## The screen renders the table and nothing else, and it shows both device columns at once.
+##
+## Not a style preference: deciding which column to show means asking how big the window is in
+## order to make a logic decision, which ARCHITECTURE.md section 10 rule 4 forbids and which
+## `_case_no_widget_measures_the_screen` would catch anyway. A phone cast to a monitor and a
+## desktop with a touchscreen are the same build.
+func _case_the_controls_screen_shows_both_columns() -> void:
+	_begin("the controls screen renders the table, both columns, with no device test")
+
+	var screen: ControlsScreen = ControlsScene.instantiate() as ControlsScreen
+	root.add_child(screen)
+
+	_equal("one row per binding", screen.row_count(), InputSource.BINDINGS.size())
+
+	for index: int in range(InputSource.BINDINGS.size()):
+		var row: Dictionary = InputSource.BINDINGS[index]
+		var text: String = screen.row_text(index)
+		var kind: String = str(row.get("kind", ""))
+		_check("%s names itself" % kind, text.contains(str(row.get("label", ""))),
+			"row read '%s'" % text)
+		_check("%s says what it does" % kind, text.contains(str(row.get("does", ""))),
+			"row read '%s'" % text)
+		_check("%s labels the touch column" % kind, text.contains(ControlsScreen.TOUCH_HEADER),
+			"no touch header in '%s'" % text)
+		_check("%s labels the pc column" % kind, text.contains(ControlsScreen.PC_HEADER),
+			"no pc header in '%s'" % text)
+
+		var touch: String = str(row.get("touch", ""))
+		var pc: String = str(row.get("pc", ""))
+		_check("%s shows its touch gesture" % kind,
+			text.contains(touch if not touch.is_empty() else ControlsScreen.NO_BINDING),
+			"row read '%s'" % text)
+		_check("%s shows its pc gesture" % kind,
+			text.contains(pc if not pc.is_empty() else ControlsScreen.NO_BINDING),
+			"row read '%s'" % text)
+
+	# The set gesture is the one this screen was added for; name it explicitly so a rename that
+	# leaves the table intact but empties the screen cannot pass.
+	var all_text: String = ""
+	for index: int in range(screen.row_count()):
+		all_text += screen.row_text(index)
+	_check("the set gesture is on the screen for both devices",
+		all_text.contains("drag") and all_text.contains("Middle click"),
+		"neither gesture was rendered")
+
+	var chosen: Array[String] = []
+	screen.chose.connect(func(destination: String) -> void: chosen.append(destination))
+	(screen.get_node("Frame/Scroll/Column/Back") as Button).pressed.emit()
+	_equal("Back goes to the menu", chosen, ["menu"])
+
+	screen.show_message("anything at all")
+	_equal("messages reach the screen", _text(screen, "Frame/Scroll/Column/Status"), "anything at all")
+
+	_discard(screen)
+	_end()
+
+
+func _case_router_reaches_controls() -> void:
+	_begin("the controls destination reaches the controls screen")
+	var router: RouterScript = _router()
+
+	_check("the route exists", router.routes.has(RouterScript.CONTROLS), "no controls route")
+	_check("and points at a real scene",
+		ResourceLoader.exists(str(router.routes[RouterScript.CONTROLS])),
+		"%s is not there" % str(router.routes[RouterScript.CONTROLS]))
+
+	router.go(RouterScript.CONTROLS)
+	_equal("the router is there", router.current(), RouterScript.CONTROLS)
+	_check("and it is the controls screen", router.current_scene() is ControlsScreen,
+		"got %s" % str(router.current_scene()))
+
+	# Back, through the same signal every other destination uses.
+	router.current_scene().chose.emit(RouterScript.MENU)
+	_equal("Back lands on the menu", router.current(), RouterScript.MENU)
+
+	_discard(router)
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# Input fixtures
+# ----------------------------------------------------------------------------------------------
+
+## Every `KIND_*` the input source declares, read off the **source text** rather than listed
+## here, so a kind added upstream shows up in this suite without anyone remembering to add it.
+## See the note on `INPUT_SOURCE_SCRIPT` for why the reflection API is not used.
+func _all_input_kinds() -> PackedStringArray:
+	var out: PackedStringArray = PackedStringArray()
+	var text: String = FileAccess.get_file_as_string(INPUT_SOURCE_SCRIPT)
+	if text.is_empty():
+		return out
+
+	var pattern := RegEx.new()
+	pattern.compile("^const\\s+KIND_\\w+\\s*:\\s*String\\s*=\\s*\"([^\"]+)\"")
+	for line: String in text.split("\n"):
+		var found: RegExMatch = pattern.search(line)
+		if found != null:
+			out.append(found.get_string(1))
+	return out
+
+
+## A finger down at `from` and up at `to`, with no motion in between.
+func _tap_screen(source: InputSource, from: Vector2, to: Vector2) -> void:
+	source._unhandled_input(_touch_event(from, true))
+	source._unhandled_input(_touch_event(to, false))
+
+
+## A finger down at `from`, dragged through `path`, lifted at `to`.
+func _drag_screen(source: InputSource, from: Vector2, path: Array[Vector2], to: Vector2) -> void:
+	source._unhandled_input(_touch_event(from, true))
+	for point: Vector2 in path:
+		var drag := InputEventScreenDrag.new()
+		drag.index = 0
+		drag.position = point
+		source._unhandled_input(drag)
+	source._unhandled_input(_touch_event(to, false))
+
+
+func _touch_event(position: Vector2, pressed: bool) -> InputEventScreenTouch:
+	var event := InputEventScreenTouch.new()
+	event.index = 0
+	event.position = position
+	event.pressed = pressed
+	return event
+
+
+## One press. Releases are ignored by `MouseSource`, so sending one would prove nothing.
+func _click(source: InputSource, button: int, shift: bool) -> void:
+	var event := InputEventMouseButton.new()
+	event.button_index = button
+	event.pressed = true
+	event.shift_pressed = shift
+	event.position = Vector2(400, 400)
+	source._unhandled_input(event)
+
+
+## A started duel where player 0 holds five known cards, 1001..1005 at hand sequences 0..4.
+## Built from the Level-1 event shapes `native/src/msg_parser.cpp` emits, like every other
+## fixture in this file: the per-card key of MSG_DRAW is "card", not "code".
+func _hand_of_five() -> DuelState:
+	var state := DuelState.new()
+	state.apply({
+		"t": DuelEnums.EV.START,
+		"lp": [8000, 8000],
+		"deck": [40, 40],
+		"extra": [0, 0],
+		"first": DuelEnums.PLAYER.P0,
+	})
+	var cards: Array = []
+	for code: int in [1001, 1002, 1003, 1004, 1005]:
+		cards.append({"card": code, "pos": DuelEnums.POSITION.FACEDOWN_ATTACK})
+	state.apply({
+		"t": DuelEnums.EV.DRAW,
+		"player": DuelEnums.PLAYER.P0,
+		"cards": cards,
+		"count": cards.size(),
+	})
+	return state
+
+
+## The intent a source would emit for the `index`-th card of player 0's hand. `alternative`
+## picks the verb; everything else about the two is identical, which is the whole design.
+func _card_intent(state: DuelState, index: int, alternative: bool) -> Dictionary:
+	var card: DuelCard = state.hand[DuelEnums.PLAYER.P0][index] as DuelCard
+	return {
+		"kind": InputSource.KIND_SELECT_ALT if alternative else InputSource.KIND_SELECT_CARD,
+		"handle": card.handle,
+		"card_id": card.code,
+		"anchor": "HAND_P0",
+	}
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1620,6 +2097,47 @@ func _case_router_reaches_the_deck_picker() -> void:
 		"got %s" % SceneRouter.DECKS_SCENE)
 	_check("and that scene exists", ResourceLoader.exists(SceneRouter.DECKS_SCENE),
 		"%s is not loadable" % SceneRouter.DECKS_SCENE)
+	_end()
+
+
+
+## Every verb the duel needs must be reachable without a keyboard.
+##
+## `CONFIRM` had no touch binding at all: `TouchSource` emits none and nothing on screen called
+## `confirm()`. On a phone that meant no way to say yes to an optional effect and no way to
+## close a multi-card selection - the duel simply parked, with the same symptom as a refused
+## answer and no way out. The fix is a visible button rather than another gesture, which is the
+## right answer for a yes/no question anyway.
+func _case_every_verb_is_reachable_on_a_phone() -> void:
+	_begin("every input verb is reachable on a phone")
+
+	for binding: Dictionary in InputSource.BINDINGS:
+		var kind: String = str(binding.get("kind", "?"))
+		var touch: String = str(binding.get("touch", ""))
+		# POINT_AT is a preview; a phone without it loses nothing it cannot get by tapping.
+		if kind == InputSource.KIND_POINT_AT:
+			continue
+		_check("%s can be reached by hand" % kind, not touch.is_empty(),
+			"%s has no touch binding, so a handheld player cannot produce it" % kind)
+
+	var hud: DuelHud = preload("res://ui/hud/duel_hud.tscn").instantiate()
+	root.add_child(hud)
+
+	# Merged, not assigned: a GDScript lambda captures by value.
+	var seen: Dictionary = {}
+	hud.confirmed.connect(func() -> void: seen.merge({"confirm": true}, true))
+	hud.cancelled.connect(func() -> void: seen.merge({"cancel": true}, true))
+
+	hud.set_prompt("Activate this effect?")
+	_check("a pending prompt shows its panel", hud.prompt_is_visible(), "the panel stayed hidden")
+
+	hud.get_node("Root/Column/BottomRow/Prompt/Body/Actions/Confirm").pressed.emit()
+	hud.get_node("Root/Column/BottomRow/Prompt/Body/Actions/Cancel").pressed.emit()
+
+	_check("the confirm button answers yes", seen.has("confirm"), "no confirmed signal")
+	_check("and the cancel button answers no", seen.has("cancel"), "no cancelled signal")
+
+	hud.queue_free()
 	_end()
 
 
