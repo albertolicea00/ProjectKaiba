@@ -111,6 +111,13 @@ var flips: int = 0
 ## the honest answer becomes "nothing".
 var finished: bool = false
 
+## Set when ocgcore turned the last answer down and the same selection has been put back.
+##
+## Worth saying out loud rather than silently re-asking: from the player's side a rejected tap
+## and an ignored tap look identical, and "nothing happened" is the single most confusing thing
+## an interface can do.
+var rejected: bool = false
+
 
 # ----------------------------------------------------------------------------------------------
 # The event stream
@@ -140,6 +147,11 @@ func observe(event: Dictionary) -> bool:
 ## Records the selection the duel is now waiting on. `prompt` is
 ## `SelectionController.pending_prompt()` verbatim - this object does not write prompts, it
 ## only says whose they are.
+## Records that the engine refused the last answer. Cleared by the next accepted one.
+func note_rejected() -> void:
+	rejected = true
+
+
 func set_pending(event: Dictionary, prompt: String) -> void:
 	decision_event = int(event.get("t", 0))
 	decision_seat = _seat(event.get("player", DuelEnums.PLAYER.P0))
@@ -147,6 +159,7 @@ func set_pending(event: Dictionary, prompt: String) -> void:
 
 
 func clear_pending() -> void:
+	rejected = false
 	decision_event = 0
 	decision_seat = NOBODY
 	decision_prompt = ""
@@ -211,6 +224,8 @@ func view_text() -> String:
 func decision_text() -> String:
 	if finished:
 		return "the duel is over"
+	if rejected and is_waiting():
+		return "%s - that answer was refused, choose again" % seat_name(decision_seat).to_upper()
 	if not is_waiting():
 		return "nobody is being asked"
 	return "%s must decide" % seat_name(decision_seat).to_upper()
