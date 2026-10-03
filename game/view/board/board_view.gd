@@ -216,6 +216,15 @@ const COLOUR_HIGHLIGHT: Color = Color(0.52, 0.90, 1.00)
 ## absolute all the way up from ocgcore (see `EventTranslator`'s note on player ids).
 @export var viewer_player: int = 0
 
+## Hot seat: both hands belong to the same person, so both are readable.
+##
+## Off by default, because a networked client must never see the opposing hand - that is
+## invariant V7, and the only honest place to enforce it is `HostService`, which blanks the code
+## before the event ever leaves the host. This flag is a *view* decision about cards the viewer
+## is already entitled to see, not a peek past the filter: a card the model reports as code 0
+## still draws as a back, here as everywhere.
+@export var reveal_both_hands: bool = false
+
 var _anchors: Node3D = null
 var _table: MeshInstance3D = null
 var _pool: CardPool = null
@@ -595,7 +604,7 @@ func _sync_hand(cards: Array, player: int) -> void:
 		var view: CardView = _pool.acquire()
 		if view == null:
 			return
-		var revealed: bool = player == viewer_player and card.code != 0
+		var revealed: bool = (reveal_both_hands or player == viewer_player) and card.code != 0
 		view.set_card_id(card.code if revealed else 0)
 		view.handle = card.handle
 		view.set_orientation(revealed, false)
