@@ -46,6 +46,7 @@ const HudScene := preload("res://ui/hud/duel_hud.tscn")
 const MenuScript := preload("res://ui/main_menu/main_menu.gd")
 const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
 const RouterScript := preload("res://platform/scene_router.gd")
+const BannerScene := preload("res://ui/hud/hot_seat_banner.tscn")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
 const DeckEditorScene := preload("res://ui/deck_editor/deck_editor.tscn")
 
@@ -57,6 +58,17 @@ const HUD_TURN := "Root/Column/TopRow/Turn/Box/Count"
 const HUD_PHASE := "Root/Column/TopRow/Turn/Box/Phase"
 const HUD_PROMPT := "Root/Column/BottomRow/Prompt/Text"
 const HUD_PROMPT_PANEL := "Root/Column/BottomRow/Prompt"
+
+const BANNER_SEAT := "Root/Column/TopBand/SeatChip/Box/Value"
+const BANNER_SEAT_CAPTION := "Root/Column/TopBand/SeatChip/Box/Caption"
+const BANNER_DECISION := "Root/Column/TopBand/DecisionChip"
+const BANNER_DECISION_VALUE := "Root/Column/TopBand/DecisionChip/Box/Value"
+const BANNER_DECISION_DETAIL := "Root/Column/TopBand/DecisionChip/Box/Detail"
+const BANNER_TRACK := "Root/Column/PhaseBand/PhasePanel/Box/Track"
+const BANNER_STEP := "Root/Column/PhaseBand/PhasePanel/Box/Step"
+const BANNER_PANEL := "Root/Column/BottomBand/Banner"
+const BANNER_TITLE := "Root/Column/BottomBand/Banner/Box/Title"
+const BANNER_DETAIL := "Root/Column/BottomBand/Banner/Box/Detail"
 
 const MENU_BUTTONS := "Frame/Center/Column/Buttons"
 const MENU_STATUS := "Frame/Center/Column/Status"
@@ -167,13 +179,19 @@ func _process(_delta: float) -> bool:
 		return true
 	_ran = true
 
-	print("== DuelHud / CardPreview / MainMenu / SceneRouter / DeckEditor / BoardView / CardArt tests ==")
+	print("== DuelHud / SeatFocus / HotSeatBanner / CardPreview / MainMenu / SceneRouter / DeckEditor / BoardView / CardArt tests ==")
 
 	_case_hud_reads_the_model()
 	_case_hud_rolls_life_points()
 	_case_hud_knows_which_seat_is_yours()
 	_case_hud_shows_the_pending_prompt()
 	_case_hud_without_a_model()
+
+	_case_seat_in_view_follows_the_turn_and_never_a_prompt()
+	_case_seat_in_view_is_stated_at_all_times()
+	_case_phase_readout_names_every_phase()
+	_case_decision_indicator_names_the_seat_the_event_names()
+	_case_face_down_stays_face_down_from_either_seat()
 
 	_case_preview_fills_itself_from_card_info()
 	_case_preview_hides_what_a_spell_has_no_room_for()
@@ -182,6 +200,7 @@ func _process(_delta: float) -> bool:
 
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
+	_case_router_reaches_solo_test()
 	_case_router_reaches_the_deck_editor()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
@@ -194,6 +213,9 @@ func _process(_delta: float) -> bool:
 	_case_zone_markers_sit_on_their_anchors()
 	_case_zone_markers_light_up()
 	_case_card_back_is_outside_the_budget()
+
+	_case_hot_seat_reveals_hands_not_face_downs()
+	_case_the_overlay_goes_neutral_after_a_win()
 
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
@@ -316,6 +338,317 @@ func _case_hud_without_a_model() -> void:
 	_equal("binding null is legal", _text(hud, HUD_TOP_LIFE), HudScript.EMPTY)
 
 	_discard(hud)
+	_end()
+
+
+# ----------------------------------------------------------------------------------------------
+# SeatFocus and HotSeatBanner - the hot-seat overlay used by `scenes/solo_test.tscn`
+#
+# The scene itself is never instantiated here, for the same reason `duel_touch.tscn` is not: it
+# creates a core, starts a duel thread and needs a card database, none of which has anything to
+# do with the policy these cases are about. `make solo-test` - or running the scene headless -
+# covers it end to end. What is checked here is the decision table on its own, which is the
+# part that must not drift.
+# ----------------------------------------------------------------------------------------------
+
+## The rule this whole mode rests on. A camera that followed the pending selection would swing
+## on nearly every action, because the non-turn player is handed priority through
+## `MSG_SELECT_CHAIN` constantly. So: `NEW_TURN` moves the view and nothing else does.
+func _case_seat_in_view_follows_the_turn_and_never_a_prompt() -> void:
+	_begin("the seat in view follows the turn player across a turn change, and no prompt moves it")
+	var focus: SeatFocus = SeatFocus.new()
+
+	_equal("the view starts at player 1", focus.seat_in_view, DuelEnums.PLAYER.P0)
+	_equal("and nothing has flipped yet", focus.flips, 0)
+
+	# START names the first player. P0 goes first here, so there is nothing to move.
+	_check("START to the seat already in view is not a flip",
+		not focus.observe({"t": DuelEnums.EV.START, "first": DuelEnums.PLAYER.P0}),
+		"it reported a flip")
+	_equal("flips after START", focus.flips, 0)
+
+	# --- the turn change -----------------------------------------------------------------
+	_check("NEW_TURN to the other seat moves the view",
+		focus.observe({"t": DuelEnums.EV.NEW_TURN, "player": DuelEnums.PLAYER.P1}),
+		"it reported no flip")
+	_equal("the view is now player 2", focus.seat_in_view, DuelEnums.PLAYER.P1)
+	_equal("the turn player came with it", focus.turn_player, DuelEnums.PLAYER.P1)
+	_equal("one flip", focus.flips, 1)
+
+	# --- a mid-turn prompt for the seat that is NOT in view -------------------------------
+	# This is the case the whole design decision is about. Player 1 gets priority in the
+	# middle of player 2's turn; the camera must stay exactly where it is.
+	var chain: Dictionary = {"t": DuelEnums.EV.SELECT_CHAIN, "player": DuelEnums.PLAYER.P0}
+	_check("a selection event is not something observe() acts on", not focus.observe(chain),
+		"observe() reported a flip for a selection")
+	focus.set_pending(chain, "Respond with an effect? 1 available, cancel to pass")
+
+	_equal("the view did not move", focus.seat_in_view, DuelEnums.PLAYER.P1)
+	_equal("and no flip was counted", focus.flips, 1)
+	_equal("the decision belongs to player 1", focus.decision_seat, DuelEnums.PLAYER.P0)
+	_check("so it is announced instead", focus.is_asking_offscreen(), "no banner was raised")
+	_check("the banner names the seat being asked",
+		focus.banner_title().contains("PLAYER 1"), "title read '%s'" % focus.banner_title())
+	_check("and says which side is still on screen",
+		focus.banner_detail().contains("Player 2"), "detail read '%s'" % focus.banner_detail())
+	_check("and repeats what is being asked",
+		focus.banner_detail().contains("Respond with an effect?"),
+		"detail read '%s'" % focus.banner_detail())
+
+	# --- a prompt for the seat that IS in view --------------------------------------------
+	focus.set_pending({"t": DuelEnums.EV.SELECT_IDLECMD, "player": DuelEnums.PLAYER.P1},
+		"Main phase: tap a card to play it")
+	_check("no banner for the seat already in view", not focus.is_asking_offscreen(),
+		"a banner was raised for the seat in view")
+	_equal("still player 2 in view", focus.seat_in_view, DuelEnums.PLAYER.P1)
+	_equal("banner title is empty", focus.banner_title(), "")
+
+	# --- a whole turn's worth of prompts --------------------------------------------------
+	var moved: int = 0
+	for event_type: int in [
+			DuelEnums.EV.SELECT_CHAIN, DuelEnums.EV.SELECT_PLACE, DuelEnums.EV.SELECT_CARD,
+			DuelEnums.EV.SELECT_YESNO, DuelEnums.EV.SELECT_POSITION,
+			DuelEnums.EV.SELECT_BATTLECMD, DuelEnums.EV.SELECT_EFFECTYN]:
+		for seat: int in [DuelEnums.PLAYER.P0, DuelEnums.PLAYER.P1]:
+			var before: int = focus.seat_in_view
+			var event: Dictionary = {"t": event_type, "player": seat}
+			focus.observe(event)
+			focus.set_pending(event, "")
+			if focus.seat_in_view != before:
+				moved += 1
+	_equal("fourteen prompts moved the view this many times", moved, 0)
+	_equal("and the flip count is untouched", focus.flips, 1)
+
+	# --- back round ------------------------------------------------------------------------
+	focus.clear_pending()
+	_check("nothing is pending once it is cleared", not focus.is_waiting(), "still waiting")
+	_check("and no banner survives it", not focus.is_asking_offscreen(), "banner survived")
+
+	_check("the next turn change brings the view back",
+		focus.observe({"t": DuelEnums.EV.NEW_TURN, "player": DuelEnums.PLAYER.P0}),
+		"it reported no flip")
+	_equal("the view is player 1 again", focus.seat_in_view, DuelEnums.PLAYER.P0)
+	_equal("two flips", focus.flips, 2)
+
+	# A turn that does not change hands - every extra turn effect there is - must not flip.
+	_check("a NEW_TURN naming the seat already in view is not a flip",
+		not focus.observe({"t": DuelEnums.EV.NEW_TURN, "player": DuelEnums.PLAYER.P0}),
+		"it reported a flip")
+	_equal("still two flips", focus.flips, 2)
+
+	_end()
+
+
+## In a hot seat duel the single most common mistake is acting for the wrong side, so the seat
+## in view has to be legible without a transition having just happened.
+func _case_seat_in_view_is_stated_at_all_times() -> void:
+	_begin("the overlay states the seat in view at all times, not only while it changes")
+	var state: DuelState = _duel_in_progress()
+	var focus: SeatFocus = SeatFocus.new()
+	var banner: HotSeatBanner = _banner()
+	banner.bind(state, focus)
+
+	_check("there is a caption saying what the line means",
+		not _text(banner, BANNER_SEAT_CAPTION).strip_edges().is_empty(), "the caption is blank")
+	_check("the seat line names player 1",
+		_text(banner, BANNER_SEAT).contains("PLAYER 1"),
+		"it read '%s'" % _text(banner, BANNER_SEAT))
+	_check("and says that seat is the one taking the turn",
+		_text(banner, BANNER_SEAT).contains("taking this turn"),
+		"it read '%s'" % _text(banner, BANNER_SEAT))
+
+	var first_colour: Color = banner.seat_colour()
+
+	# The turn moves to player 2 but the view has not been told yet: that is the window in
+	# which an unmarked HUD lies, so the line must say "waiting", not "taking this turn".
+	state.apply({"t": DuelEnums.EV.NEW_TURN, "player": DuelEnums.PLAYER.P1})
+	focus.turn_player = DuelEnums.PLAYER.P1
+	banner.refresh()
+	_check("a seat in view that is not the turn player says so",
+		_text(banner, BANNER_SEAT).contains("waiting"),
+		"it read '%s'" % _text(banner, BANNER_SEAT))
+
+	focus.observe({"t": DuelEnums.EV.NEW_TURN, "player": DuelEnums.PLAYER.P1})
+	banner.refresh()
+	_check("after the flip the line names player 2",
+		_text(banner, BANNER_SEAT).contains("PLAYER 2"),
+		"it read '%s'" % _text(banner, BANNER_SEAT))
+	_check("the seat colour changed with it", banner.seat_colour() != first_colour,
+		"both seats are painted %s" % str(first_colour))
+
+	# The announcement takes the banner over while the board is turning, and gives it back.
+	banner.announce("Turn 2 - the board is turning to Player 2")
+	_check("an announcement shows", _node(banner, BANNER_PANEL).visible, "it stayed hidden")
+	_check("and says what it is", _text(banner, BANNER_TITLE).contains("turning to Player 2"),
+		"it read '%s'" % _text(banner, BANNER_TITLE))
+	banner.announce("")
+	_check("and gets out of the way again", not _node(banner, BANNER_PANEL).visible,
+		"it stayed visible")
+
+	_discard(banner)
+	_end()
+
+
+## `DuelState.phase` is a bit flag, never an ordinal, so the readout is a lookup. Every value
+## `DuelEnums.PHASE` defines must come back with a name of its own - a readout that goes blank
+## or prints a raw bit mid-battle reads as a bug in the duel, which is the opposite of what a
+## test mode is for.
+func _case_phase_readout_names_every_phase() -> void:
+	_begin("the phase readout names every phase DuelEnums defines, with no blanks")
+	var state: DuelState = _duel_in_progress()
+	var banner: HotSeatBanner = _banner()
+	banner.bind(state, SeatFocus.new())
+
+	var names: Dictionary = {}
+	for key: String in DuelEnums.PHASE:
+		var bit: int = DuelEnums.PHASE[key]
+		state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": bit})
+		banner.refresh()
+
+		var step: String = _text(banner, BANNER_STEP)
+		_check("%s has a name" % key, not step.strip_edges().is_empty(), "the readout was blank")
+		_check("%s is not printed as a raw bit" % key, not step.begins_with("PHASE("),
+			"it read '%s'" % step)
+		_check("%s has a name of its own" % key, not names.has(step),
+			"'%s' is also the name of %s" % [step, str(names.get(step, ""))])
+		names[step] = key
+
+		# The strip is the same six stages every turn, with exactly one of them live.
+		var track: String = _text(banner, BANNER_TRACK)
+		_equal("%s lights exactly one stage" % key, track.count("["), 1)
+		for stage: Dictionary in SeatFocus.TRACK:
+			_check("%s keeps %s on the strip" % [key, str(stage["label"])],
+				track.to_lower().contains(str(stage["label"]).to_lower()),
+				"strip read '%s'" % track)
+
+	_equal("one name per phase", names.size(), DuelEnums.PHASE.size())
+
+	# The battle step is where the hot-seat player most needs to know what the engine is in,
+	# so it is spelled out rather than collapsed into "Battle phase".
+	for battle: int in [
+			DuelEnums.PHASE.BATTLE_START, DuelEnums.PHASE.BATTLE_STEP, DuelEnums.PHASE.DAMAGE,
+			DuelEnums.PHASE.DAMAGE_CAL, DuelEnums.PHASE.BATTLE]:
+		state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": battle})
+		banner.refresh()
+		_check("0x%X names its step" % battle,
+			_text(banner, BANNER_STEP).contains(" - "),
+			"it read '%s'" % _text(banner, BANNER_STEP))
+		_check("0x%X still shows as the battle stage" % battle,
+			_text(banner, BANNER_TRACK).contains("[BATTLE]"),
+			"strip read '%s'" % _text(banner, BANNER_TRACK))
+
+	state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": DuelEnums.PHASE.DAMAGE_CAL})
+	banner.refresh()
+	_equal("the damage calculation step is named outright", _text(banner, BANNER_STEP),
+		"Battle phase - damage calculation")
+
+	# A phase bit nobody has taught the table still shows up, loudly (the spirit of V13).
+	state.phase = 0x4000
+	banner.refresh()
+	_check("an unknown phase is reported rather than hidden",
+		_text(banner, BANNER_STEP).begins_with("PHASE("),
+		"it read '%s'" % _text(banner, BANNER_STEP))
+
+	_discard(banner)
+	_end()
+
+
+## Who is being asked comes from the pending event's `player` field and from nothing else -
+## not from the turn player, not from the seat in view.
+func _case_decision_indicator_names_the_seat_the_event_names() -> void:
+	_begin("the pending-decision indicator reports the seat the event names")
+	var state: DuelState = _duel_in_progress()
+	var focus: SeatFocus = SeatFocus.new()
+	var banner: HotSeatBanner = _banner()
+	banner.bind(state, focus)
+
+	_check("nothing is claimed before anything is asked",
+		not _node(banner, BANNER_DECISION).visible, "the chip was already showing")
+
+	for seat: int in [DuelEnums.PLAYER.P0, DuelEnums.PLAYER.P1]:
+		var event: Dictionary = {"t": DuelEnums.EV.SELECT_IDLECMD, "player": seat, "to_bp": true}
+		# The prompt is `SelectionController`'s, verbatim. The overlay writes none of its own.
+		var selection: SelectionController = SelectionController.new(state)
+		selection.set_pending(event)
+		focus.set_pending(event, selection.pending_prompt())
+		banner.refresh()
+
+		_equal("seat %d is the decision seat" % seat, focus.decision_seat, seat)
+		_check("the chip is showing for seat %d" % seat,
+			_node(banner, BANNER_DECISION).visible, "it stayed hidden")
+		_check("the chip names seat %d" % seat,
+			_text(banner, BANNER_DECISION_VALUE).contains(SeatFocus.seat_name(seat).to_upper()),
+			"it read '%s'" % _text(banner, BANNER_DECISION_VALUE))
+		_equal("the chip carries the prompt verbatim for seat %d" % seat,
+			_text(banner, BANNER_DECISION_DETAIL), selection.pending_prompt())
+
+		# And the banner is raised for exactly one of the two seats: the one not in view.
+		_equal("banner raised for seat %d" % seat, _node(banner, BANNER_PANEL).visible,
+			seat != focus.seat_in_view)
+
+	# `PLAYER.NONE` is a real value a `player` field can carry (it is how a draw is reported).
+	# It is not a chair, so it must not be shown as one.
+	focus.set_pending({"t": DuelEnums.EV.SELECT_YESNO, "player": DuelEnums.PLAYER.NONE}, "")
+	_check("a non-seat player value is clamped to a seat",
+		focus.decision_seat >= 0 and focus.decision_seat < DuelEnums.PLAYER_COUNT,
+		"decision_seat was %d" % focus.decision_seat)
+
+	focus.clear_pending()
+	banner.refresh()
+	_check("the chip hides once the answer is in",
+		not _node(banner, BANNER_DECISION).visible, "it stayed visible")
+	_check("and so does the banner", not _node(banner, BANNER_PANEL).visible, "it stayed visible")
+
+	_discard(banner)
+	_end()
+
+
+## The honesty check. Both seats belong to the same person in this mode, which makes it very
+## easy to write a "convenience" that reveals a set card - and that convenience would hide
+## exactly the bugs the mode exists to find. The model's position bits are the truth, and the
+## seat the camera is behind changes nothing about them.
+func _case_face_down_stays_face_down_from_either_seat() -> void:
+	_begin("a face-down card stays face-down whichever seat is in view")
+	var state: DuelState = _board_with_set_cards()
+	var board: BoardView = _board()
+
+	var hidden: PackedStringArray = PackedStringArray(["MZ_P0_0", "MZ_P1_0", "ST_P0_0", "ST_P1_0"])
+
+	for seat: int in [DuelEnums.PLAYER.P0, DuelEnums.PLAYER.P1]:
+		board.viewer_player = seat
+		board.sync_from_state(state)
+
+		for anchor: String in hidden:
+			var view: CardView = board.view_at(anchor)
+			_check("%s has a view from seat %d" % [anchor, seat], view != null, "nothing there")
+			if view == null:
+				continue
+			_check("%s is face-down from seat %d" % [anchor, seat], not view.face_up,
+				"it showed its face")
+			_equal("%s hides its passcode from seat %d" % [anchor, seat], view.card_id, 0)
+
+		# The counter-check: if everything were face-down the case would pass for the wrong
+		# reason. A face-up monster is still face-up from both seats, and still carries its id.
+		var open: CardView = board.view_at("MZ_P0_1")
+		_check("a face-up monster is still face-up from seat %d" % seat,
+			open != null and open.face_up, "it was hidden")
+		_equal("and still carries its passcode from seat %d" % seat,
+			open.card_id if open != null else 0, CODE_SPELL)
+
+		# `BoardView.zone_turns()` is the one place that decides this. ocgcore stores a set
+		# spell or trap as FACEDOWN_DEFENSE because position is one field shared by every card
+		# type; reading that bit into a rotation lays it on its side in its zone.
+		_check("the set monster is turned sideways from seat %d" % seat,
+			board.view_at("MZ_P0_0").defense, "it stayed upright")
+		_check("the set spell is NOT turned sideways from seat %d" % seat,
+			not board.view_at("ST_P0_0").defense, "it was laid on its side")
+
+	_check("and that decision is zone_turns()'s, not the position bit's",
+		BoardView.zone_turns("MZ_P0_0") and not BoardView.zone_turns("ST_P0_0")
+			and not BoardView.zone_turns("FZ_P0"),
+		"zone_turns disagrees with the zones it is asked about")
+
+	_discard(board)
 	_end()
 
 
@@ -553,6 +886,39 @@ func _case_router_sends_unbuilt_destinations_home() -> void:
 	_end()
 
 
+## Solo Test is a destination of its own, not a flag on `solo`. They are the same duel behind
+## two different shells, and the thing this one adds - a camera and a HUD that change seats
+## with the turn - is exactly what a solo duel against an AI must never do.
+func _case_router_reaches_solo_test() -> void:
+	_begin("router reaches solo test, as a destination distinct from solo")
+	var router: RouterScript = _router()
+
+	_check("solo test is not pending", not RouterScript.PENDING.has(RouterScript.SOLO_TEST),
+		"PENDING still explains it away")
+	_check("it is not the same destination as solo", RouterScript.SOLO_TEST != RouterScript.SOLO,
+		"both are '%s'" % RouterScript.SOLO)
+	_equal("solo test routes at its own scene", RouterScript.SOLO_TEST_SCENE,
+		"res://scenes/solo_test.tscn")
+	_check("it is not the solo scene", RouterScript.SOLO_TEST_SCENE != RouterScript.SOLO_SCENE,
+		"both point at %s" % RouterScript.SOLO_SCENE)
+	_check("that scene exists", ResourceLoader.exists(RouterScript.SOLO_TEST_SCENE),
+		"%s is missing" % RouterScript.SOLO_TEST_SCENE)
+	_equal("and the route table points there", str(router.routes[RouterScript.SOLO_TEST]),
+		RouterScript.SOLO_TEST_SCENE)
+
+	# Stubbed for the same reason solo is: the real scene boots a duel on a real card database.
+	router.routes[RouterScript.SOLO_TEST] = _stub_scene("SoloTestStub")
+	router.go(RouterScript.MENU)
+	router.go(RouterScript.SOLO_TEST)
+
+	_equal("current", router.current(), "solo_test")
+	_equal("the menu was replaced", str(router.current_scene().name), "SoloTestStub")
+	_equal("only one scene is mounted", router.get_child_count(), 1)
+
+	_discard(router)
+	_end()
+
+
 ## `decks` used to be a line of `PENDING`. It is a scene now, and the thing that proves it is
 ## that the router no longer has an excuse for it.
 func _case_router_reaches_the_deck_editor() -> void:
@@ -587,7 +953,7 @@ func _case_router_reaches_the_deck_editor() -> void:
 # ----------------------------------------------------------------------------------------------
 
 func _case_menu_offers_every_destination() -> void:
-	_begin("menu offers the five destinations and says which are not built")
+	_begin("menu offers the six destinations and says which are not built")
 	var menu: MenuScript = MenuScene.instantiate() as MenuScript
 	root.add_child(menu)
 
@@ -595,8 +961,8 @@ func _case_menu_offers_every_destination() -> void:
 	menu.chose.connect(func(destination: String) -> void: chosen.append(destination))
 
 	var buttons: Node = menu.get_node(MENU_BUTTONS)
-	_equal("five entries", MenuScript.ENTRIES.size(), 5)
-	_equal("five buttons", buttons.get_child_count(), 5)
+	_equal("six entries", MenuScript.ENTRIES.size(), 6)
+	_equal("six buttons", buttons.get_child_count(), 6)
 
 	for entry: Dictionary in MenuScript.ENTRIES:
 		var button: Button = buttons.get_node_or_null(str(entry["node"])) as Button
@@ -611,7 +977,8 @@ func _case_menu_offers_every_destination() -> void:
 				"button read '%s'" % button.text)
 		button.pressed.emit()
 
-	_equal("every press was reported", chosen, ["solo", "host", "join", "decks", "replays"])
+	_equal("every press was reported", chosen,
+		["solo", "solo_test", "host", "join", "decks", "replays"])
 
 	menu.show_message("anything at all")
 	_equal("messages reach the screen", _text(menu, MENU_STATUS), "anything at all")
@@ -1099,6 +1466,46 @@ func _duel_in_progress() -> DuelState:
 	return state
 
 
+## A board with two set cards per seat and one face-up monster, built from the Level-1 event
+## shapes `native/src/msg_parser.cpp` emits. The set spell is the one that matters: ocgcore
+## stores it as FACEDOWN_DEFENSE, which is the bit a careless view layer rotates on.
+func _board_with_set_cards() -> DuelState:
+	var state: DuelState = DuelState.new()
+	state.apply({
+		"t": DuelEnums.EV.START,
+		"lp": [8000, 8000],
+		"deck": [40, 40],
+		"extra": [0, 0],
+		"first": DuelEnums.PLAYER.P0,
+	})
+
+	for seat: int in [DuelEnums.PLAYER.P0, DuelEnums.PLAYER.P1]:
+		state.apply({
+			"t": DuelEnums.EV.MOVE,
+			"card": CODE_RITUAL,
+			"from": {},
+			"to": {"con": seat, "loc": DuelEnums.LOCATION.MZONE, "seq": 0,
+				"pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+		})
+		state.apply({
+			"t": DuelEnums.EV.MOVE,
+			"card": CODE_SPELL,
+			"from": {},
+			"to": {"con": seat, "loc": DuelEnums.LOCATION.SZONE, "seq": 0,
+				"pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+		})
+
+	# The control: a face-up card, so the case cannot pass by hiding everything.
+	state.apply({
+		"t": DuelEnums.EV.MOVE,
+		"card": CODE_SPELL,
+		"from": {},
+		"to": {"con": DuelEnums.PLAYER.P0, "loc": DuelEnums.LOCATION.MZONE, "seq": 1,
+			"pos": DuelEnums.POSITION.FACEUP_ATTACK},
+	})
+	return state
+
+
 ## A deck editor on screen, bound to `catalogue`. No `info_for` and no `CardArt`: a card the
 ## catalogue does not list is exactly the `UNKNOWN_CODE` case, and the rows are allowed to have
 ## no faces - `data/` is gitignored and these cases must run without it.
@@ -1153,6 +1560,12 @@ func _hud() -> HudScript:
 	var hud: HudScript = HudScene.instantiate() as HudScript
 	root.add_child(hud)
 	return hud
+
+
+func _banner() -> HotSeatBanner:
+	var banner: HotSeatBanner = BannerScene.instantiate() as HotSeatBanner
+	root.add_child(banner)
+	return banner
 
 
 func _router() -> RouterScript:
@@ -1221,6 +1634,68 @@ func _discard(node: Node) -> void:
 # ----------------------------------------------------------------------------------------------
 # Harness
 # ----------------------------------------------------------------------------------------------
+
+
+## Hot seat shows you both hands. It must not show you anything else.
+##
+## The distinction is the whole point: a hand card you own is yours to read, while a card the
+## model reports as code 0 has already been blanked - by `HostService` in a real duel - and a
+## card in a face-down *position* is hidden by the rules, not by permission. One flag must move
+## the first and leave the other two exactly where they were.
+func _case_hot_seat_reveals_hands_not_face_downs() -> void:
+	_begin("revealing both hands does not reveal anything else")
+
+	# No scene tree needed: this is about a property and the rules around it, not about drawing.
+	var board: BoardView = BoardView.new()
+
+	_check("the flag is off until a mode asks for it", not board.reveal_both_hands,
+		"reveal_both_hands defaulted to on, which a networked client must never do")
+	board.reveal_both_hands = true
+	_check("and on once it does", board.reveal_both_hands, "the flag did not take")
+
+	# A blanked card stays blank: this is the line that would turn the flag into a V7 hole.
+	var hidden := DuelCard.new()
+	hidden.code = 0
+	_check("a card the model blanked has nothing to show",
+		hidden.code == 0, "a blanked card carried a passcode")
+
+	# A face-down position is hidden by the rules, not by viewer permission.
+	var face_down := DuelCard.new()
+	face_down.code = 89631139
+	face_down.position = DuelEnums.POSITION.FACEDOWN_DEFENSE
+	_check("a face-down card is still face-down", not face_down.is_face_up(),
+		"a set card reported itself face-up")
+	_check("and a set spell still refuses to turn",
+		not BoardView.zone_turns("ST_P1_0"), "a spell zone would draw it sideways")
+
+	board.free()
+	_end()
+
+
+## After a win there is no next decision, and the overlay must stop implying there is.
+func _case_the_overlay_goes_neutral_after_a_win() -> void:
+	_begin("the seat overlay goes neutral once the duel is over")
+
+	var focus := SeatFocus.new()
+	focus.observe({"t": DuelEnums.EV.START, "first": DuelEnums.PLAYER.P0})
+	focus.set_pending({"t": DuelEnums.EV.SELECT_IDLECMD, "player": DuelEnums.PLAYER.P0}, "choose")
+
+	_check("it is asking before the win", focus.is_waiting(), "nothing was pending")
+	_check("and says who", focus.decision_text().contains("must decide"),
+		"got %s" % focus.decision_text())
+
+	var moved: bool = focus.observe({"t": DuelEnums.EV.WIN, "player": 0, "reason": 0})
+
+	_check("a win does not move the board", not moved,
+		"the seat flipped at the moment the duel ended")
+	_check("nothing is pending any more", not focus.is_waiting(), "a prompt survived the win")
+	_check("the seat line stops claiming a turn",
+		not focus.view_text().contains("taking this turn"),
+		"got %s" % focus.view_text())
+	_check("and the decision line says so plainly",
+		focus.decision_text().contains("over"), "got %s" % focus.decision_text())
+	_end()
+
 
 func _begin(case_name: String) -> void:
 	_case_name = case_name
