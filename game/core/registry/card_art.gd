@@ -71,6 +71,31 @@ extends RefCounted
 ## `image.generate_mipmaps()` in `_decode()` plus a 33% larger budget.
 ##
 ## -------------------------------------------------------------------------------------------
+## The card back is not a face, and deliberately does not behave like one
+## -------------------------------------------------------------------------------------------
+## `back_texture()` breaks both of the rules above, on purpose, and only it does:
+##
+##   - **It is outside the budget.** It is not in `_entries`, it is not counted in `_bytes`, and
+##     `_trim_locked()` cannot see it. Every face-down card, both decks, both extra decks and the
+##     whole of the opponent's hand wear this one texture, so an LRU that evicted it under memory
+##     pressure would blank most of the board at exactly the moment memory was tight - and then
+##     reload it immediately, because the next frame asks again. A cache entry that can never be
+##     the right thing to evict does not belong in the cache. `back_bytes()` reports its cost
+##     separately rather than hiding it.
+##   - **It loads synchronously, once.** The no-blocking rule exists because a *face* miss can
+##     happen for any of 14595 codes, at any moment, repeatedly. The back is one known file that
+##     every duel needs before the first card is dealt. Measured here: 930 x 1350, 328 KB on
+##     disk, 3_766_500 bytes decoded, ~12 ms to decode. One deterministic 12 ms during duel setup
+##     is not the same hazard as a random 40 ms stall mid-animation, and the alternative - a
+##     `null` first answer - would push a retry loop into every caller for a file that always
+##     exists. Call it when a duel is being set up, not when a card is already flying.
+##
+## There is only an `hd` file; no `sd` variant exists. Both tiers therefore share this one
+## texture, and there is no tier lookup for it: `set_tier()` does not drop it and does not change
+## it. A `set_roots()` to a different art tree does change where it lives, and `back_texture()`
+## notices that by comparing the resolved path, which is the only case that reloads it.
+##
+## -------------------------------------------------------------------------------------------
 ## A missing file is normal
 ## -------------------------------------------------------------------------------------------
 ## Tokens, and plenty of ordinary cards, have no image at all. `sd/` holds 14595 faces and `hd/`
@@ -105,6 +130,10 @@ const DEFAULT_BUDGET_BYTES_HD: int = 256 * 1024 * 1024
 ## Where the art lives relative to the Godot project, for the dev tree. An Android build keeps
 ## its art in external app storage and must call `set_roots()` with a real path.
 const DEFAULT_PICS_PATH: String = "res://../data/base/pics"
+
+## The reverse side of every card, relative to the pics directory. One file, no tier variants -
+## see the card-back note above before adding one.
+const BACK_LEAF: String = "back/hd.jpg"
 
 ## Guards every `var` below it. Held only for bookkeeping - never across a file read.
 var _mutex: Mutex = Mutex.new()
@@ -156,6 +185,21 @@ var _clock: int = 0
 ## and discards its result if that no longer matches, so a tier switch cannot land a stale
 ## 813x1185 face into a cache that was just told to serve 268x391 ones.
 var _generation: int = 0
+
+## The card back. Held outside `_entries` and outside `_bytes`, so the LRU cannot reach it.
+## See the card-back note in the header for why that is not an oversight.
+var _back_texture: Texture2D = null
+
+## Path `_back_texture` was decoded from, so a `set_roots()` that moves the art tree is noticed.
+## Empty means nothing has been attempted yet.
+var _back_path: String = ""
+
+## True once the back has been looked for at `_back_path` and was not there. Remembered for the
+## same reason `_absent` is: a missing file is an answer, not an error to retry every frame.
+var _back_absent: bool = false
+
+## Decoded size of `_back_texture`, reported by `back_bytes()` rather than folded into `stats()`.
+var _back_bytes: int = 0
 
 
 func _init() -> void:
@@ -305,6 +349,76 @@ func texture_for(card_id: int) -> Texture2D:
 	return null
 
 
+## The reverse side every face-down card, both decks and the opponent's hand wear.
+##
+## Decoded from disk on the first call and held for the lifetime of this object: it is **not** a
+## cache entry, the LRU cannot evict it, and `clear()`, `set_tier()` and `shutdown()` all leave
+## it alone. Read the card-back note in the header before changing any of that.
+##
+## `null` only when the file is genuinely missing, which is remembered and never retried.
+## Main thread only - it creates a `Texture2D`.
+func back_texture() -> Texture2D:
+	var path: String = back_path()
+
+	_mutex.lock()
+	if path == _back_path:
+		var cached: Texture2D = _back_texture
+		var absent: bool = _back_absent
+		_mutex.unlock()
+		if cached != null or absent:
+			return cached
+	else:
+		_mutex.unlock()
+
+	# Outside the lock: the decode is the expensive part and nothing else here waits on it.
+	var image: Image = _decode(path)
+	var texture: Texture2D = null
+	if image != null:
+		texture = ImageTexture.create_from_image(image)
+
+	_mutex.lock()
+	_back_path = path
+	_back_texture = texture
+	_back_absent = texture == null
+	_back_bytes = image.get_data().size() if image != null and texture != null else 0
+	_mutex.unlock()
+
+	if texture == null:
+		# Worth a warning, unlike a missing face: every face-down card on the board depends on
+		# this one file, so its absence is a broken install rather than a card without artwork.
+		push_warning("[CardArt] no card back at %s; face-down cards keep their flat colour" % path)
+	return texture
+
+
+## Where the card back lives, derived from whichever root is configured so it follows a
+## `set_roots()` onto a different art tree. Falls back to the dev-tree location when both roots
+## are empty.
+func back_path() -> String:
+	_mutex.lock()
+	var sd: String = _roots[TIER_SD]
+	var hd: String = _roots[TIER_HD]
+	_mutex.unlock()
+
+	var base: String = ""
+	if not sd.is_empty():
+		base = sd.get_base_dir()
+	elif not hd.is_empty():
+		base = hd.get_base_dir()
+	else:
+		base = ProjectSettings.globalize_path(DEFAULT_PICS_PATH).simplify_path()
+	return base.path_join(BACK_LEAF).simplify_path()
+
+
+## Decoded bytes the card back is holding, or 0 if it has not been loaded. Reported separately
+## from `stats()` because it is deliberately not part of the budget - hiding it inside the same
+## number would make the budget look like it covered something it does not.
+func back_bytes() -> int:
+	_mutex.lock()
+	var value: int = _back_bytes
+	_mutex.unlock()
+	return value
+
+
 ## Warms one card without wanting the result yet. Cheap and idempotent: a cached, absent or
 ## already-queued code does nothing at all.
 func request(card_id: int) -> void:
@@ -349,7 +463,8 @@ func pending_count() -> int:
 
 
 ## Drops every cached face. The absent set survives: a file that did not exist a moment ago
-## still does not exist, and re-probing the whole token pool is pure waste.
+## still does not exist, and re-probing the whole token pool is pure waste. **The card back
+## survives too** - it is not a face and never was in this cache (see the header).
 func clear() -> void:
 	_mutex.lock()
 	_entries.clear()
