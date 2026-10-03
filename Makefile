@@ -316,5 +316,5 @@ solo-test:
 	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb missing, see docs/DATA.md"; exit 1)
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/solo_test.tscn 2>&1 | tee /tmp/kaiba_solo.log
-	@grep -q "no face-down card revealed itself" /tmp/kaiba_solo.log || (echo "FAIL: solo test"; exit 1)
-	@grep -qv "FAIL" /tmp/kaiba_solo.log || (echo "FAIL: solo test reported a failure"; exit 1)
+	@grep -q "no face-down card revealed itself" /tmp/kaiba_solo.log || (echo "FAIL: solo test did not run its audit"; exit 1)
+	@! grep -qE "^  FAIL" /tmp/kaiba_solo.log || (echo "FAIL: solo test reported failures:"; grep -E "^  FAIL" /tmp/kaiba_solo.log; exit 1)
