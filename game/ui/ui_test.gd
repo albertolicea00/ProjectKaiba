@@ -52,6 +52,7 @@ const HudScript := preload("res://ui/hud/duel_hud.gd")
 const HudScene := preload("res://ui/hud/duel_hud.tscn")
 const MenuScript := preload("res://ui/main_menu/main_menu.gd")
 const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
+const MenuArt := preload("res://ui/main_menu/menu_art.gd")
 const RouterScript := preload("res://platform/scene_router.gd")
 const BannerScene := preload("res://ui/hud/hot_seat_banner.tscn")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
@@ -264,9 +265,12 @@ func _process(_delta: float) -> bool:
 
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
-	_case_router_reaches_solo_test()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
+	_case_the_unbuilt_slabs_explain_themselves_in_the_status_line()
+	_case_menu_slabs_are_carved_not_stretched()
+	_case_the_background_is_a_device_choice_not_a_measurement()
+	_case_the_menu_face_is_borrowed_and_optional()
 	_case_router_reaches_controls()
 
 	_case_a_downward_drag_sets_and_a_tap_does_not()
@@ -1188,14 +1192,17 @@ func _case_router_reaches_the_menu() -> void:
 	_end()
 
 
+## Solo is the hot seat: one duel, both seats yours, a camera and a HUD that change sides with
+## the turn. It is the only solo duel the build actually plays, which is why it is the entry
+## that gets the plain word on the menu. The passive-opponent scene is still in the tree and is
+## still exercised by `make solo`; it simply has no slab pointing at it.
 func _case_router_reaches_solo() -> void:
-	_begin("router reaches solo")
+	_begin("router reaches solo, which is the hot seat")
 	var router: RouterScript = _router()
 
-	# Solo used to route at `duel_touch.tscn`, which is the regression harness - so Solo and
-	# Solo Test were the same hot seat under two names, which is what a player noticed first.
-	# Solo now has its own scene, where the far seat is answered by `PassiveAgent`.
-	_equal("solo routes at its own scene", RouterScript.SOLO_SCENE, "res://scenes/solo.tscn")
+	_check("solo is not pending", not RouterScript.PENDING.has(RouterScript.SOLO),
+		"PENDING explains it away")
+	_equal("solo routes at the hot seat", RouterScript.SOLO_SCENE, "res://scenes/solo_test.tscn")
 	_check("and not at the regression harness",
 		not RouterScript.SOLO_SCENE.contains("duel_touch"),
 		"solo is pointing at the test harness again")
@@ -1243,41 +1250,8 @@ func _case_router_sends_unbuilt_destinations_home() -> void:
 	_end()
 
 
-## Solo Test is a destination of its own, not a flag on `solo`. They are the same duel behind
-## two different shells, and the thing this one adds - a camera and a HUD that change seats
-## with the turn - is exactly what a solo duel against an AI must never do.
-func _case_router_reaches_solo_test() -> void:
-	_begin("router reaches solo test, as a destination distinct from solo")
-	var router: RouterScript = _router()
-
-	_check("solo test is not pending", not RouterScript.PENDING.has(RouterScript.SOLO_TEST),
-		"PENDING still explains it away")
-	_check("it is not the same destination as solo", RouterScript.SOLO_TEST != RouterScript.SOLO,
-		"both are '%s'" % RouterScript.SOLO)
-	_equal("solo test routes at its own scene", RouterScript.SOLO_TEST_SCENE,
-		"res://scenes/solo_test.tscn")
-	_check("it is not the solo scene", RouterScript.SOLO_TEST_SCENE != RouterScript.SOLO_SCENE,
-		"both point at %s" % RouterScript.SOLO_SCENE)
-	_check("that scene exists", ResourceLoader.exists(RouterScript.SOLO_TEST_SCENE),
-		"%s is missing" % RouterScript.SOLO_TEST_SCENE)
-	_equal("and the route table points there", str(router.routes[RouterScript.SOLO_TEST]),
-		RouterScript.SOLO_TEST_SCENE)
-
-	# Stubbed for the same reason solo is: the real scene boots a duel on a real card database.
-	router.routes[RouterScript.SOLO_TEST] = _stub_scene("SoloTestStub")
-	router.go(RouterScript.MENU)
-	router.go(RouterScript.SOLO_TEST)
-
-	_equal("current", router.current(), "solo_test")
-	_equal("the menu was replaced", str(router.current_scene().name), "SoloTestStub")
-	_equal("only one scene is mounted", router.get_child_count(), 1)
-
-	_discard(router)
-	_end()
-
-
 func _case_menu_offers_every_destination() -> void:
-	_begin("menu offers the seven destinations and says which are not built")
+	_begin("menu offers the six destinations, lettered as plain words")
 	var menu: MenuScript = MenuScene.instantiate() as MenuScript
 	root.add_child(menu)
 
@@ -1285,30 +1259,280 @@ func _case_menu_offers_every_destination() -> void:
 	menu.chose.connect(func(destination: String) -> void: chosen.append(destination))
 
 	var buttons: Node = menu.get_node(MENU_BUTTONS)
-	_equal("seven entries", MenuScript.ENTRIES.size(), 7)
-	_equal("seven buttons", buttons.get_child_count(), 7)
+	_equal("six entries", MenuScript.ENTRIES.size(), 6)
+	_equal("six slabs", buttons.get_child_count(), 6)
 
 	for entry: Dictionary in MenuScript.ENTRIES:
 		var button: Button = buttons.get_node_or_null(str(entry["node"])) as Button
-		_check("%s has a button" % str(entry["id"]), button != null, "no node named %s" % str(entry["node"]))
+		_check("%s has a slab" % str(entry["id"]), button != null, "no node named %s" % str(entry["node"]))
 		if button == null:
 			continue
 		_check("%s is pressable" % str(entry["id"]), not button.disabled, "it was disabled")
-		_check("%s names itself" % str(entry["id"]), button.text.begins_with(str(entry["label"])),
+
+		# A plain word and nothing else. The old captions carried a "(not built yet)" suffix;
+		# that explanation moved to the status line, which `_case_the_unbuilt_slabs_explain_
+		# themselves_in_the_status_line` holds. Here the point is only that no caption has
+		# grown a parenthetical back.
+		_equal("%s is lettered with its word" % str(entry["id"]), button.text, str(entry["label"]))
+		_check("%s carries no suffix" % str(entry["id"]), not button.text.contains("("),
 			"button read '%s'" % button.text)
-		if not str(entry["note"]).is_empty():
-			_check("%s admits it is not built" % str(entry["id"]), button.text.contains(str(entry["note"])),
-				"button read '%s'" % button.text)
+
+		# Centred in the stone. Across is a property; down is `Button`'s own behaviour plus the
+		# symmetric top and bottom content margins on the slab, so that is what gets checked.
+		_equal("%s is centred across" % str(entry["id"]), button.alignment, HORIZONTAL_ALIGNMENT_CENTER)
+		var box: StyleBox = button.get_theme_stylebox("normal")
+		_equal("%s is centred down" % str(entry["id"]),
+			box.content_margin_top, box.content_margin_bottom)
+		_check("%s holds its word and nothing else" % str(entry["id"]), button.icon == null,
+			"it has an icon")
+
 		button.pressed.emit()
 
+	# Every id is a destination `SceneRouter` already answers to - three real routes and three
+	# keys in `PENDING`. A new string here would be a slab that goes nowhere and says nothing.
 	_equal("every press was reported", chosen,
-		["solo", "solo_test", "controls", "host", "join", "decks", "replays"])
+		[RouterScript.SOLO, "host", "join", "decks", "controls", "replays"])
+	for entry: Dictionary in MenuScript.ENTRIES:
+		var id: String = str(entry["id"])
+		_check("%s is a name the router knows" % id,
+			RouterScript.PENDING.has(id) or _router_routes().has(id),
+			"the router has no route and no pending entry for it")
+
+	# "Solo" is the hot seat - the duel the build actually plays, both seats yours. The entry
+	# that used to be "Solo", with the passive opponent, is off the menu; the slab keeps the
+	# plain word and the destination behind it changed.
+	_equal("the first slab is Solo", str(MenuScript.ENTRIES[0]["label"]), "Solo")
+	_equal("and it routes at the hot seat", str(MenuScript.ENTRIES[0]["id"]), RouterScript.SOLO)
+	for entry: Dictionary in MenuScript.ENTRIES:
+		_check("no slab says 'Solo Test'", str(entry["label"]) != "Solo Test",
+			"the old name is back on the menu")
 
 	menu.show_message("anything at all")
 	_equal("messages reach the screen", _text(menu, MENU_STATUS), "anything at all")
 
 	_discard(menu)
 	_end()
+
+
+## The captions no longer admit to being unbuilt, so the status line is the only thing left
+## telling a player why Host did nothing. Driven through the real router and the real menu, by
+## pressing the actual slab, because the failure this guards against is the wiring coming apart
+## between them - either half can pass its own test while the pair says nothing on screen.
+func _case_the_unbuilt_slabs_explain_themselves_in_the_status_line() -> void:
+	_begin("pressing an unbuilt slab writes the reason into the status line")
+	var router: RouterScript = _router()
+	router.go(RouterScript.MENU)
+
+	for entry: Dictionary in MenuScript.ENTRIES:
+		var id: String = str(entry["id"])
+		if not RouterScript.PENDING.has(id):
+			continue
+		var menu: MenuScript = router.current_scene() as MenuScript
+		_check("%s starts from the menu" % id, menu != null, "the menu was not on screen")
+		if menu == null:
+			continue
+
+		menu.show_message("")
+		var button: Button = menu.get_node(MENU_BUTTONS).get_node_or_null(str(entry["node"])) as Button
+		_check("%s has a slab to press" % id, button != null, "no slab")
+		if button == null:
+			continue
+		button.pressed.emit()
+
+		_equal("%s lands back on the menu" % id, router.current(), RouterScript.MENU)
+		_equal("%s explains itself on screen" % id, _text(router.current_scene(), MENU_STATUS),
+			str(RouterScript.PENDING[id]))
+
+	# And the three that are built say nothing of the sort.
+	for entry: Dictionary in MenuScript.ENTRIES:
+		var id: String = str(entry["id"])
+		_check("%s is either routed or explained, never neither" % id,
+			RouterScript.PENDING.has(id) or _router_routes().has(id),
+			"it is neither")
+
+	_discard(router)
+	_end()
+
+
+## The slab is a nine-patch, not a stretched bitmap, and the two states are two different
+## bitmaps. Both are checked on the real scene, as the menu actually assigned them.
+func _case_menu_slabs_are_carved_not_stretched() -> void:
+	_begin("every slab is a nine-patch of the stone art, lit when pressed")
+	var menu: MenuScript = MenuScene.instantiate() as MenuScript
+	root.add_child(menu)
+
+	var buttons: Node = menu.get_node(MENU_BUTTONS)
+	var resting: StyleBox = null
+	var pressed: StyleBox = null
+
+	for entry: Dictionary in MenuScript.ENTRIES:
+		var button: Button = buttons.get_node_or_null(str(entry["node"])) as Button
+		if button == null:
+			continue
+		var normal: StyleBoxTexture = button.get_theme_stylebox("normal") as StyleBoxTexture
+		var down: StyleBoxTexture = button.get_theme_stylebox("pressed") as StyleBoxTexture
+		_check("%s rests on a textured slab" % str(entry["id"]), normal != null, "not a StyleBoxTexture")
+		_check("%s has a pressed slab" % str(entry["id"]), down != null, "not a StyleBoxTexture")
+		if normal == null or down == null:
+			continue
+
+		# A nine-patch, not a stretch: all four margins must be real, or the carved border is
+		# being resampled along with the middle every time a row changes shape.
+		for margin: float in [normal.texture_margin_left, normal.texture_margin_top,
+				normal.texture_margin_right, normal.texture_margin_bottom]:
+			_check("%s keeps its carved border out of the stretch" % str(entry["id"]), margin > 0.0,
+				"a margin was %s" % str(margin))
+
+		_check("%s visibly changes when pressed" % str(entry["id"]), normal.texture != down.texture,
+			"both states are the same bitmap")
+
+		# Big enough to tap, and - the easy one to forget - taller than its own border, which is
+		# what stops the nine-patch's slices from overlapping instead of framing anything.
+		_check("%s is a thumb-sized target" % str(entry["id"]),
+			button.custom_minimum_size.y >= 48.0, "minimum height was %s" % str(button.custom_minimum_size.y))
+		_check("%s is taller than its carved border" % str(entry["id"]),
+			button.custom_minimum_size.y > float(MenuArt.slab_border_height()),
+			"%s px of row for %s px of border" % [
+				str(button.custom_minimum_size.y), str(MenuArt.slab_border_height())])
+
+		resting = normal
+		pressed = down
+
+	_check("the resting state came from the resting art", resting != null, "no slab was read")
+	_equal("the menu's own floor clears the border",
+		MenuScript.SLAB_MIN_HEIGHT > MenuArt.slab_border_height(), true)
+	_equal("and clears a thumb", MenuScript.SLAB_MIN_HEIGHT >= 48, true)
+
+	_discard(menu)
+	_end()
+
+
+## The background is chosen from a device property and never from a measurement.
+##
+## ARCHITECTURE.md section 10 rule 4 forbids a widget sizing itself from the screen, because in
+## VR this layer becomes a quad whose pixel size is arbitrary. Picking which of two image files
+## to load from the screen's physical orientation is a different act - it selects an asset, not
+## a size - and this case pins both halves of that: the mapping is right for every orientation
+## the display server can report, and the menu's own files contain none of the measurement
+## spellings that would mean it had quietly become a layout branch.
+func _case_the_background_is_a_device_choice_not_a_measurement() -> void:
+	_begin("the background follows the device's orientation, not the viewport")
+
+	var portrait: Array[int] = [
+		DisplayServer.SCREEN_PORTRAIT,
+		DisplayServer.SCREEN_REVERSE_PORTRAIT,
+		DisplayServer.SCREEN_SENSOR_PORTRAIT,
+	]
+	var landscape: Array[int] = [
+		DisplayServer.SCREEN_LANDSCAPE,
+		DisplayServer.SCREEN_REVERSE_LANDSCAPE,
+		DisplayServer.SCREEN_SENSOR_LANDSCAPE,
+		DisplayServer.SCREEN_SENSOR,
+	]
+
+	for orientation: int in portrait:
+		_equal("orientation %d takes the portrait cut" % orientation,
+			MenuArt.background_for_orientation(orientation).resource_path,
+			"res://ui/art/menu/background-menu-v.jpeg")
+	for orientation: int in landscape:
+		_equal("orientation %d takes the landscape cut" % orientation,
+			MenuArt.background_for_orientation(orientation).resource_path,
+			"res://ui/art/menu/background-menu-h.jpeg")
+
+	# Whichever cut it is, it covers rather than letterboxes.
+	var menu: MenuScript = MenuScene.instantiate() as MenuScript
+	root.add_child(menu)
+	var background: TextureRect = menu.get_node("Background") as TextureRect
+	_check("the menu hung one of them", background.texture != null, "no background texture")
+	_equal("and it is the one the device asked for", background.texture,
+		menu.background_texture())
+	_equal("stretched to cover", background.stretch_mode, TextureRect.STRETCH_KEEP_ASPECT_COVERED)
+	_equal("ignoring its own minimum size", background.expand_mode, TextureRect.EXPAND_IGNORE_SIZE)
+	_discard(menu)
+
+	# Spelled in halves so that this file is not itself a hit for the thing it forbids. This
+	# repeats `_case_no_widget_measures_the_screen` over the menu alone, plus the two further
+	# spellings that would be the obvious way to cheat *this* decision specifically.
+	var needles: Array[String] = [
+		"get_viewport()" + ".size",
+		"get_viewport_rect" + "()",
+		"get_window()" + ".size",
+		"DisplayServer." + "window_get_size",
+		"DisplayServer." + "screen_get_size",
+	]
+	for path: String in _ui_files("res://ui/main_menu"):
+		var text: String = _without_comments(FileAccess.get_file_as_string(path))
+		_check("%s was readable" % path, not text.strip_edges().is_empty(), "read nothing")
+		for needle: String in needles:
+			_check("%s measures nothing" % path, not text.contains(needle),
+				"it contains '%s'" % needle)
+
+	# And the device question is asked exactly once, in the function that documents why.
+	var art: String = FileAccess.get_file_as_string("res://ui/main_menu/menu_art.gd")
+	_equal("the orientation is read in one place", art.count("screen_get_" + "orientation"), 1)
+
+	_end()
+
+
+## Papyrus is a licensed Apple system font. It is read from the operating system when the
+## machine has it and is never copied into this repository, so the fallback is not an edge case
+## - it is what every machine without that file gets, which is every Android device the game is
+## actually built for. This proves the fallback is clean and that the menu does not depend on
+## the face it may not get.
+func _case_the_menu_face_is_borrowed_and_optional() -> void:
+	_begin("the menu face is borrowed from the system and falls back cleanly")
+
+	_equal("a missing file yields no face",
+		MenuArt.menu_font("/no/such/font/anywhere.ttc"), null)
+	_equal("and so does an empty path", MenuArt.menu_font(""), null)
+
+	# Nothing resembling a font file either - the helper must not hand back a broken `FontFile`
+	# that renders as blank glyphs, which is worse than the engine default. FreeType prints two
+	# ERROR lines while this is being proved; they are the proof, not a failure.
+	_equal("and so does a file that is not a font",
+		MenuArt.menu_font("res://ui/main_menu/main_menu.gd"), null)
+
+	# The repository must not be carrying a copy. This is the licence, not a style rule.
+	for path: String in _ui_files(UI_ROOT):
+		_check("%s is not a bundled face" % path,
+			not path.to_lower().ends_with(".ttf") and not path.to_lower().ends_with(".ttc")
+				and not path.to_lower().ends_with(".otf"),
+			"a font file is checked in under game/ui/")
+	_check("and the system path is only ever read, never written",
+		not FileAccess.get_file_as_string("res://ui/main_menu/menu_art.gd").contains("FileAccess.open"),
+		"menu_art.gd opens a file for writing")
+
+	# Whichever way it resolved on this machine, the menu is fully usable: every word is on
+	# every slab, and every slab still reports its destination.
+	var menu: MenuScript = MenuScene.instantiate() as MenuScript
+	root.add_child(menu)
+	var face: Font = menu.face()
+	_check("the face is a Font or nothing at all", face == null or face is Font,
+		"got %s" % str(face))
+
+	var chosen: Array[String] = []
+	menu.chose.connect(func(destination: String) -> void: chosen.append(destination))
+	var buttons: Node = menu.get_node(MENU_BUTTONS)
+	for entry: Dictionary in MenuScript.ENTRIES:
+		var button: Button = buttons.get_node_or_null(str(entry["node"])) as Button
+		if button == null:
+			continue
+		_check("%s is lettered either way" % str(entry["id"]), not button.text.is_empty(),
+			"the slab was blank")
+		button.pressed.emit()
+	_equal("and every slab still answers", chosen.size(), MenuScript.ENTRIES.size())
+
+	_discard(menu)
+	_end()
+
+
+## The router's own route table, by name. `routes` is an instance member, so this builds one
+## throwaway router rather than reaching for a constant that does not exist.
+func _router_routes() -> Dictionary:
+	var router: RouterScript = RouterScript.new()
+	var names: Dictionary = router.routes.duplicate()
+	router.free()
+	return names
 
 
 # ----------------------------------------------------------------------------------------------

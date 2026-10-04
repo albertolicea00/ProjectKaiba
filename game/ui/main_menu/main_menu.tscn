@@ -1,38 +1,6 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://ui/main_menu/main_menu.gd" id="1_menu"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button"]
-content_margin_left = 24.0
-content_margin_top = 18.0
-content_margin_right = 24.0
-content_margin_bottom = 18.0
-bg_color = Color(0.113725, 0.133333, 0.168627, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.207843, 0.243137, 0.301961, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_button_active"]
-content_margin_left = 24.0
-content_margin_top = 18.0
-content_margin_right = 24.0
-content_margin_bottom = 18.0
-bg_color = Color(0.180392, 0.227451, 0.309804, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.360784, 0.682353, 1, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
 
 [node name="MainMenu" type="Control"]
 anchors_preset = 15
@@ -42,14 +10,24 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_menu")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0509804, 0.0588235, 0.0745098, 1)
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Scrim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0235294, 0.0196078, 0.0117647, 0.34902)
 
 [node name="Frame" type="MarginContainer" parent="."]
 anchors_preset = 15
@@ -58,25 +36,35 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
 
-[node name="Center" type="CenterContainer" parent="Frame"]
+[node name="Center" type="HBoxContainer" parent="Frame"]
 layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="LeftGap" type="Control" parent="Frame/Center"]
+layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
 
 [node name="Column" type="VBoxContainer" parent="Frame/Center"]
-custom_minimum_size = Vector2(560, 0)
+custom_minimum_size = Vector2(520, 0)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 6
+theme_override_constants/separation = 4
 
 [node name="Title" type="Label" parent="Frame/Center/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_colors/font_color = Color(0.956863, 0.901961, 0.776471, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.627451)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 6
 theme_override_font_sizes/font_size = 46
 text = "Project Kaiba"
 horizontal_alignment = 1
@@ -84,109 +72,79 @@ horizontal_alignment = 1
 [node name="Subtitle" type="Label" parent="Frame/Center/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.588235, 0.65098, 0.729412, 1)
-theme_override_font_sizes/font_size = 20
-text = "Solo and Solo Test play a real duel. The rest is roadmap."
+theme_override_colors/font_color = Color(0.843137, 0.760784, 0.592157, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.705882)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 4
+theme_override_font_sizes/font_size = 18
+text = "Solo plays a real duel, both seats yours. The rest is roadmap."
 horizontal_alignment = 1
+autowrap_mode = 3
 
 [node name="TopSpacer" type="Control" parent="Frame/Center/Column"]
-custom_minimum_size = Vector2(0, 28)
+custom_minimum_size = Vector2(0, 16)
 layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
 
 [node name="Buttons" type="VBoxContainer" parent="Frame/Center/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 14
+theme_override_constants/separation = 10
 
 [node name="Solo" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
 text = "Solo"
 
-[node name="SoloTest" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Solo Test"
-
-[node name="Controls" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
-layout_mode = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Controls"
-
 [node name="Host" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Host Duel   (not built yet)"
+text = "Host"
 
 [node name="Join" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Join Duel   (not built yet)"
+text = "Join"
 
 [node name="Decks" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Decks   (not built yet)"
+text = "Decks"
+
+[node name="Controls" type="Button" parent="Frame/Center/Column/Buttons"]
+custom_minimum_size = Vector2(0, 88)
+layout_mode = 2
+text = "Controls"
 
 [node name="Replays" type="Button" parent="Frame/Center/Column/Buttons"]
-custom_minimum_size = Vector2(0, 76)
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.682353, 0.729412, 0.8, 1)
-theme_override_font_sizes/font_size = 28
-theme_override_styles/normal = SubResource("StyleBoxFlat_button")
-theme_override_styles/hover = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_button_active")
-theme_override_styles/focus = SubResource("StyleBoxFlat_button_active")
-text = "Replays   (not built yet)"
+text = "Replays"
 
 [node name="BottomSpacer" type="Control" parent="Frame/Center/Column"]
-custom_minimum_size = Vector2(0, 20)
+custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
+size_flags_vertical = 3
 mouse_filter = 2
 
 [node name="Status" type="Label" parent="Frame/Center/Column"]
-custom_minimum_size = Vector2(0, 72)
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.886275, 0.74902, 0.447059, 1)
-theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.945098, 0.811765, 0.482353, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.705882)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 4
+theme_override_font_sizes/font_size = 18
 text = ""
 horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 3
+
+[node name="RightGap" type="Control" parent="Frame/Center"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
