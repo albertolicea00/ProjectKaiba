@@ -605,6 +605,12 @@ func _apply_seat(seat: int) -> void:
 # ----------------------------------------------------------------------------------------------
 
 func _on_intent(data: Dictionary) -> void:
+	# `set_process(false)` does not stop this: intents arrive by signal, not on the frame clock.
+	# Without this guard a tap after the duel ended still reached `respond()`, which answered
+	# "no duel is running" - a confusing engine error for what is really "the duel is over".
+	if _stopping or not _running:
+		return
+
 	var kind: String = str(data.get("kind", ""))
 
 	if not _selection.is_waiting():
@@ -626,6 +632,14 @@ func _on_intent(data: Dictionary) -> void:
 ## Shared by the input path and the auto-pass so the two cannot drift: an answer that forgot to
 ## clear the pending selection would leave the board lit for a decision that is already made.
 func _answer_pending(type: int, answer: Dictionary) -> void:
+	if _core == null or not _core.is_duel_running():
+		# Not a failure: the duel finished while an answer was in flight. Saying so beats
+		# letting the engine report "no duel is running" as though the player did something
+		# wrong.
+		_selection.clear()
+		_focus.clear_pending()
+		return
+
 	var responded: Dictionary = _core.respond(type, answer)
 	if not bool(responded.get("ok", false)):
 		_fail("respond(%s, %s) failed: %s" % [
@@ -870,17 +884,25 @@ func _stop(reason: String) -> void:
 	_director.skip_all()
 	_board.sync_from_state(_state)
 
+	# Close the duel *before* auditing it. The audit prints the verdict, and anything that could
+	# still fail after that line has already made the verdict wrong - which is how "all checks
+	# passed" ended up printed above five failures.
+	if _core != null:
+		_core.end_duel()
+	_selection.clear()
+	_focus.clear_pending()
+	_board.clear_card_highlights()
+
 	print("[solo] %s" % reason)
 	print("[solo] %d events, %d answers from input, %d turn changes, %d seat flips, %d core log lines suppressed" % [
 		_event_count, _answers_from_intents, _turn_changes, _focus.flips, _suppressed_logs])
 	print(_state.describe())
 
+	_probe_input_after_teardown()
 	_check_results()
 
 	if _art != null:
 		_art.shutdown()
-	if _core != null:
-		_core.end_duel()
 
 	if _failures.is_empty():
 		print("[solo] all checks passed")
@@ -889,6 +911,26 @@ func _stop(reason: String) -> void:
 
 	if _headless:
 		get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Fires a tap after the duel is closed, and asserts it goes nowhere.
+##
+## The headless run cannot reach this state on its own - it stops deterministically and nothing
+## taps afterwards - so without this probe the bug is invisible to the gate by construction.
+## That is exactly how it shipped: a human kept tapping after the duel ended, every tap reached
+## `respond()` on a dead duel, and the log read "all checks passed" above five failures.
+##
+## Input arrives by signal, so `set_process(false)` does not stop it. Only the guard does.
+func _probe_input_after_teardown() -> void:
+	var before: int = _failures.size()
+
+	for kind: String in [InputSource.KIND_CONFIRM, InputSource.KIND_CANCEL,
+			InputSource.KIND_SELECT_CARD, InputSource.KIND_SELECT_ALT]:
+		_on_intent({"kind": kind, "handle": 1, "card_id": 0, "anchor": "MZ_P0_0"})
+
+	_expect(_failures.size() == before,
+		"input after the duel closes goes nowhere (%d taps reached the engine)"
+			% (_failures.size() - before))
 
 
 func _check_results() -> void:
