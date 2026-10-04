@@ -54,7 +54,7 @@ else
   SCONS_ANDROID := $(SCONS_COMMON) platform=android ndk_version=$(NDK_VERSION)
 endif
 
-.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors touch test-ui solo-test data-scripts bootstrap-import run editor clean distclean
+.PHONY: help doctor deps host android android-arm64 android-arm32 android-x86_64 selftest verify smoke duel duel-real test-gd test-selectors touch test-ui solo solo-test data-scripts bootstrap-import run editor clean distclean
 
 help:
 	@echo "Project Kaiba"
@@ -318,3 +318,12 @@ solo-test:
 	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/solo_test.tscn 2>&1 | tee /tmp/kaiba_solo.log
 	@grep -q "no face-down card revealed itself" /tmp/kaiba_solo.log || (echo "FAIL: solo test did not run its audit"; exit 1)
 	@! grep -qE "^  FAIL" /tmp/kaiba_solo.log || (echo "FAIL: solo test reported failures:"; grep -E "^  FAIL" /tmp/kaiba_solo.log; exit 1)
+
+# Solo: one seat is yours, the other is answered by PassiveAgent and the board never turns.
+# Separate from solo-test because the two assert opposite things about the camera.
+solo:
+	@test -f data/base/cards.cdb || (echo "SKIP: data/base/cards.cdb missing, see docs/DATA.md"; exit 1)
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@$(GODOT) --headless --path $(GAME_DIR) res://scenes/solo.tscn 2>&1 | tee /tmp/kaiba_solo_mode.log
+	@grep -q "the board never turned in solo" /tmp/kaiba_solo_mode.log || (echo "FAIL: solo did not run its audit"; exit 1)
+	@! grep -qE "^  FAIL" /tmp/kaiba_solo_mode.log || (echo "FAIL: solo reported failures:"; grep -E "^  FAIL" /tmp/kaiba_solo_mode.log; exit 1)
