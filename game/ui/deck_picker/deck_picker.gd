@@ -16,7 +16,18 @@ extends Control
 ## and gains every deck they have ever made. See `DeckLibrary` for the longer version.
 
 ## The deck the player committed to. Carries a `DeckLibrary` entry.
-signal chose(entry: Dictionary)
+## The deck the player committed to. Carries a `DeckLibrary` entry.
+##
+## **Not** named `chose`. `MainMenu.chose(String)` already means "go to this destination", and
+## `SceneRouter` connects to that name on whatever screen it loads - so a second screen using
+## it for a different payload made the router hand a Dictionary to a String parameter and the
+## choice died at the signal boundary. Two screens, one verb, two meanings.
+signal deck_chosen(entry: Dictionary)
+
+## Where this screen wants to go next. Same contract as `MainMenu.chose`, which is what makes
+## the router's by-name connection safe rather than lucky: a screen either speaks the navigation
+## verb properly or does not declare it at all.
+signal chose(destination: String)
 
 ## Backing out without choosing.
 signal cancelled
@@ -36,7 +47,11 @@ func _ready() -> void:
 	_list.item_selected.connect(_on_item_selected)
 	_list.item_activated.connect(_on_item_activated)
 	_play.pressed.connect(_commit)
-	$Root/Column/Actions/Back.pressed.connect(func() -> void: cancelled.emit())
+	$Root/Column/Actions/Back.pressed.connect(func() -> void:
+		# Back was dead: `cancelled` had no listener anywhere, so the button emitted into
+		# nothing. The router only ever connects the navigation verb, so Back has to speak it.
+		cancelled.emit()
+		chose.emit("menu"))
 	refresh()
 
 
@@ -103,7 +118,10 @@ func _commit() -> void:
 	if entry.is_empty():
 		return
 	DeckLibrary.remember(entry)
-	chose.emit(entry)
+	deck_chosen.emit(entry)
+	# A deck is chosen in order to play with it, so this is also a navigation: picking one and
+	# being left on the picker would make the player hunt for the way out.
+	chose.emit("solo")
 
 
 ## What to say when there is nothing to play. Names the folders, because the fix is to put a
