@@ -275,6 +275,8 @@ func _process(_delta: float) -> bool:
 
 	_case_every_verb_is_reachable_on_a_phone()
 
+	_case_only_the_offered_cards_glow()
+
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
 
@@ -2138,6 +2140,51 @@ func _case_every_verb_is_reachable_on_a_phone() -> void:
 	_check("and the cancel button answers no", seen.has("cancel"), "no cancelled signal")
 
 	hud.queue_free()
+	_end()
+
+
+
+## Lighting the cards a selection offers is how "there is something to do" stops being a
+## sentence to read, but a rim left burning on a card from a decision already made is worse
+## than none - it points at the wrong thing with total confidence.
+func _case_only_the_offered_cards_glow() -> void:
+	_begin("only the offered cards glow, and they stop when the question does")
+
+	var board: BoardView = BoardView.new()
+	root.add_child(board)
+
+	var lit: CardView = board.card_pool().acquire()
+	var dark: CardView = board.card_pool().acquire()
+	if lit == null or dark == null:
+		_check("the pool handed out two cards", false, "it did not")
+		board.queue_free()
+		_end()
+		return
+
+	lit.handle = 101
+	dark.handle = 202
+	board.place_view(lit, "MZ_P0_0")
+	board.place_view(dark, "MZ_P0_1")
+
+	_check("nothing glows before anything is asked",
+		not lit.is_highlighted() and not dark.is_highlighted(), "a card started out lit")
+
+	board.highlight_cards(PackedInt32Array([101]))
+	_check("the offered card glows", lit.is_highlighted(), "the named card stayed dark")
+	_check("and the other one does not", not dark.is_highlighted(),
+		"a card nobody offered lit up")
+
+	# Taking the whole set each time is what makes this safe: moving the offer to another card
+	# must put the first one out, not add to it.
+	board.highlight_cards(PackedInt32Array([202]))
+	_check("moving the offer moves the glow", dark.is_highlighted(), "the new card stayed dark")
+	_check("and puts the old one out", not lit.is_highlighted(), "a stale rim kept burning")
+
+	board.clear_card_highlights()
+	_check("answering puts everything out",
+		not lit.is_highlighted() and not dark.is_highlighted(), "a card stayed lit")
+
+	board.queue_free()
 	_end()
 
 

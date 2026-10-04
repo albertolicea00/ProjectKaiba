@@ -52,6 +52,8 @@ func _init() -> void:
 	_case_handle_never_reused()
 	_case_translate_stamps_handles()
 	_case_spell_zones_never_turn_a_card()
+	_case_an_empty_chain_answers_itself()
+	_case_a_real_chain_is_never_auto_answered()
 
 	_case_selection_idlecmd_maps_a_tap_to_a_list_index()
 	_case_selection_battlecmd_and_phase_advance()
@@ -1225,6 +1227,56 @@ func _case_spell_zones_never_turn_a_card() -> void:
 		BoardView.zone_turns("MZ_P0_0"), "a defending monster would stay upright")
 	_check("including the extra monster zones",
 		BoardView.zone_turns("EMZ_P0_1"), "EMZ_P0_1 would stay upright")
+	_end()
+
+
+
+func _case_an_empty_chain_answers_itself() -> void:
+	_begin("a chain offering nothing is answered without asking")
+
+	var controller := SelectionController.new(DuelState.new())
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_CHAIN, "player": 0,
+		"forced": false, "chains": [],
+	})
+
+	var answer: Dictionary = controller.auto_answer()
+	_check("it has an answer of its own", not answer.is_empty(),
+		"a prompt reading '0 available' still had to be asked")
+	_check("and the answer is to pass", bool(answer.get("cancel", false)),
+		"auto-answered with something other than a pass: %s" % str(answer))
+	_end()
+
+
+func _case_a_real_chain_is_never_auto_answered() -> void:
+	_begin("anything with a real choice is left to the player")
+
+	var controller := SelectionController.new(DuelState.new())
+
+	# One effect offered: passing for the player would cost them a legal play, which is far
+	# worse than the extra tap auto-passing exists to remove.
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_CHAIN, "player": 0, "forced": false,
+		"chains": [{"card": 55144522, "at": {"con": 0, "loc": DuelEnums.LOCATION.HAND, "seq": 0}}],
+	})
+	_check("an offered effect is still asked about", controller.auto_answer().is_empty(),
+		"auto-passed a chain that had something in it")
+
+	# A forced chain with an empty list is a contradiction; guessing at it is not this
+	# function's business.
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_CHAIN, "player": 0, "forced": true, "chains": [],
+	})
+	_check("a forced chain is never auto-answered", controller.auto_answer().is_empty(),
+		"auto-answered a forced chain")
+
+	# Only chains qualify. An idle prompt with nothing summonable still offers phase changes.
+	controller.set_pending({
+		"t": DuelEnums.EV.SELECT_IDLECMD, "player": 0,
+		"summon": [], "spsummon": [], "activate": [], "to_ep": true,
+	})
+	_check("an idle prompt is never auto-answered", controller.auto_answer().is_empty(),
+		"auto-passed the idle prompt, which still offers ending the turn")
 	_end()
 
 
