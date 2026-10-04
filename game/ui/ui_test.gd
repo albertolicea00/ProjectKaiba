@@ -64,12 +64,22 @@ const ControlsScene := preload("res://ui/controls/controls_screen.tscn")
 ## This is the same technique, for the same reason.
 const INPUT_SOURCE_SCRIPT := "res://platform/input/input_source.gd"
 
-const HUD_TOP_LIFE := "Root/Column/TopRow/TopSeat/Box/Life"
-const HUD_TOP_SEAT := "Root/Column/TopRow/TopSeat/Box/Seat"
-const HUD_BOTTOM_LIFE := "Root/Column/BottomRow/BottomSeat/Box/Life"
-const HUD_BOTTOM_SEAT := "Root/Column/BottomRow/BottomSeat/Box/Seat"
-const HUD_TURN := "Root/Column/TopRow/Turn/Box/Count"
-const HUD_PHASE := "Root/Column/TopRow/Turn/Box/Phase"
+## Portrait HUD node paths. The layer was rebuilt for a tall screen, so the furniture sits in
+## four anchored corners instead of one top-to-bottom column; these are the leaves that carry
+## text a case reads. Everything that is a *decision* rather than a label - the prompt, the
+## phase banner, the pile badges - is asked for through `DuelHud`'s own accessors instead.
+const HUD_TOP_LIFE := "Root/TopSeat/Life/Box/Life"
+const HUD_TOP_SEAT := "Root/TopSeat/Life/Box/Seat"
+const HUD_TOP_TAG := "Root/TopSeat/Avatar/Tag"
+const HUD_BOTTOM_LIFE := "Root/BottomSeat/Life/Box/Life"
+const HUD_BOTTOM_SEAT := "Root/BottomSeat/Life/Box/Seat"
+const HUD_BOTTOM_TAG := "Root/BottomSeat/Avatar/Tag"
+const HUD_TURN := "Root/TurnStack/Count"
+const HUD_PHASE := "Root/TurnStack/ChipRow/PhaseChip/Phase"
+const HUD_OWNER := "Root/TurnStack/Owner"
+const HUD_HAND_ZONE := "Root/HandZone"
+const HUD_CONFIRM := "Root/Prompt/Body/Actions/Confirm"
+const HUD_CANCEL := "Root/Prompt/Body/Actions/Cancel"
 
 const BANNER_SEAT := "Root/Column/TopBand/SeatChip/Box/Value"
 const BANNER_SEAT_CAPTION := "Root/Column/TopBand/SeatChip/Box/Caption"
@@ -234,6 +244,12 @@ func _process(_delta: float) -> bool:
 	_case_hud_knows_which_seat_is_yours()
 	_case_hud_shows_the_pending_prompt()
 	_case_hud_without_a_model()
+	_case_hud_life_plates_read_both_seats()
+	_case_hud_names_every_phase_with_no_blanks()
+	_case_hud_prompt_still_answers_yes_and_no()
+	_case_hud_announces_a_phase_change()
+	_case_hud_pile_badges_count_the_model()
+	_case_hud_battle_readout_shows_the_deciding_number()
 
 	_case_seat_in_view_follows_the_turn_and_never_a_prompt()
 	_case_seat_in_view_is_stated_at_all_times()
@@ -396,6 +412,281 @@ func _case_hud_without_a_model() -> void:
 
 	hud.bind(null)
 	_equal("binding null is legal", _text(hud, HUD_TOP_LIFE), HudScript.EMPTY)
+
+	_discard(hud)
+	_end()
+
+
+## The portrait rebuild moved both life plates into anchored corners. What must not have moved
+## is where the numbers come from: `DuelState.life_points`, indexed by seat, for both halves -
+## not one seat read from the model and the other inferred.
+func _case_hud_life_plates_read_both_seats() -> void:
+	_begin("both life plates read their own seat out of DuelState")
+	var state: DuelState = _duel_in_progress()
+	var hud: HudScript = _hud()
+	hud.bind(state)
+
+	_equal("your plate", _text(hud, HUD_BOTTOM_LIFE), str(state.life_points[DuelEnums.PLAYER.P0]))
+	_equal("their plate", _text(hud, HUD_TOP_LIFE), str(state.life_points[DuelEnums.PLAYER.P1]))
+
+	# Each seat is damaged separately, and each plate has to follow its own seat and only its
+	# own. A plate wired to the wrong index passes a single-seat check and fails here.
+	state.apply({"t": DuelEnums.EV.DAMAGE, "player": DuelEnums.PLAYER.P0, "amount": 2000})
+	state.apply({"t": DuelEnums.EV.RECOVER, "player": DuelEnums.PLAYER.P1, "amount": 500})
+	hud.refresh()
+	hud.settle()
+	_equal("your plate followed your damage", _text(hud, HUD_BOTTOM_LIFE), "6000")
+	_equal("their plate followed their gain", _text(hud, HUD_TOP_LIFE), "7500")
+
+	# The avatar beside each plate is the same seat's. No art exists yet, so the frame carries
+	# the seat's number - a placeholder that says which seat it is standing in for.
+	_equal("your frame names your seat", _text(hud, HUD_BOTTOM_TAG), "P1")
+	_equal("their frame names theirs", _text(hud, HUD_TOP_TAG), "P2")
+
+	# Swapping seats swaps both plates and both frames together, because both are derived from
+	# `local_player` rather than baked into the scene.
+	hud.local_player = DuelEnums.PLAYER.P1
+	hud.settle()
+	_equal("the bottom plate is now P1's", _text(hud, HUD_BOTTOM_LIFE), "7500")
+	_equal("the top plate is now P0's", _text(hud, HUD_TOP_LIFE), "6000")
+	_equal("and the frames came with them", _text(hud, HUD_BOTTOM_TAG), "P2")
+	_equal("the far frame too", _text(hud, HUD_TOP_TAG), "P1")
+
+	_discard(hud)
+	_end()
+
+
+## The phase chip is the loudest thing at the top of the screen because it is the thing that
+## changes. Every value `DuelEnums.PHASE` defines must put a name in it - blank, or a raw bit,
+## reads as a broken duel rather than as a gap in a lookup table.
+##
+## Two bits deliberately share the name "Battle phase" here, which is why this case checks for
+## *a* name rather than a distinct one: `DuelHud` is the player-facing readout and the start
+## step and the end step of the battle phase are both, to a player, the battle phase.
+## `HotSeatBanner` is the one that spells the sub-steps out, and its own case checks that.
+func _case_hud_names_every_phase_with_no_blanks() -> void:
+	_begin("the turn line and the phase chip name every phase DuelEnums defines")
+	var state: DuelState = _duel_in_progress()
+	var hud: HudScript = _hud()
+	hud.bind(state)
+
+	for key: String in DuelEnums.PHASE:
+		var bit: int = DuelEnums.PHASE[key]
+		state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": bit})
+		hud.refresh()
+
+		var chip: String = _text(hud, HUD_PHASE)
+		_check("%s has a name" % key, not chip.strip_edges().is_empty(), "the chip was blank")
+		_check("%s is not the placeholder" % key, chip != HudScript.EMPTY, "it read the dash")
+		_check("%s is not printed as a raw bit" % key, not chip.begins_with("PHASE("),
+			"it read '%s'" % chip)
+
+		# The turn line sits above the chip and never goes quiet either.
+		var turn: String = _text(hud, HUD_TURN)
+		_check("%s keeps the turn line" % key, turn.contains("Turn 1"), "it read '%s'" % turn)
+		_equal("%s keeps the owner line" % key, _text(hud, HUD_OWNER), "your turn")
+
+	# A phase bit nobody has taught the table still shows up, loudly (the spirit of V13).
+	state.phase = 0x4000
+	hud.refresh()
+	_check("an unknown phase is reported rather than hidden",
+		_text(hud, HUD_PHASE).begins_with("PHASE("), "it read '%s'" % _text(hud, HUD_PHASE))
+
+	_discard(hud)
+	_end()
+
+
+## The centre banner announces a phase change and then gets out of the way. Checked here with
+## the phase loop because it is driven by the same comparison: it fires on a change of the bit,
+## not on a change of the chip's text, so the two battle bits that share a name do not raise
+## a banner that says the phase did not change.
+func _case_hud_announces_a_phase_change() -> void:
+	_begin("the centre banner announces a phase change and then clears itself")
+	var state: DuelState = _duel_in_progress()
+	var hud: HudScript = _hud()
+	hud.bind(state)
+
+	# Binding mid-duel is not a change. A banner here would announce a phase the player has
+	# been sitting in for several actions.
+	_check("binding raises nothing", not hud.phase_banner_is_visible(),
+		"it read '%s'" % hud.phase_banner_text())
+
+	state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": DuelEnums.PHASE.BATTLE_START})
+	hud.refresh()
+	_check("a real change raises it", hud.phase_banner_is_visible(), "it stayed down")
+	_equal("in capitals", hud.phase_banner_text(), "BATTLE PHASE")
+
+	# `PHASE.BATTLE` is the battle phase's end step and shares the chip's wording, but it is a
+	# different bit, so the banner fires on the bit rather than on the text.
+	state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": DuelEnums.PHASE.BATTLE})
+	hud.refresh()
+	_check("a different bit with the same name still announces", hud.phase_banner_is_visible(),
+		"it stayed down")
+
+	# Refreshing without a change must not keep it alive for ever.
+	hud._advance_banner(HudScript.BANNER_SECONDS)
+	hud.refresh()
+	_check("it fades out on its own", not hud.phase_banner_is_visible(),
+		"it read '%s'" % hud.phase_banner_text())
+
+	state.apply({"t": DuelEnums.EV.NEW_PHASE, "phase": DuelEnums.PHASE.MAIN2})
+	hud.refresh()
+	_check("the next change raises it again", hud.phase_banner_is_visible(), "it stayed down")
+	hud.settle()
+	_check("settle() ends it immediately", not hud.phase_banner_is_visible(), "it stayed up")
+
+	_discard(hud)
+	_end()
+
+
+## The prompt panel is the only route to CONFIRM on a phone - `TouchSource` emits none - so the
+## portrait rebuild had to carry it across intact. Both buttons are pressed as a player would
+## press them, through the real nodes, not by emitting the HUD's own signals.
+func _case_hud_prompt_still_answers_yes_and_no() -> void:
+	_begin("the prompt panel survived the portrait rebuild and still answers")
+	var hud: HudScript = _hud()
+
+	var seen: Dictionary = {}
+	hud.confirmed.connect(func() -> void: seen.merge({"confirm": true}, true))
+	hud.cancelled.connect(func() -> void: seen.merge({"cancel": true}, true))
+
+	_check("nothing pending, no panel", not hud.prompt_is_visible(), "the panel was visible")
+
+	hud.set_prompt("Activate this effect?")
+	_check("a pending prompt shows its panel", hud.prompt_is_visible(), "the panel stayed hidden")
+	_equal("verbatim", hud.prompt_text(), "Activate this effect?")
+
+	var confirm: Button = hud.get_node_or_null(HUD_CONFIRM) as Button
+	var cancel: Button = hud.get_node_or_null(HUD_CANCEL) as Button
+	_check("the yes button is still there", confirm != null, "no node at %s" % HUD_CONFIRM)
+	_check("the no button is still there", cancel != null, "no node at %s" % HUD_CANCEL)
+	if confirm == null or cancel == null:
+		_discard(hud)
+		_end()
+		return
+
+	# A finger is about 9mm across. Anything under this is a button you aim at rather than hit.
+	for button: Button in [confirm, cancel]:
+		var box: Vector2 = button.get_combined_minimum_size()
+		_check("%s is big enough to hit" % button.name, box.x >= 120.0 and box.y >= 48.0,
+			"it asks for only %s" % str(box))
+
+	confirm.pressed.emit()
+	cancel.pressed.emit()
+	_check("the confirm button answers yes", seen.has("confirm"), "no confirmed signal")
+	_check("and the cancel button answers no", seen.has("cancel"), "no cancelled signal")
+
+	hud.set_prompt("")
+	_check("an answered question puts the panel away", not hud.prompt_is_visible(),
+		"the panel stayed up")
+
+	_discard(hud)
+	_end()
+
+
+## The pile badges report counts and only counts. The deck is hidden information - `DuelState`
+## holds face-down placeholders for it - so the size of the array is the one thing about it a
+## badge is allowed to say, and it has to be the size the model actually holds.
+func _case_hud_pile_badges_count_the_model() -> void:
+	_begin("the pile badges report the counts DuelState holds")
+	var state: DuelState = _duel_in_progress()
+	var hud: HudScript = _hud()
+	hud.bind(state)
+
+	_equal("your deck", hud.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.DECK), "DECK 40")
+	_equal("their deck", hud.pile_text(DuelEnums.PLAYER.P1, DuelEnums.LOCATION.DECK), "DECK 40")
+	_equal("your graveyard", hud.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.GRAVE), "GY 0")
+	_equal("your extra deck", hud.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.EXTRA), "EX 0")
+
+	# Five cards leave the deck for the hand, and one of them is then sent to the graveyard.
+	state.apply({
+		"t": DuelEnums.EV.DRAW,
+		"player": DuelEnums.PLAYER.P0,
+		"count": 5,
+		"cards": [
+			{"card": CODE_SPELL, "pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+			{"card": CODE_SPELL, "pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+			{"card": CODE_SPELL, "pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+			{"card": CODE_SPELL, "pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+			{"card": CODE_SPELL, "pos": DuelEnums.POSITION.FACEDOWN_DEFENSE},
+		],
+	})
+	state.apply({
+		"t": DuelEnums.EV.MOVE,
+		"card": CODE_SPELL,
+		"from": {"con": DuelEnums.PLAYER.P0, "loc": DuelEnums.LOCATION.HAND, "seq": 0, "pos": 0},
+		"to": {"con": DuelEnums.PLAYER.P0, "loc": DuelEnums.LOCATION.GRAVE, "seq": 0,
+			"pos": DuelEnums.POSITION.FACEUP_ATTACK},
+	})
+	hud.refresh()
+
+	_equal("the deck badge followed the draw",
+		hud.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.DECK),
+		"DECK %d" % state.pile_for(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.DECK).size())
+	_equal("the graveyard badge followed the discard",
+		hud.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.GRAVE),
+		"GY %d" % state.pile_for(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.GRAVE).size())
+	_equal("the other seat was untouched",
+		hud.pile_text(DuelEnums.PLAYER.P1, DuelEnums.LOCATION.DECK), "DECK 40")
+
+	# The near edge of the board carries the local seat's badges. Flipping seats has to move
+	# them, exactly as it moves the life plates - otherwise a hot-seat player reads the wrong
+	# deck count for the whole of every other turn.
+	var near: String = "Root/BottomPiles/Deck/Count"
+	var far: String = "Root/TopPiles/Deck/Count"
+	_equal("the near badge is yours", _text(hud, near), "DECK 35")
+	_equal("the far badge is theirs", _text(hud, far), "DECK 40")
+	hud.local_player = DuelEnums.PLAYER.P1
+	_equal("flipping seats moves the near badge", _text(hud, near), "DECK 40")
+	_equal("and the far one", _text(hud, far), "DECK 35")
+
+	# A HUD with no duel behind it shows placeholders rather than a confident zero.
+	var blank: HudScript = _hud()
+	_equal("no duel, no count", blank.pile_text(DuelEnums.PLAYER.P0, DuelEnums.LOCATION.DECK),
+		"DECK %s" % HudScript.EMPTY)
+
+	_discard(hud)
+	_discard(blank)
+	_end()
+
+
+## The battle readout shows the number the battle will actually be decided by: a monster in
+## defence is not going to hit with its ATK, and printing both invites the player to compare
+## the wrong pair.
+func _case_hud_battle_readout_shows_the_deciding_number() -> void:
+	_begin("the battle readout shows the number the battle is decided by")
+	var hud: HudScript = _hud()
+	hud.bind(_duel_in_progress())
+
+	_check("nothing is shown outside a battle", not hud.combat_is_visible(),
+		"the readout was already up")
+
+	var attacker: DuelCard = DuelCard.new()
+	attacker.attack = 1800
+	attacker.defense = 1000
+	attacker.position = DuelEnums.POSITION.FACEUP_ATTACK
+
+	var defender: DuelCard = DuelCard.new()
+	defender.attack = 1200
+	defender.defense = 2000
+	defender.position = DuelEnums.POSITION.FACEUP_DEFENSE
+
+	hud.set_combat(attacker, defender)
+	_check("the readout appears", hud.combat_is_visible(), "it stayed hidden")
+	_check("the attacker is read in attack", hud.combat_text().contains("ATK 1800"),
+		"it read '%s'" % hud.combat_text())
+	_check("a defending monster is read in defence",
+		hud.combat_text().contains("DEF 2000"), "it read '%s'" % hud.combat_text())
+	_check("and its attack is not offered for comparison",
+		not hud.combat_text().contains("1200"), "it read '%s'" % hud.combat_text())
+
+	hud.set_combat(attacker, null)
+	_check("no defender is a direct attack", hud.combat_text().contains("DIRECT"),
+		"it read '%s'" % hud.combat_text())
+
+	hud.set_combat(null, null)
+	_check("the readout goes away when the battle does", not hud.combat_is_visible(),
+		"it stayed up")
 
 	_discard(hud)
 	_end()
@@ -2139,8 +2430,8 @@ func _case_every_verb_is_reachable_on_a_phone() -> void:
 	hud.set_prompt("Activate this effect?")
 	_check("a pending prompt shows its panel", hud.prompt_is_visible(), "the panel stayed hidden")
 
-	hud.get_node("Root/Column/BottomRow/Prompt/Body/Actions/Confirm").pressed.emit()
-	hud.get_node("Root/Column/BottomRow/Prompt/Body/Actions/Cancel").pressed.emit()
+	hud.get_node(HUD_CONFIRM).pressed.emit()
+	hud.get_node(HUD_CANCEL).pressed.emit()
 
 	_check("the confirm button answers yes", seen.has("confirm"), "no confirmed signal")
 	_check("and the cancel button answers no", seen.has("cancel"), "no cancelled signal")
