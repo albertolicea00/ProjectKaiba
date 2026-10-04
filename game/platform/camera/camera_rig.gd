@@ -93,6 +93,13 @@ func _ensure_camera() -> void:
 	_camera.name = "Camera"
 	_camera.near = NEAR_PLANE
 	_camera.far = FAR_PLANE
+	# `fov` governs the **horizontal** span, not the vertical one.
+	#
+	# Godot defaults to KEEP_HEIGHT, which is right in landscape and wrong here: held upright,
+	# the long axis is vertical, so a vertical fov leaves the 1.20 m table running off both
+	# sides of a narrow screen. What has to fit on a phone held this way is the width of the
+	# board; the depth can and should recede.
+	_camera.keep_aspect = Camera3D.KEEP_WIDTH
 	add_child(_camera)
 
 

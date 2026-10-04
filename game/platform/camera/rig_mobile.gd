@@ -20,10 +20,10 @@ extends CameraRig
 ##   fov 52 deg         vertical. Wider than that and the table bows at the corners on a
 ##                      phone's short focal length.
 
-const MOBILE_DISTANCE: float = 0.92
-const MOBILE_ELEVATION: float = 52.0
+const MOBILE_DISTANCE: float = 1.06
+const MOBILE_ELEVATION: float = 58.0
 const MOBILE_FOCUS: Vector3 = Vector3(0.0, 0.0, 0.02)
-const MOBILE_FIELD_OF_VIEW: float = 52.0
+const MOBILE_FIELD_OF_VIEW: float = 60.0
 
 
 func _init() -> void:
