@@ -14,6 +14,7 @@ config/name="Project Kaiba"
 config/description="Fan-made Yu-Gi-Oh! client built on the EDOPro rules engine (ocgcore)."
 run/main_scene="res://scenes/main.tscn"
 config/features=PackedStringArray("4.6", "Mobile")
+config/icon="res://ui/art/app-icon.png"
 
 [display]
 
