@@ -212,9 +212,20 @@ func _on_item_selected(index: int) -> void:
 	elif main_count > 60:
 		lines.append("[color=#d88]Main deck is over 60.[/color]")
 	lines.append("")
-	lines.append("[i]%s[/i]" % str(entry.get("path", "")))
+	# Only the folder and the file name: a full path wraps hard in a 244 px pane on a
+	# 720-wide phone, and the tail is what tells two same-named decks apart.
+	lines.append("[i]%s[/i]" % _short_path(str(entry.get("path", ""))))
 	_detail.text = "\n".join(lines)
 
+
+
+func _short_path(path: String) -> String:
+	if path.is_empty():
+		return ""
+	var parts: PackedStringArray = path.split("/", false)
+	if parts.size() <= 2:
+		return path
+	return ".../%s/%s" % [parts[parts.size() - 2], parts[parts.size() - 1]]
 
 func _on_item_activated(index: int) -> void:
 	_selected = index
