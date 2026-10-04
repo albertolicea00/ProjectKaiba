@@ -901,7 +901,13 @@ func _case_router_reaches_solo() -> void:
 	_begin("router reaches solo")
 	var router: RouterScript = _router()
 
-	_equal("solo routes at duel_touch", RouterScript.SOLO_SCENE, "res://scenes/duel_touch.tscn")
+	# Solo used to route at `duel_touch.tscn`, which is the regression harness - so Solo and
+	# Solo Test were the same hot seat under two names, which is what a player noticed first.
+	# Solo now has its own scene, where the far seat is answered by `PassiveAgent`.
+	_equal("solo routes at its own scene", RouterScript.SOLO_SCENE, "res://scenes/solo.tscn")
+	_check("and not at the regression harness",
+		not RouterScript.SOLO_SCENE.contains("duel_touch"),
+		"solo is pointing at the test harness again")
 	_check("that scene exists", ResourceLoader.exists(RouterScript.SOLO_SCENE),
 		"%s is missing" % RouterScript.SOLO_SCENE)
 	_equal("and the route table points there", str(router.routes[RouterScript.SOLO]),

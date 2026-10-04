@@ -44,7 +44,7 @@ const DECKS: String = "decks"
 const CONTROLS: String = "controls"
 
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
-const SOLO_SCENE: String = "res://scenes/duel_touch.tscn"
+const SOLO_SCENE: String = "res://scenes/solo.tscn"
 const SOLO_TEST_SCENE: String = "res://scenes/solo_test.tscn"
 ## Decks are chosen, not edited. See `DeckLibrary` for why: a `.ydk` built in any other
 ## client works here untouched, and owning a deck format would cut this one off from all
