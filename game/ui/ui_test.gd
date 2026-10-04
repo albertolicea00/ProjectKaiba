@@ -52,7 +52,7 @@ const HudScript := preload("res://ui/hud/duel_hud.gd")
 const HudScene := preload("res://ui/hud/duel_hud.tscn")
 const MenuScript := preload("res://ui/main_menu/main_menu.gd")
 const MenuScene := preload("res://ui/main_menu/main_menu.tscn")
-const MenuArt := preload("res://ui/main_menu/menu_art.gd")
+const MenuArt := preload("res://ui/menu_art.gd")
 const RouterScript := preload("res://platform/scene_router.gd")
 const BannerScene := preload("res://ui/hud/hot_seat_banner.tscn")
 const PreviewScene := preload("res://ui/preview/card_preview.tscn")
@@ -95,6 +95,21 @@ const BANNER_DETAIL := "Root/Column/BottomBand/Banner/Box/Detail"
 
 const MENU_BUTTONS := "Frame/Center/Column/Buttons"
 const MENU_STATUS := "Frame/Center/Column/Status"
+
+## `menu_art.gd` moved out of `main_menu/` and into `ui/` when the deck picker and the controls
+## screen started wearing the same dress. Three screens share it; one of them does not own it.
+const MENU_ART_SCRIPT := "res://ui/menu_art.gd"
+
+const CONTROLS_ROWS := "Frame/Column/Scroll/Rows"
+const CONTROLS_STATUS := "Frame/Column/Status"
+const CONTROLS_BACK := "Frame/Column/Back"
+
+const PICKER_SCENE_PATH := "res://ui/deck_picker/deck_picker.tscn"
+const PICKER_LIST := "Frame/Column/Body/Split/List"
+const PICKER_DETAIL := "Frame/Column/Body/Split/Detail"
+const PICKER_BODY := "Frame/Column/Body"
+const PICKER_BACK := "Frame/Column/Actions/Back"
+const PICKER_PLAY := "Frame/Column/Actions/Play"
 
 const UI_ROOT := "res://ui"
 
@@ -233,11 +248,18 @@ var _cases_failed: int = 0
 var _ran: bool = false
 
 
+## `false`, not `true`: returning `true` ends the loop immediately, and `_run()` is a coroutine
+## now - the layout cases have to let a frame pass before a container has sorted its children,
+## and a measurement taken before that reads every rect as zero. `_run()` calls `quit()` itself.
 func _process(_delta: float) -> bool:
 	if _ran:
-		return true
+		return false
 	_ran = true
+	_run()
+	return false
 
+
+func _run() -> void:
 	print("== DuelHud / SeatFocus / HotSeatBanner / CardPreview / MainMenu / SceneRouter / DeckPicker / BoardView / CardArt tests ==")
 
 	_case_hud_reads_the_model()
@@ -298,12 +320,15 @@ func _process(_delta: float) -> bool:
 
 	_case_only_the_offered_cards_glow()
 
+	_case_both_screens_wear_the_menus_dress()
+	_case_back_leaves_every_dressed_screen()
+	await _case_the_dressed_screens_fit_every_screen_shape()
+
 	_case_no_widget_measures_the_screen()
 	_case_no_ui_file_names_the_core()
 
 	print("== %d cases, %d failed ==" % [_cases_run, _cases_failed])
 	quit(1 if _cases_failed > 0 else 0)
-	return true
 
 
 # ----------------------------------------------------------------------------------------------
@@ -1461,16 +1486,32 @@ func _case_the_background_is_a_device_choice_not_a_measurement() -> void:
 		"DisplayServer." + "window_get_size",
 		"DisplayServer." + "screen_get_size",
 	]
-	for path: String in _ui_files("res://ui/main_menu"):
+	# All three dressed screens, plus the file they share. The deck picker and the controls
+	# screen wear the same art now, which is three chances to "fix" a layout by asking how wide
+	# the window is instead of two.
+	var dressed: PackedStringArray = PackedStringArray([MENU_ART_SCRIPT])
+	for dir: String in ["res://ui/main_menu", "res://ui/deck_picker", "res://ui/controls"]:
+		dressed.append_array(_ui_files(dir))
+	for path: String in dressed:
 		var text: String = _without_comments(FileAccess.get_file_as_string(path))
 		_check("%s was readable" % path, not text.strip_edges().is_empty(), "read nothing")
 		for needle: String in needles:
 			_check("%s measures nothing" % path, not text.contains(needle),
 				"it contains '%s'" % needle)
 
-	# And the device question is asked exactly once, in the function that documents why.
-	var art: String = FileAccess.get_file_as_string("res://ui/main_menu/menu_art.gd")
-	_equal("the orientation is read in one place", art.count("screen_get_" + "orientation"), 1)
+	# And the device question is asked exactly once in the whole of `game/ui/`, in the function
+	# that documents why. A second caller is how the one permitted device read turns into a
+	# habit - so this counts over every file, not just over the one that is allowed to ask.
+	var asks: int = 0
+	for path: String in _ui_files(UI_ROOT):
+		if path == "res://ui/ui_test.gd":
+			continue
+		asks += _without_comments(FileAccess.get_file_as_string(path)).count(
+			"screen_get_" + "orientation")
+	_equal("the orientation is read in one place in all of game/ui/", asks, 1)
+	_equal("and that place is menu_art.gd",
+		_without_comments(FileAccess.get_file_as_string(MENU_ART_SCRIPT)).count(
+			"screen_get_" + "orientation"), 1)
 
 	_end()
 
@@ -1500,7 +1541,7 @@ func _case_the_menu_face_is_borrowed_and_optional() -> void:
 				and not path.to_lower().ends_with(".otf"),
 			"a font file is checked in under game/ui/")
 	_check("and the system path is only ever read, never written",
-		not FileAccess.get_file_as_string("res://ui/main_menu/menu_art.gd").contains("FileAccess.open"),
+		not FileAccess.get_file_as_string(MENU_ART_SCRIPT).contains("FileAccess.open"),
 		"menu_art.gd opens a file for writing")
 
 	# Whichever way it resolved on this machine, the menu is fully usable: every word is on
@@ -1830,11 +1871,11 @@ func _case_the_controls_screen_shows_both_columns() -> void:
 
 	var chosen: Array[String] = []
 	screen.chose.connect(func(destination: String) -> void: chosen.append(destination))
-	(screen.get_node("Frame/Scroll/Column/Back") as Button).pressed.emit()
+	(screen.get_node(CONTROLS_BACK) as Button).pressed.emit()
 	_equal("Back goes to the menu", chosen, ["menu"])
 
 	screen.show_message("anything at all")
-	_equal("messages reach the screen", _text(screen, "Frame/Scroll/Column/Status"), "anything at all")
+	_equal("messages reach the screen", _text(screen, CONTROLS_STATUS), "anything at all")
 
 	_discard(screen)
 	_end()
@@ -2175,6 +2216,310 @@ func _case_card_back_is_outside_the_budget() -> void:
 ## No widget may size itself from the screen. In VR this whole layer becomes a SubViewport on a
 ## quad whose pixel size is an arbitrary texture resolution, and any such branch would be wrong
 ## there (see the header of `ui/hud/duel_hud.gd`).
+# ----------------------------------------------------------------------------------------------
+# The dress the three screens share
+# ----------------------------------------------------------------------------------------------
+
+## The deck picker and the controls screen wear the menu's art, and they wear it by asking
+## `MenuArt` rather than by keeping a copy of it.
+##
+## Both halves matter. A screen that merely *looks* the same today drifts the first time the
+## slab margins are re-measured or the background is recut, and the drift is invisible until
+## somebody opens two screens side by side. So this case checks what each screen is actually
+## wearing, and then greps for the thing that would let it drift: the art paths, the font path
+## and the stylebox construction, none of which may appear outside `menu_art.gd`.
+func _case_both_screens_wear_the_menus_dress() -> void:
+	_begin("the deck picker and the controls screen wear the menu's art, from MenuArt")
+
+	var expected_background: Texture2D = MenuArt.current_background()
+	var expected_resting: StyleBoxTexture = MenuArt.resting_slab()
+	var expected_pressed: StyleBoxTexture = MenuArt.pressed_slab()
+	var expected_face: Font = MenuArt.menu_font()
+
+	for spec: Dictionary in _dressed_screens():
+		var screen: Control = (load(str(spec["scene"])) as PackedScene).instantiate()
+		root.add_child(screen)
+		var tag: String = str(spec["tag"])
+
+		# The background is the very same resource the menu hangs, not a second load of the
+		# same file - `MenuArt` holds both cuts as preloaded constants, so identity is the
+		# assertion that proves nothing was reloaded or re-chosen here.
+		var background: TextureRect = screen.get_node("Background") as TextureRect
+		_check("%s hangs a background" % tag, background != null and background.texture != null,
+			"no Background/texture")
+		if background != null:
+			_equal("%s hangs the cut MenuArt chose" % tag, background.texture, expected_background)
+			_equal("%s reports the same cut" % tag, screen.background_texture(),
+				expected_background)
+			_equal("%s covers rather than letterboxes" % tag, background.stretch_mode,
+				TextureRect.STRETCH_KEEP_ASPECT_COVERED)
+			_equal("%s ignores its own minimum size" % tag, background.expand_mode,
+				TextureRect.EXPAND_IGNORE_SIZE)
+
+		var scrim: ColorRect = screen.get_node_or_null("Scrim") as ColorRect
+		_check("%s lays the scrim over it" % tag, scrim != null, "no Scrim")
+		if scrim != null:
+			_equal("%s uses MenuArt's scrim" % tag, scrim.color, MenuArt.SCRIM_COLOR)
+
+		# Papyrus or nothing, resolved the same way the menu resolves it. Comparing null-ness
+		# rather than the object: `menu_font()` builds a fresh `FontFile` per call, so two
+		# successful resolutions are two different objects and both are correct.
+		_equal("%s letters itself the same way the menu does" % tag,
+			screen.face() == null, expected_face == null)
+
+		for path: String in (spec["buttons"] as Array):
+			var button: Button = screen.get_node_or_null(str(path)) as Button
+			_check("%s has %s" % [tag, str(path)], button != null, "no such button")
+			if button == null:
+				continue
+			var normal: StyleBoxTexture = button.get_theme_stylebox("normal") as StyleBoxTexture
+			var down: StyleBoxTexture = button.get_theme_stylebox("pressed") as StyleBoxTexture
+			_check("%s/%s rests on a textured slab" % [tag, button.name], normal != null,
+				"not a StyleBoxTexture")
+			_check("%s/%s has a pressed slab" % [tag, button.name], down != null,
+				"not a StyleBoxTexture")
+			if normal == null or down == null:
+				continue
+
+			# The nine-patch margins are the measurement that would drift if the screen had
+			# built its own stylebox, so they are what is compared - not the texture object,
+			# which `slab_box()` resamples freshly on every call.
+			_equal("%s/%s keeps MenuArt's carved margins" % [tag, button.name],
+				[normal.texture_margin_left, normal.texture_margin_top,
+					normal.texture_margin_right, normal.texture_margin_bottom],
+				[expected_resting.texture_margin_left, expected_resting.texture_margin_top,
+					expected_resting.texture_margin_right, expected_resting.texture_margin_bottom])
+			_equal("%s/%s lights up with MenuArt's margins" % [tag, button.name],
+				[down.texture_margin_left, down.texture_margin_bottom],
+				[expected_pressed.texture_margin_left, expected_pressed.texture_margin_bottom])
+			_equal("%s/%s is the resampled slab, not the raw bitmap" % [tag, button.name],
+				normal.texture.get_size(), expected_resting.texture.get_size())
+			_check("%s/%s visibly changes when pressed" % [tag, button.name],
+				normal.texture.get_size() != down.texture.get_size()
+					or normal.texture_margin_top != down.texture_margin_top,
+				"both states are the same slab")
+
+			_check("%s/%s is a thumb-sized target" % [tag, button.name],
+				button.custom_minimum_size.y >= 48.0,
+				"minimum height was %s" % str(button.custom_minimum_size.y))
+			_check("%s/%s is taller than its carved border" % [tag, button.name],
+				button.custom_minimum_size.y > float(MenuArt.slab_border_height()),
+				"%s px of row for %s px of border" % [
+					str(button.custom_minimum_size.y), str(MenuArt.slab_border_height())])
+
+		_discard(screen)
+
+	# And the grep that stops any of the above from being re-derived locally. Spelled in halves
+	# where the needle would otherwise match this file.
+	var forbidden: Array[String] = [
+		"frame-" + "menu",
+		"background-" + "menu",
+		"Papy" + "rus",
+		"/System/" + "Library",
+		"StyleBoxTexture." + "new",
+	]
+	for dir: String in ["res://ui/deck_picker", "res://ui/controls"]:
+		for path: String in _ui_files(dir):
+			var text: String = _without_comments(FileAccess.get_file_as_string(path))
+			_check("%s was readable" % path, not text.strip_edges().is_empty(), "read nothing")
+			for needle: String in forbidden:
+				_check("%s keeps no copy of the art" % path, not text.contains(needle),
+					"it contains '%s'" % needle)
+			_check("%s goes through MenuArt" % path,
+				not path.ends_with(".gd") or text.contains("ui/menu_art.gd"),
+				"it does not preload the shared art")
+
+	_end()
+
+
+## Back leaves every screen that has one, through the one verb the router connects.
+##
+## `cancelled` alone was not enough: nothing listened to it, so the button emitted into nothing
+## and the player was stuck on the picker. The router only ever connects `chose(String)`, which
+## is why Back has to speak that and why `SceneRouter._takes_a_destination()` exists.
+func _case_back_leaves_every_dressed_screen() -> void:
+	_begin("Back navigates off both dressed screens, through the router's own verb")
+
+	for spec: Dictionary in _dressed_screens():
+		var tag: String = str(spec["tag"])
+		var screen: Control = (load(str(spec["scene"])) as PackedScene).instantiate()
+		root.add_child(screen)
+
+		var chosen: Array[String] = []
+		screen.chose.connect(func(destination: String) -> void: chosen.append(destination))
+		(screen.get_node(str(spec["back"])) as Button).pressed.emit()
+		_equal("%s Back asks for the menu" % tag, chosen, ["menu"])
+
+		# The signal the router will actually connect, checked the way the router checks it.
+		var router: RouterScript = RouterScript.new()
+		_check("%s declares chose(destination: String)" % tag,
+			router._takes_a_destination(screen), "the router would refuse to connect it")
+		router.free()
+
+		_discard(screen)
+
+	# And end to end, through a real router: pressing Back lands on the menu.
+	for destination: String in [RouterScript.DECKS, RouterScript.CONTROLS]:
+		var router: RouterScript = _router()
+		router.go(destination)
+		_equal("the router reaches %s" % destination, router.current(), destination)
+		var screen: Node = router.current_scene()
+		_check("%s is on screen" % destination, screen != null, "nothing was instantiated")
+		if screen != null:
+			screen.chose.emit(RouterScript.MENU)
+			_equal("Back from %s lands on the menu" % destination, router.current(),
+				RouterScript.MENU)
+		_discard(router)
+
+	_end()
+
+
+## The layouts, measured rather than asserted.
+##
+## Three shapes: a small phone, a tall modern phone and a desktop window. At each one every
+## widget is read back from the tree and four things are checked - nothing leaves the frame,
+## no two siblings overlap, every button clears 48 px, and every panel actually encloses the
+## text it was put there to make readable.
+##
+## Scrolling content is the one deliberate exception to "inside the frame": a `ScrollContainer`
+## exists precisely so its child may be taller than it, so its descendants are measured against
+## the scroll viewport's width and against the frame only horizontally.
+func _case_the_dressed_screens_fit_every_screen_shape() -> void:
+	_begin("both screens lay out inside the frame at phone and desktop shapes")
+
+	var original: Vector2i = root.size
+	for shape: Vector2i in [Vector2i(720, 1280), Vector2i(1080, 2340), Vector2i(1920, 1080)]:
+		root.size = shape
+		root.content_scale_size = shape
+		for spec: Dictionary in _dressed_screens():
+			var tag: String = "%s at %dx%d" % [str(spec["tag"]), shape.x, shape.y]
+			var screen: Control = (load(str(spec["scene"])) as PackedScene).instantiate()
+			root.add_child(screen)
+			screen.set_deferred("size", Vector2(shape))
+			# Containers sort on a deferred notification; measuring before that reads zeroes.
+			for _i: int in range(4):
+				await process_frame
+
+			_measure(tag, screen, Rect2(Vector2.ZERO, Vector2(shape)))
+			root.remove_child(screen)
+			screen.queue_free()
+
+	root.size = original
+	root.content_scale_size = original
+	_end()
+
+
+## One screen at one shape: every rule the layout has to obey, applied to every widget in it.
+func _measure(tag: String, screen: Control, frame: Rect2) -> void:
+	_check("%s fills its frame" % tag, screen.size.is_equal_approx(frame.size),
+		"the screen is %s in a %s frame" % [str(screen.size), str(frame.size)])
+
+	var buttons: int = 0
+	var panels: int = 0
+	for widget: Control in _controls(screen):
+		var rect: Rect2 = Rect2(widget.global_position, widget.size)
+		var scrolled: bool = _inside_a_scroll(widget, screen)
+
+		# Horizontally everything is inside the frame, scrolling or not: the scroll containers
+		# here scroll vertically only, so a widget wider than the window is a bug either way.
+		_check("%s: %s stays inside the frame across" % [tag, widget.name],
+			rect.position.x >= frame.position.x - 0.5 and rect.end.x <= frame.end.x + 0.5,
+			"x %s..%s against %s..%s" % [str(rect.position.x), str(rect.end.x),
+				str(frame.position.x), str(frame.end.x)])
+		if not scrolled:
+			_check("%s: %s stays inside the frame down" % [tag, widget.name],
+				rect.position.y >= frame.position.y - 0.5 and rect.end.y <= frame.end.y + 0.5,
+				"y %s..%s against %s..%s" % [str(rect.position.y), str(rect.end.y),
+					str(frame.position.y), str(frame.end.y)])
+
+		if widget is Button:
+			buttons += 1
+			_check("%s: %s is a thumb-sized target" % [tag, widget.name], widget.size.y >= 48.0,
+				"it is %s px tall" % str(widget.size.y))
+
+		if widget is PanelContainer:
+			panels += 1
+			var panel: Rect2 = rect
+			var covered: int = 0
+			for text: Control in _text_widgets(widget):
+				covered += 1
+				_check("%s: %s covers %s" % [tag, widget.name, text.name],
+					panel.encloses(Rect2(text.global_position, text.size)),
+					"panel %s does not enclose %s" % [str(panel),
+						str(Rect2(text.global_position, text.size))])
+			_check("%s: %s has text to cover" % [tag, widget.name], covered > 0,
+				"an empty panel")
+
+		if widget is Container:
+			_no_overlaps(tag, widget)
+
+	_check("%s drew buttons" % tag, buttons > 0, "no button in the tree")
+	_check("%s put its dense content on a panel" % tag, panels > 0, "no PanelContainer")
+	print("        %-26s buttons %d, panels %d" % [tag, buttons, panels])
+
+
+## Siblings laid out by the same container must not sit on top of each other. Anything that
+## overlaps here is a container being fought rather than used.
+func _no_overlaps(tag: String, container: Container) -> void:
+	var kids: Array[Control] = []
+	for child: Node in container.get_children():
+		if child is Control and (child as Control).visible:
+			kids.append(child as Control)
+	for i: int in range(kids.size()):
+		for j: int in range(i + 1, kids.size()):
+			var hit: Rect2 = Rect2(kids[i].global_position, kids[i].size).intersection(
+				Rect2(kids[j].global_position, kids[j].size))
+			_check("%s: %s and %s do not overlap" % [tag, kids[i].name, kids[j].name],
+				hit.size.x <= 0.5 or hit.size.y <= 0.5,
+				"they share %s inside %s" % [str(hit.size), container.name])
+
+
+## The two screens that wear the menu's dress, and where their navigation lives.
+func _dressed_screens() -> Array[Dictionary]:
+	return [
+		{
+			"tag": "picker",
+			"scene": PICKER_SCENE_PATH,
+			"back": PICKER_BACK,
+			"buttons": [PICKER_BACK, PICKER_PLAY],
+		},
+		{
+			"tag": "controls",
+			"scene": SceneRouter.CONTROLS_SCENE,
+			"back": CONTROLS_BACK,
+			"buttons": [CONTROLS_BACK],
+		},
+	]
+
+
+func _controls(node: Node) -> Array[Control]:
+	var out: Array[Control] = []
+	for child: Node in node.get_children():
+		if child is Control:
+			out.append(child as Control)
+		out.append_array(_controls(child))
+	return out
+
+
+func _text_widgets(node: Node) -> Array[Control]:
+	var out: Array[Control] = []
+	for child: Node in node.get_children():
+		if child is Label or child is RichTextLabel or child is ItemList:
+			out.append(child as Control)
+		out.append_array(_text_widgets(child))
+	return out
+
+
+## Whether a widget is scrolled content, which is allowed to be taller than what shows it.
+func _inside_a_scroll(widget: Control, stop: Node) -> bool:
+	var walker: Node = widget.get_parent()
+	while walker != null and walker != stop:
+		if walker is ScrollContainer:
+			return true
+		walker = walker.get_parent()
+	return false
+
+
 func _case_no_widget_measures_the_screen() -> void:
 	_begin("no file under game/ui/ measures the screen")
 
@@ -2565,7 +2910,7 @@ func _case_the_library_finds_ydk_decks() -> void:
 func _case_the_picker_lists_and_reports_a_choice() -> void:
 	_begin("the picker lists what the library found and reports the choice")
 
-	var picker: DeckPicker = preload("res://ui/deck_picker/deck_picker.tscn").instantiate()
+	var picker: DeckPicker = (load(PICKER_SCENE_PATH) as PackedScene).instantiate()
 	root.add_child(picker)
 
 	var entries: Array[Dictionary] = DeckLibrary.entries()
@@ -2583,13 +2928,23 @@ func _case_the_picker_lists_and_reports_a_choice() -> void:
 	# rebinds the lambda's own copy and the outer variable never moves - the signal fires and the
 	# test still reads an empty Dictionary.
 	var chosen: Dictionary = {}
+	var went: Array[String] = []
 	picker.deck_chosen.connect(func(entry: Dictionary) -> void: chosen.merge(entry, true))
+	picker.chose.connect(func(destination: String) -> void: went.append(destination))
 	picker._commit()
 
 	_check("committing emits the entry", not chosen.is_empty(), "nothing was emitted")
 	_check("and it is the one that was selected",
 		str(chosen.get("path", "")) == str(picker.selected_entry().get("path", "")),
 		"emitted a different deck than the one shown")
+
+	# Two signals, two meanings. They were one, called `chose`, and the router connects that
+	# name on whatever screen it loads - so the Dictionary arrived at a String parameter and the
+	# choice vanished without a word. `deck_chosen` says which deck; `chose` says where next.
+	_equal("and it also asks to go and play", went, [DeckPicker.PLAY])
+	_check("the two verbs stay separate",
+		picker.has_signal("deck_chosen") and picker.has_signal("chose"),
+		"the picker lost one of its two signals")
 
 	picker.queue_free()
 	_end()
@@ -2598,7 +2953,7 @@ func _case_the_picker_lists_and_reports_a_choice() -> void:
 func _case_an_empty_library_says_where_to_put_files() -> void:
 	_begin("an empty library names the folders instead of dead-ending")
 
-	var picker: DeckPicker = preload("res://ui/deck_picker/deck_picker.tscn").instantiate()
+	var picker: DeckPicker = (load(PICKER_SCENE_PATH) as PackedScene).instantiate()
 	root.add_child(picker)
 	var text: String = picker._empty_text()
 
