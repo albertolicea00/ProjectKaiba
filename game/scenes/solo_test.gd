@@ -97,6 +97,11 @@ const DECK_SIZE: int = 40
 ## Prompts answered without asking, because they offered nothing to choose.
 var _auto_passed: int = 0
 
+## Prompts the passive opponent answered for itself, in Solo.
+var _opponent_answers: int = 0
+
+var _preview: CardPreview = null
+
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
 
@@ -133,6 +138,18 @@ const FLIP_SECONDS: float = 0.45
 const FLIP_ELEVATION: float = 88.0
 
 const HUD_SCENE: PackedScene = preload("res://ui/hud/duel_hud.tscn")
+const PREVIEW_SCENE: PackedScene = preload("res://ui/preview/card_preview.tscn")
+
+## Both seats are yours. Off for Solo, where the far seat is answered by `PassiveAgent` and the
+## camera never leaves yours.
+##
+## One scene, two modes, because the only honest difference between them *is* who answers the
+## other seat - everything else, the board, the input, the rules, is identical. Two scripts
+## would have been two places for that to drift.
+@export var hot_seat: bool = true
+
+## The seat you play when `hot_seat` is off.
+const LOCAL_SEAT: int = 0
 const BANNER_SCENE: PackedScene = preload("res://ui/hud/hot_seat_banner.tscn")
 
 @onready var _board: BoardView = $World3D/BoardView
@@ -220,6 +237,12 @@ func _ready() -> void:
 	# or close a multi-card selection, and the duel parks with no way out.
 	_hud.confirmed.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CONFIRM}))
 	_hud.cancelled.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CANCEL}))
+
+	# Solo watches one half all duel; hot seat turns the board on every turn change.
+	_focus.follow_turn = hot_seat
+
+	_preview = PREVIEW_SCENE.instantiate() as CardPreview
+	add_child(_preview)
 
 	_hud.bind(_state)
 
@@ -346,8 +369,13 @@ func _start_duel() -> void:
 		"first": 0,
 	})
 	_board.sync_from_state(_state)
-	print("[solo] %s - %d main, %d extra. Both seats are yours; the frame colour is whose half you are looking at." % [
-		_deck_name if not _deck_name.is_empty() else "built-in deck", main_deck.size(), _extra_for_play.size()])
+	var seating: String = (
+		"Both seats are yours; the frame colour is whose half you are looking at."
+		if hot_seat
+		else "You are Player 1. The opponent passes and ends its turn - it has no opinion yet.")
+	print("[solo] %s - %d main, %d extra. %s" % [
+		_deck_name if not _deck_name.is_empty() else "built-in deck",
+		main_deck.size(), _extra_for_play.size(), seating])
 	_running = true
 	set_process(true)
 
@@ -425,7 +453,10 @@ func _handle(event: Dictionary) -> void:
 		_director.enqueue(intents)
 
 	# The view policy. `observe()` moves the seat on START and NEW_TURN and on nothing else.
-	if _focus.observe(event):
+	# `observe()` always tracks the turn player - the HUD needs that either way - but the board
+	# only turns in hot seat. In Solo you are Player 1 for the whole duel, and a camera that
+	# swung to the opponent's half on their turn would be showing you a board you cannot act on.
+	if _focus.observe(event) and hot_seat:
 		_begin_flip()
 
 	match type:
@@ -455,6 +486,28 @@ func _handle(event: Dictionary) -> void:
 		return
 
 	_on_selection(event)
+
+
+## Shows a card large, with its name, stats and effect text from the database.
+##
+## Reads the passcode off the **view**, not the model. A `CardView` already carries 0 for
+## anything the viewer is not entitled to see, so this cannot reveal a face-down card to the
+## player it is hidden from. Judging visibility again here - from the model and a seat - would
+## be a second chance to get that wrong, and the cost of getting it wrong is showing someone
+## their opponent's set trap.
+func _preview_handle(handle: int) -> void:
+	if _preview == null:
+		return
+
+	var view: CardView = _board.view_by_handle(handle)
+	if view == null or view.card_id == 0:
+		# Nothing there, or a card showing its back. Either way there is nothing to read.
+		_preview.hide_card()
+		return
+
+	var info: Dictionary = _core.get_card_info(view.card_id) if _core != null else {}
+	var face: Texture2D = _art.texture_for(view.card_id) if _art != null else null
+	_preview.show_card(info, face)
 
 
 ## Puts the rejected selection back in front of the player.
@@ -488,6 +541,16 @@ func _on_selection(event: Dictionary) -> void:
 		_auto_passed += 1
 		_answer_pending(_selection.pending_type(), trivial)
 		return
+
+	# Solo: the far seat is not yours, so it answers itself. `PassiveAgent` draws, passes and
+	# ends its turn - deliberately an opponent with no opinion rather than a bad one, because a
+	# bad opponent makes moves you then have to reason about while practising your own.
+	if not hot_seat and int(event.get("player", LOCAL_SEAT)) != LOCAL_SEAT:
+		var reply: Dictionary = PassiveAgent.answer(event, _state)
+		if not reply.is_empty():
+			_opponent_answers += 1
+			_answer_pending(_selection.pending_type(), reply)
+			return
 	# Kept so a rejected answer can be re-asked. ocgcore does not re-send a selection it turned
 	# down (AGENTS.md section 8b trap 8), so if we forget it here there is nothing left to
 	# answer and the duel looks frozen.
@@ -613,9 +676,13 @@ func _on_intent(data: Dictionary) -> void:
 
 	var kind: String = str(data.get("kind", ""))
 
+	# Inspecting a card is never an answer, so it is handled before the pending check: you can
+	# read a card whether or not the duel is waiting on you, which is when you most want to.
+	if kind == InputSource.KIND_POINT_AT:
+		_preview_handle(int(data.get("handle", 0)))
+		return
+
 	if not _selection.is_waiting():
-		if kind == InputSource.KIND_POINT_AT:
-			print("[solo] point at %s" % str(data.get("anchor", "-")))
 		return
 
 	var type: int = _selection.pending_type()
@@ -663,7 +730,9 @@ func _answer_pending(type: int, answer: Dictionary) -> void:
 func _stop_if_satisfied() -> void:
 	if not _headless or _stopping:
 		return
-	if _focus.flips < FLIPS_WANTED or _turn_changes < TURNS_WANTED:
+	if _turn_changes < TURNS_WANTED:
+		return
+	if hot_seat and _focus.flips < FLIPS_WANTED:
 		return
 	if not _set_trap:
 		return
@@ -894,10 +963,12 @@ func _stop(reason: String) -> void:
 	_board.clear_card_highlights()
 
 	print("[solo] %s" % reason)
-	print("[solo] %d events, %d answers from input, %d turn changes, %d seat flips, %d core log lines suppressed" % [
-		_event_count, _answers_from_intents, _turn_changes, _focus.flips, _suppressed_logs])
+	print("[solo] %d events, %d answers from input, %d auto-passed, %d by the opponent, %d turn changes, %d seat flips" % [
+		_event_count, _answers_from_intents, _auto_passed, _opponent_answers,
+		_turn_changes, _focus.flips])
 	print(_state.describe())
 
+	_probe_preview()
 	_probe_input_after_teardown()
 	_check_results()
 
@@ -911,6 +982,46 @@ func _stop(reason: String) -> void:
 
 	if _headless:
 		get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Points at a visible card and at a hidden one, and checks what each is willing to say.
+##
+## The headless run emits no POINT_AT of its own, so without this the preview path never
+## executes under the gate - the same blind spot that let input-after-teardown ship.
+##
+## The second half is the one that matters. A preview that reads the model instead of the view
+## would happily print an opponent's set trap, and nothing else in this suite would notice.
+func _probe_preview() -> void:
+	if _preview == null:
+		_fail("no card preview was created")
+		return
+
+	var visible_handle: int = 0
+	var hidden_handle: int = 0
+	for anchor_name: String in ["HAND_P0", "MZ_P0_0", "MZ_P0_1", "MZ_P0_2", "ST_P0_0", "ST_P0_1"]:
+		var view: CardView = _board.view_at(anchor_name)
+		if view == null or view.handle == 0:
+			continue
+		if view.card_id != 0 and visible_handle == 0:
+			visible_handle = view.handle
+		elif view.card_id == 0 and hidden_handle == 0:
+			hidden_handle = view.handle
+
+	if visible_handle != 0:
+		_preview_handle(visible_handle)
+		_expect(_preview.is_showing(), "pointing at a readable card opens the preview")
+		_expect(_preview.shown_code() != 0,
+			"the preview names the card it opened on (got code %d)" % _preview.shown_code())
+
+	if hidden_handle != 0:
+		_preview_handle(hidden_handle)
+		_expect(not _preview.is_showing(),
+			"a card showing its back tells the preview nothing (code %d leaked)"
+				% _preview.shown_code())
+
+	# A handle nothing is bound to must close it rather than leaving the last card up.
+	_preview_handle(0)
+	_expect(not _preview.is_showing(), "pointing at nothing closes the preview")
 
 
 ## Fires a tap after the duel is closed, and asserts it goes nowhere.
@@ -947,6 +1058,16 @@ func _check_results() -> void:
 
 	_expect(_turn_changes >= FLIPS_WANTED,
 		"the duel played through %d turn changes" % _turn_changes)
+	# The two modes want opposite things here, so both are asserted rather than one being
+	# skipped: Solo's promise is that the board never turns, and a skipped check would let that
+	# promise quietly break the first time someone reused `_begin_flip()`.
+	if not hot_seat:
+		_expect(_focus.flips == 0,
+			"the board never turned in solo (got %d flips)" % _focus.flips)
+		_expect(_focus.seat_in_view == LOCAL_SEAT,
+			"you stayed in your own seat all duel (ended on %d)" % _focus.seat_in_view)
+		return
+
 	_expect(_focus.flips >= FLIPS_WANTED,
 		"the seat in view followed the turn player across %d turn changes (got %d flips)"
 			% [_turn_changes, _focus.flips])
