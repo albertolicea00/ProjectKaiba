@@ -1,14 +1,20 @@
 extends RefCounted
 
-## Art resolution for the main menu: which background cut to hang behind it, how to build the
-## stone slab a menu row is drawn on, and which face to letter it in.
+## Art resolution for every full-screen menu: which background cut to hang behind it, how to
+## build the stone slab a row is drawn on, which face to letter it in, and the dark panel that
+## keeps dense content legible on top of all that.
 ##
 ## Everything here is `static`. This script owns no state, enters no scene tree and is never
-## instantiated - `main_menu.gd` preloads it and assigns what it returns. Keeping the decisions
-## out of the scene is what lets `ui_test.gd` ask each of them directly, with no window, no
-## screen and no rendered frame.
+## instantiated - a screen preloads it and assigns what it returns. Keeping the decisions out of
+## the scene is what lets `ui_test.gd` ask each of them directly, with no window, no screen and
+## no rendered frame.
 ##
-## Layer: L5 shell, same as the menu. It knows about files and about one device property. It
+## It lives in `game/ui/` and not in `game/ui/main_menu/` because three screens wear this dress -
+## the menu, the deck picker and the controls table - and a file three siblings share is not one
+## sibling's property. The one device question in it, the screen's orientation, is asked here and
+## nowhere else; see `background_for_orientation()` and the grep in `ui_test.gd` that holds it.
+##
+## Layer: L5 shell, same as the screens. It knows about files and about one device property. It
 ## knows nothing about a duel, a scene or the core.
 
 
@@ -195,3 +201,102 @@ static func menu_font(path: String = PAPYRUS_SYSTEM_PATH) -> Font:
 			break
 	face.set_face_index(0, chosen)
 	return face
+
+
+# ----------------------------------------------------------------------------------------------
+# Dressing a screen
+# ----------------------------------------------------------------------------------------------
+
+## Every slab is at least this tall. Well above the 48 px a thumb needs, and above the carved
+## border the slab's nine-patch draws at `SLAB_SCALE` - that second floor is the one that is easy
+## to forget: below the border's own depth the patch slices would overlap each other instead of
+## framing anything. `slab_border_height()` is what it is checked against, and `ui_test.gd`
+## checks it. It lives here rather than on any one screen so that a screen cannot quietly adopt a
+## shorter floor than the art allows.
+const SLAB_MIN_HEIGHT := 88
+
+## The colour and size a word carved on a slab is lettered at.
+const WORD_COLOR := Color(0.956863, 0.901961, 0.776471)
+const WORD_SIZE := 30
+
+## Laid over the background, under everything else. The temple is a photograph and text sitting
+## straight on it is a coin toss; this is what makes the contrast a constant instead.
+const SCRIM_COLOR := Color(0.0235294, 0.0196078, 0.0117647, 0.34902)
+
+
+## Puts one word on one button and gives that button the slab's two carved states.
+##
+## `hover` gets the lit slab as well as `pressed`, which on a phone is simply never reached. The
+## point is the reverse: nothing is said by hover that is not also said by a press, so a device
+## with no pointer loses no information.
+##
+## `face` may be `null` - see `menu_font()`. The floor on the height is raised, never lowered, so
+## a screen that wants a taller target keeps it.
+static func dress_slab(
+		button: Button,
+		word: String,
+		resting: StyleBox,
+		pressed: StyleBox,
+		face: Font = null,
+		size: int = WORD_SIZE) -> void:
+	if button == null:
+		return
+	button.text = word
+	button.custom_minimum_size.y = maxf(button.custom_minimum_size.y, float(SLAB_MIN_HEIGHT))
+	# Across: explicit. Down: `Button` has no vertical text alignment because it always centres
+	# its text in whatever the stylebox leaves it, so the symmetric content margins in
+	# `slab_box()` are what actually keeps the word in the middle of the stone.
+	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	button.icon = null
+
+	button.add_theme_stylebox_override("normal", resting)
+	button.add_theme_stylebox_override("disabled", resting)
+	button.add_theme_stylebox_override("hover", pressed)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_stylebox_override("focus", pressed)
+
+	for slot: String in ["font_color", "font_hover_color", "font_pressed_color",
+			"font_focus_color", "font_disabled_color"]:
+		button.add_theme_color_override(slot, WORD_COLOR)
+	button.add_theme_font_size_override("font_size", size)
+	letter(button, face)
+
+
+## Applies a resolved face to one widget, if there is one to apply. A null face is the documented
+## fallback, not a failure - see `menu_font()`.
+static func letter(widget: Control, face: Font) -> void:
+	if widget == null or face == null:
+		return
+	widget.add_theme_font_override("font", face)
+
+
+# ----------------------------------------------------------------------------------------------
+# The panel dense content sits on
+# ----------------------------------------------------------------------------------------------
+
+## Deck counts, file paths and a two-column table of gestures are small text in quantity, and
+## small text over a photograph of carved stone is unreadable at arm's length no matter how good
+## the photograph is. The answer is not to drop the art on those screens - then they stop looking
+## like the same game - but to put an opaque-enough slab of dark under the words.
+##
+## Opaque *enough*: at this alpha the temple is still visibly behind the panel, so the screen
+## still reads as the menu's sibling, while the text is being contrasted against a near-black
+## that does not move. The border is the same sandstone the slabs are lit with, so the panel
+## looks placed rather than pasted.
+const PANEL_FILL := Color(0.0470588, 0.0431373, 0.0352941, 0.898039)
+const PANEL_BORDER := Color(0.521569, 0.431373, 0.254902, 0.705882)
+const PANEL_RADIUS := 10
+const PANEL_PADDING := 16.0
+
+
+static func content_panel(padding: float = PANEL_PADDING) -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = PANEL_FILL
+	box.border_color = PANEL_BORDER
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(PANEL_RADIUS)
+	box.content_margin_left = padding
+	box.content_margin_right = padding
+	box.content_margin_top = padding
+	box.content_margin_bottom = padding
+	return box
