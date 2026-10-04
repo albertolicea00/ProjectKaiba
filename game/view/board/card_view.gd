@@ -99,6 +99,16 @@ const CARD_THICKNESS: float = 0.0004
 ## normal game state and should not read as an error.
 const BACK_COLOUR: Color = Color(0.42, 0.26, 0.14)
 
+## How far the highlight border sticks out past the card edge, in metres. 4 mm reads as a rim
+## at the rig's board distance without making a lit card look bigger than its zone.
+const HIGHLIGHT_MARGIN: float = 0.004
+
+## Behind the card, not in front: a rim that covered the art would make the one card you are
+## being asked about the hardest one to read.
+const HIGHLIGHT_DEPTH: float = -0.0012
+
+const HIGHLIGHT_COLOUR: Color = Color(1.0, 0.86, 0.35, 1.0)
+
 ## A card whose `card_id` is 0 - face-down, or simply not revealed to this viewer. Not an error
 ## (see `EventTranslator`'s note on `card_id`), so it gets a neutral grey rather than a warning.
 const UNKNOWN_COLOUR: Color = Color(0.55, 0.55, 0.58)
@@ -136,6 +146,12 @@ var _pick_area: Area3D = null
 ## a `CardPool` can hand out hundreds of cards without allocating any geometry, which is half of
 ## why the pool can promise never to `load()` mid-animation.
 static var _shared_mesh: QuadMesh = null
+
+## One border quad for every card ever lit, same as the face mesh.
+static var _highlight_mesh: QuadMesh = null
+
+## The rim, built on first use. A card that is never offered never pays for one.
+var _highlight: MeshInstance3D = null
 
 ## One `BoxShape3D` shared by every card, for the same reason as the mesh.
 static var _shared_pick_shape: BoxShape3D = null
@@ -361,6 +377,48 @@ func _build() -> void:
 	add_child(back)
 
 	_build_pick_volume()
+
+
+## Lights this card as something the pending selection is offering.
+##
+## The point is that "there is something to do" should be visible without reading the prompt.
+## A duel asks constantly and most of its questions are about one or two specific cards; making
+## those cards glow turns a sentence into a glance.
+func set_highlighted(on: bool) -> void:
+	if not on and _highlight == null:
+		return
+	_ensure_highlight()
+	_highlight.visible = on
+
+
+func is_highlighted() -> bool:
+	return _highlight != null and _highlight.visible
+
+
+func _ensure_highlight() -> void:
+	if _highlight != null:
+		return
+	if _highlight_mesh == null:
+		_highlight_mesh = QuadMesh.new()
+		_highlight_mesh.size = Vector2(
+			CARD_WIDTH + HIGHLIGHT_MARGIN * 2.0, CARD_HEIGHT + HIGHLIGHT_MARGIN * 2.0)
+
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.albedo_color = HIGHLIGHT_COLOUR
+	# Emissive so it reads as lit rather than as a painted border, and so it survives a dim
+	# board without the rest of the scene having to be brightened for it.
+	material.emission_enabled = true
+	material.emission = HIGHLIGHT_COLOUR
+	material.emission_energy_multiplier = 1.6
+
+	_highlight = MeshInstance3D.new()
+	_highlight.name = "Highlight"
+	_highlight.mesh = _highlight_mesh
+	_highlight.material_override = material
+	_highlight.position = Vector3(0.0, 0.0, HIGHLIGHT_DEPTH)
+	_highlight.visible = false
+	add_child(_highlight)
 
 
 ## The box a pick ray hits. It lives in the card's own frame - local XY is the face, local Z the

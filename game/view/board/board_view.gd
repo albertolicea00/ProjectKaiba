@@ -432,6 +432,27 @@ func take_view(anchor: String) -> CardView:
 	return view
 
 
+## Lights exactly the cards the pending selection is offering, and unlights everything else.
+##
+## Takes the whole set rather than one card at a time so there is no way to leave a stale rim
+## burning on a card from a decision that is already made - the common shape of this bug.
+func highlight_cards(handles: PackedInt32Array) -> void:
+	var wanted: Dictionary = {}
+	for handle: int in handles:
+		wanted[handle] = true
+
+	for key: Variant in _occupants.keys():
+		for entry: Variant in (_occupants[key] as Array):
+			var view: CardView = entry as CardView
+			if view != null:
+				view.set_highlighted(wanted.has(view.handle))
+
+
+## Puts every card out. Called whenever a selection is answered.
+func clear_card_highlights() -> void:
+	highlight_cards(PackedInt32Array())
+
+
 ## Offers the art cache to every card currently on the board.
 ##
 ## Cheap enough to call every frame: `CardView.refresh_art()` compares against the texture it
