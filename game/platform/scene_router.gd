@@ -147,9 +147,34 @@ func _swap(destination: String) -> void:
 	add_child(_scene)
 
 	if _scene.has_signal(CHOSE_SIGNAL):
-		_scene.connect(CHOSE_SIGNAL, _on_chose)
+		if _takes_a_destination(_scene):
+			_scene.connect(CHOSE_SIGNAL, _on_chose)
+		else:
+			# Loud on purpose. Connecting by name alone is a duck-typed contract: it holds right
+			# up until two screens disagree about what the verb means, and then it fails at the
+			# signal boundary at runtime with a type error pointing at the emitter rather than
+			# at the disagreement. A deck picker once declared `chose(Dictionary)` and the
+			# choice simply vanished.
+			push_error(
+				"[SceneRouter] %s declares \"%s\" but not as (destination: String); not connecting it."
+					% [destination, CHOSE_SIGNAL])
 
 	changed.emit(destination)
+
+
+## Whether a screen's navigation signal actually carries a destination name.
+##
+## Checked rather than assumed, because the alternative is discovering the mismatch when a
+## player presses the button.
+func _takes_a_destination(scene: Node) -> bool:
+	for entry: Dictionary in scene.get_signal_list():
+		if str(entry.get("name", "")) != CHOSE_SIGNAL:
+			continue
+		var args: Array = entry.get("args", []) as Array
+		if args.size() != 1:
+			return false
+		return int((args[0] as Dictionary).get("type", TYPE_NIL)) == TYPE_STRING
+	return false
 
 
 func _instantiate(destination: String) -> Node:
