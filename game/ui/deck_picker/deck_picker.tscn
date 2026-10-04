@@ -10,57 +10,100 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_picker")
 
-[node name="Root" type="MarginContainer" parent="."]
-layout_mode = 1
+[node name="Background" type="TextureRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 24
-theme_override_constants/margin_top = 24
-theme_override_constants/margin_right = 24
-theme_override_constants/margin_bottom = 24
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 6
 
-[node name="Column" type="VBoxContainer" parent="Root"]
-layout_mode = 2
-theme_override_constants/separation = 12
+[node name="Scrim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0235294, 0.0196078, 0.0117647, 0.34902)
 
-[node name="Title" type="Label" parent="Root/Column"]
+[node name="Frame" type="MarginContainer" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
+
+[node name="Column" type="VBoxContainer" parent="Frame"]
 layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Frame/Column"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.956863, 0.901961, 0.776471, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.627451)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 6
+theme_override_font_sizes/font_size = 40
 text = "Choose a deck"
+horizontal_alignment = 1
 
-[node name="Hint" type="Label" parent="Root/Column"]
+[node name="Hint" type="Label" parent="Frame/Column"]
 layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.843137, 0.760784, 0.592157, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.705882)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 4
+theme_override_font_sizes/font_size = 18
 text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
 
-[node name="Body" type="HBoxContainer" parent="Root/Column"]
+[node name="Body" type="PanelContainer" parent="Frame/Column"]
 layout_mode = 2
 size_flags_vertical = 3
+
+[node name="Split" type="HBoxContainer" parent="Frame/Column/Body"]
+layout_mode = 2
 theme_override_constants/separation = 16
 
-[node name="List" type="ItemList" parent="Root/Column/Body"]
+[node name="List" type="ItemList" parent="Frame/Column/Body/Split"]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_stretch_ratio = 1.6
 
-[node name="Detail" type="RichTextLabel" parent="Root/Column/Body"]
+[node name="Detail" type="RichTextLabel" parent="Frame/Column/Body/Split"]
 layout_mode = 2
 size_flags_horizontal = 3
 bbcode_enabled = true
-fit_content = true
+scroll_active = true
 
-[node name="Actions" type="HBoxContainer" parent="Root/Column"]
+[node name="Actions" type="HBoxContainer" parent="Frame/Column"]
 layout_mode = 2
-alignment = 2
+mouse_filter = 2
 theme_override_constants/separation = 12
 
-[node name="Back" type="Button" parent="Root/Column/Actions"]
+[node name="Back" type="Button" parent="Frame/Column/Actions"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-custom_minimum_size = Vector2(140, 56)
+size_flags_horizontal = 3
 text = "Back"
 
-[node name="Play" type="Button" parent="Root/Column/Actions"]
+[node name="Play" type="Button" parent="Frame/Column/Actions"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-custom_minimum_size = Vector2(200, 56)
+size_flags_horizontal = 3
+size_flags_stretch_ratio = 1.6
 text = "Play with this deck"

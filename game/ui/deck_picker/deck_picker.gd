@@ -9,13 +9,27 @@ extends Control
 ## containers only, so this layer can become world-space quads in VR without a rewrite.
 ##
 ## -------------------------------------------------------------------------------------------
+## The dressing
+## -------------------------------------------------------------------------------------------
+## The same temple, the same stone slabs and the same borrowed face as the main menu, all of it
+## resolved by `MenuArt` in `game/ui/`. Nothing about the art is decided here and no constant of
+## its is copied: this file asks for a background, two slab states, a face and a panel, and
+## assigns what comes back. That is what keeps the three screens in step - a change to the dress
+## happens in one file or it does not happen.
+##
+## A deck list and a details pane are small text in quantity, and small text straight onto a
+## photograph of carved stone is unreadable at arm's length. So the list and the details sit on
+## `MenuArt.content_panel()`, which is near-opaque dark with a sandstone edge: the temple is
+## still visible behind and around it, and every word in front of it is contrasted against a
+## near-black that does not move with the picture.
+##
+## -------------------------------------------------------------------------------------------
 ## Why a picker and not an editor
 ## -------------------------------------------------------------------------------------------
 ## Decks are built in the tools the player already uses and arrive as `.ydk` files. Owning a
 ## deck *format* would cut this client off from every other one; reading theirs costs a parser
 ## and gains every deck they have ever made. See `DeckLibrary` for the longer version.
 
-## The deck the player committed to. Carries a `DeckLibrary` entry.
 ## The deck the player committed to. Carries a `DeckLibrary` entry.
 ##
 ## **Not** named `chose`. `MainMenu.chose(String)` already means "go to this destination", and
@@ -32,27 +46,121 @@ signal chose(destination: String)
 ## Backing out without choosing.
 signal cancelled
 
+const MenuArt := preload("res://ui/menu_art.gd")
+
 const EMPTY_TITLE: String = "No decks found"
+
+## Where Back goes. A string, not a scene: the router owns what the name means.
+const MENU: String = "menu"
+## Where choosing a deck goes. A deck is chosen in order to play with it.
+const PLAY: String = "solo"
+
+## The deck names in the list, and the body text in the details pane. Both read over the panel,
+## not over the picture.
+const LIST_COLOR: Color = Color(0.956863, 0.901961, 0.776471)
+const DETAIL_COLOR: Color = Color(0.886275, 0.843137, 0.741176)
+const SELECTED_FILL: Color = Color(0.309804, 0.243137, 0.117647, 0.901961)
+const SELECTED_EDGE: Color = Color(0.745098, 0.611765, 0.329412)
+
+const LIST_FONT_SIZE: int = 20
+const DETAIL_FONT_SIZE: int = 18
 
 var _entries: Array[Dictionary] = []
 var _selected: int = -1
 
-@onready var _list: ItemList = $Root/Column/Body/List
-@onready var _detail: RichTextLabel = $Root/Column/Body/Detail
-@onready var _play: Button = $Root/Column/Actions/Play
-@onready var _hint: Label = $Root/Column/Hint
+@onready var _background: TextureRect = $Background
+@onready var _body: PanelContainer = $Frame/Column/Body
+@onready var _list: ItemList = $Frame/Column/Body/Split/List
+@onready var _detail: RichTextLabel = $Frame/Column/Body/Split/Detail
+@onready var _back: Button = $Frame/Column/Actions/Back
+@onready var _play: Button = $Frame/Column/Actions/Play
+@onready var _hint: Label = $Frame/Column/Hint
+
+## What `MenuArt` resolved, held so a test can read the outcome rather than re-deriving it.
+## `_face` is null when Papyrus is not on this machine, which is the supported case.
+var _face: Font = null
+var _background_texture: Texture2D = null
 
 
 func _ready() -> void:
+	_dress()
+
 	_list.item_selected.connect(_on_item_selected)
 	_list.item_activated.connect(_on_item_activated)
 	_play.pressed.connect(_commit)
-	$Root/Column/Actions/Back.pressed.connect(func() -> void:
+	_back.pressed.connect(func() -> void:
 		# Back was dead: `cancelled` had no listener anywhere, so the button emitted into
 		# nothing. The router only ever connects the navigation verb, so Back has to speak it.
 		cancelled.emit()
-		chose.emit("menu"))
+		chose.emit(MENU))
 	refresh()
+
+
+## Hangs the temple, puts the two action buttons on stone, and gives the list and the details
+## pane the dark panel that makes them readable on top of it. Every decision comes from
+## `MenuArt`; none of them is made here.
+func _dress() -> void:
+	_background_texture = MenuArt.current_background()
+	_background.texture = _background_texture
+	$Scrim.color = MenuArt.SCRIM_COLOR
+
+	_face = MenuArt.menu_font()
+	for path: String in ["Frame/Column/Title", "Frame/Column/Hint"]:
+		MenuArt.letter(get_node_or_null(path) as Control, _face)
+
+	_body.add_theme_stylebox_override("panel", MenuArt.content_panel())
+
+	var resting: StyleBoxTexture = MenuArt.resting_slab()
+	var pressed: StyleBoxTexture = MenuArt.pressed_slab()
+	MenuArt.dress_slab(_back, _back.text, resting, pressed, _face)
+	MenuArt.dress_slab(_play, _play.text, MenuArt.resting_slab(), MenuArt.pressed_slab(), _face)
+
+	# The list draws its own background by default, which would be a second panel inside the
+	# first. Emptied, so the one panel behind it is the only one.
+	_list.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
+	_list.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	for slot: String in ["selected", "selected_focus", "cursor", "cursor_unfocused"]:
+		_list.add_theme_stylebox_override(slot, _selected_box())
+	_list.add_theme_color_override("font_color", LIST_COLOR)
+	_list.add_theme_color_override("font_selected_color", LIST_COLOR)
+	_list.add_theme_font_size_override("font_size", LIST_FONT_SIZE)
+	_list.add_theme_constant_override("v_separation", 14)
+	MenuArt.letter(_list, _face)
+
+	_detail.add_theme_color_override("default_color", DETAIL_COLOR)
+	_detail.add_theme_font_size_override("normal_font_size", DETAIL_FONT_SIZE)
+	_detail.add_theme_font_size_override("bold_font_size", DETAIL_FONT_SIZE + 6)
+	_detail.add_theme_font_size_override("italics_font_size", DETAIL_FONT_SIZE - 2)
+	for slot: String in ["normal_font", "bold_font", "italics_font", "bold_italics_font"]:
+		if _face != null:
+			_detail.add_theme_font_override(slot, _face)
+
+
+## The lit row in the list: the same gold the pressed slab is lit with, so a selection reads as
+## the same gesture as a press.
+func _selected_box() -> StyleBoxFlat:
+	var box := StyleBoxFlat.new()
+	box.bg_color = SELECTED_FILL
+	box.border_color = SELECTED_EDGE
+	box.set_border_width_all(1)
+	box.set_corner_radius_all(6)
+	return box
+
+
+## The face this screen is lettered in, or `null` when the system font was not available.
+func face() -> Font:
+	return _face
+
+
+## The background cut that was chosen for this device's orientation.
+func background_texture() -> Texture2D:
+	return _background_texture
+
+
+## The panel the list and the details pane sit on, so a test can measure it against the text it
+## is supposed to be covering.
+func content_panel_node() -> PanelContainer:
+	return _body
 
 
 ## Re-reads the deck folders. Cheap enough to call on every entry to this screen, which is what
@@ -121,7 +229,7 @@ func _commit() -> void:
 	deck_chosen.emit(entry)
 	# A deck is chosen in order to play with it, so this is also a navigation: picking one and
 	# being left on the picker would make the player hunt for the way out.
-	chose.emit("solo")
+	chose.emit(PLAY)
 
 
 ## What to say when there is nothing to play. Names the folders, because the fix is to put a
