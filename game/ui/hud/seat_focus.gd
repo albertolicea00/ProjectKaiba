@@ -109,6 +109,14 @@ var flips: int = 0
 ## a win there is no next: leaving the line reading "taking this turn" states something false
 ## about a duel that is over. `DuelHud` reports *what happened*; this reports *what to do*, and
 ## the honest answer becomes "nothing".
+## Whether the view follows the turn player at all.
+##
+## Off in Solo, where you are one seat for the whole duel. Turning off `_begin_flip()` alone was
+## not enough: `observe()` moves `seat_in_view` itself, so the model of "which half am I looking
+## at" kept swapping while the camera stayed put, and the HUD labelled the board from the wrong
+## side. The view has to actually not move, not merely not animate.
+var follow_turn: bool = true
+
 var finished: bool = false
 
 ## Set when ocgcore turned the last answer down and the same selection has been put back.
@@ -132,10 +140,10 @@ func observe(event: Dictionary) -> bool:
 	match int(event.get("t", -1)):
 		DuelEnums.EV.START:
 			turn_player = _seat(event.get("first", DuelEnums.PLAYER.P0))
-			return _look_at(turn_player)
+			return _look_at(turn_player) if follow_turn else false
 		DuelEnums.EV.NEW_TURN:
 			turn_player = _seat(event.get("player", DuelEnums.PLAYER.P0))
-			return _look_at(turn_player)
+			return _look_at(turn_player) if follow_turn else false
 		DuelEnums.EV.WIN:
 			# No seat flip. Moving the board at the moment the duel ends would read as another
 			# turn starting, which is the opposite of what just happened.
