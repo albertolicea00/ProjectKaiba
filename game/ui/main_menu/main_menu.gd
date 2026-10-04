@@ -22,8 +22,10 @@ extends Control
 ## A temple behind, stone slabs stacked down the centre, one word per slab, centred in the
 ## stone. All three decisions that need art - which background cut, how the slab's carved edge
 ## survives being stretched to a menu row's shape, and which face the words are lettered in -
-## live in `menu_art.gd` next door, as static functions with no scene tree, so each of them can
-## be asked directly by a test. This file only assigns what they hand back.
+## live in `menu_art.gd` one directory up, as static functions with no scene tree, so each of
+## them can be asked directly by a test. This file only assigns what they hand back. It sits in
+## `game/ui/` rather than here because the deck picker and the controls screen wear the same
+## dress, and three screens sharing a file is not something one of them owns.
 ##
 ## Touch first: one wide slab per row, a floor of `SLAB_MIN_HEIGHT` on every one of them, no
 ## small hit areas and no hover-only affordances - the lit slab that desktop gets on hover is
@@ -34,7 +36,7 @@ extends Control
 ## of two background files to load; see `MenuArt.background_for_orientation()` for why that is
 ## a different act from sizing a widget, and `ui_test.gd` for the grep that holds the line.
 
-const MenuArt := preload("res://ui/main_menu/menu_art.gd")
+const MenuArt := preload("res://ui/menu_art.gd")
 
 signal chose(destination: String)
 
@@ -56,15 +58,14 @@ const ENTRIES: Array[Dictionary] = [
 	{"node": "Replays", "id": "replays", "label": "Replays"},
 ]
 
-## Every slab is at least this tall. Well above the 48 px a thumb needs, and above the carved
-## border the slab's nine-patch draws at `MenuArt.SLAB_SCALE` - that second floor is the one
-## that is easy to forget: below the border's own depth the patch slices would overlap each
-## other instead of framing anything. `MenuArt.slab_border_height()` is what that is checked
-## against, and `ui_test.gd` checks it.
-const SLAB_MIN_HEIGHT := 88
+## Every slab is at least this tall, and every word on one is this colour at this size. The
+## numbers live in `MenuArt` now that three screens wear them; these aliases are kept so the
+## menu still reads as a menu and so nothing that already names `MainMenu.SLAB_MIN_HEIGHT` has
+## to change. See `MenuArt.SLAB_MIN_HEIGHT` for why the floor is not a style preference.
+const SLAB_MIN_HEIGHT := MenuArt.SLAB_MIN_HEIGHT
 
-const WORD_COLOR := Color(0.956863, 0.901961, 0.776471)
-const WORD_SIZE := 30
+const WORD_COLOR := MenuArt.WORD_COLOR
+const WORD_SIZE := MenuArt.WORD_SIZE
 
 @onready var _background: TextureRect = $Background
 @onready var _buttons: VBoxContainer = $Frame/Center/Column/Buttons
@@ -115,26 +116,7 @@ func _ready() -> void:
 ## The point is the reverse: nothing is said by hover that is not also said by a press, so a
 ## device with no pointer loses no information.
 func _dress(button: Button, word: String, resting: StyleBox, pressed: StyleBox) -> void:
-	button.text = word
-	button.custom_minimum_size.y = maxf(button.custom_minimum_size.y, float(SLAB_MIN_HEIGHT))
-	# Across: explicit. Down: `Button` has no vertical text alignment because it always centres
-	# its text in whatever the stylebox leaves it, so the symmetric content margins in
-	# `MenuArt.slab_box()` are what actually keeps the word in the middle of the stone.
-	button.alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button.icon = null
-
-	button.add_theme_stylebox_override("normal", resting)
-	button.add_theme_stylebox_override("disabled", resting)
-	button.add_theme_stylebox_override("hover", pressed)
-	button.add_theme_stylebox_override("pressed", pressed)
-	button.add_theme_stylebox_override("focus", pressed)
-
-	button.add_theme_color_override("font_color", WORD_COLOR)
-	button.add_theme_color_override("font_hover_color", WORD_COLOR)
-	button.add_theme_color_override("font_pressed_color", WORD_COLOR)
-	button.add_theme_color_override("font_focus_color", WORD_COLOR)
-	button.add_theme_font_size_override("font_size", WORD_SIZE)
-	_letter(button)
+	MenuArt.dress_slab(button, word, resting, pressed, _face)
 
 
 ## Applies the resolved face to one widget, if there is one to apply. A null face is the
