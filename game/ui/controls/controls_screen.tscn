@@ -1,22 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://ui/controls/controls_screen.gd" id="1_controls"]
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_back"]
-content_margin_left = 24.0
-content_margin_top = 18.0
-content_margin_right = 24.0
-content_margin_bottom = 18.0
-bg_color = Color(0.113725, 0.133333, 0.168627, 1)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.360784, 0.682353, 1, 1)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
 
 [node name="ControlsScreen" type="Control"]
 anchors_preset = 15
@@ -26,14 +10,24 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_controls")
 
-[node name="Background" type="ColorRect" parent="."]
+[node name="Background" type="TextureRect" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0.0509804, 0.0588235, 0.0745098, 1)
+expand_mode = 1
+stretch_mode = 6
+
+[node name="Scrim" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.0235294, 0.0196078, 0.0117647, 0.34902)
 
 [node name="Frame" type="MarginContainer" parent="."]
 anchors_preset = 15
@@ -42,65 +36,68 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 32
-theme_override_constants/margin_top = 32
-theme_override_constants/margin_right = 32
-theme_override_constants/margin_bottom = 32
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 18
 
-[node name="Scroll" type="ScrollContainer" parent="Frame"]
+[node name="Column" type="VBoxContainer" parent="Frame"]
 layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="Column" type="VBoxContainer" parent="Frame/Scroll"]
-layout_mode = 2
-size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 10
 
-[node name="Title" type="Label" parent="Frame/Scroll/Column"]
+[node name="Title" type="Label" parent="Frame/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
+theme_override_colors/font_color = Color(0.956863, 0.901961, 0.776471, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.627451)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 3
+theme_override_constants/shadow_outline_size = 6
 theme_override_font_sizes/font_size = 40
 text = "Controls"
 horizontal_alignment = 1
 
-[node name="Subtitle" type="Label" parent="Frame/Scroll/Column"]
+[node name="Subtitle" type="Label" parent="Frame/Column"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.588235, 0.65098, 0.729412, 1)
+theme_override_colors/font_color = Color(0.843137, 0.760784, 0.592157, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.705882)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 4
 theme_override_font_sizes/font_size = 18
 text = "Both sets are always active. Use whichever your device has."
 horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="TopSpacer" type="Control" parent="Frame/Scroll/Column"]
-custom_minimum_size = Vector2(0, 14)
+[node name="Scroll" type="ScrollContainer" parent="Frame/Column"]
 layout_mode = 2
-mouse_filter = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
 
-[node name="Rows" type="VBoxContainer" parent="Frame/Scroll/Column"]
+[node name="Rows" type="VBoxContainer" parent="Frame/Column/Scroll"]
 layout_mode = 2
+size_flags_horizontal = 3
 mouse_filter = 2
 theme_override_constants/separation = 10
 
-[node name="Status" type="Label" parent="Frame/Scroll/Column"]
+[node name="Status" type="Label" parent="Frame/Column"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.886275, 0.74902, 0.447059, 1)
+theme_override_colors/font_color = Color(0.945098, 0.811765, 0.482353, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.705882)
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 2
+theme_override_constants/shadow_outline_size = 4
 theme_override_font_sizes/font_size = 18
 text = ""
 horizontal_alignment = 1
+vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="Back" type="Button" parent="Frame/Scroll/Column"]
-custom_minimum_size = Vector2(0, 72)
+[node name="Back" type="Button" parent="Frame/Column"]
+custom_minimum_size = Vector2(0, 88)
 layout_mode = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 26
-theme_override_styles/normal = SubResource("StyleBoxFlat_back")
-theme_override_styles/hover = SubResource("StyleBoxFlat_back")
-theme_override_styles/pressed = SubResource("StyleBoxFlat_back")
-theme_override_styles/focus = SubResource("StyleBoxFlat_back")
 text = "Back"

@@ -27,6 +27,21 @@ extends Control
 ## that is coming are all one binary, and a build that guesses wrong hides the controls the
 ## player actually has. So both columns are always present and always labelled with the device
 ## they belong to, and the player reads the one in front of them.
+##
+## -------------------------------------------------------------------------------------------
+## The dressing
+## -------------------------------------------------------------------------------------------
+## The same temple, the same stone slab on Back and the same borrowed face as the main menu, all
+## of it resolved by `MenuArt` in `game/ui/`. No constant of its is copied here and no decision
+## of its is remade; this file asks and assigns.
+##
+## A two-column table of gestures is the hardest thing on any of the three screens to keep
+## legible over a photograph, and the trap is to answer that by dropping the art. Each row
+## instead sits on `MenuArt.content_panel()` - near-opaque dark with a sandstone edge - so the
+## temple shows between and around the rows while every word is contrasted against a near-black
+## that does not move. Back lives outside the scroll, so the way out never scrolls off.
+
+const MenuArt := preload("res://ui/menu_art.gd")
 
 signal chose(destination: String)
 
@@ -41,23 +56,66 @@ const PC_HEADER: String = "Mouse & keyboard"
 ## rendering bug; this reads as a fact.
 const NO_BINDING: String = "no gesture yet"
 
-const COLOR_HEADING: Color = Color(0.588235, 0.65098, 0.729412)
-const COLOR_LABEL: Color = Color(0.952941, 0.968627, 1.0)
-const COLOR_GESTURE: Color = Color(0.588235, 0.811765, 1.0)
-const COLOR_DETAIL: Color = Color(0.682353, 0.729412, 0.8)
+## Breathing room between a row's carved edge and its words, in pixels.
+const ROW_PADDING: float = 18.0
 
-@onready var _rows: VBoxContainer = $Frame/Scroll/Column/Rows
-@onready var _status: Label = $Frame/Scroll/Column/Status
-@onready var _back: Button = $Frame/Scroll/Column/Back
+## Sandstone, not the blue this screen used to be lettered in: the rows have to look like they
+## belong to the same temple as the slabs.
+const COLOR_HEADING: Color = Color(0.729412, 0.647059, 0.47451)
+const COLOR_LABEL: Color = Color(0.956863, 0.901961, 0.776471)
+const COLOR_GESTURE: Color = Color(0.945098, 0.811765, 0.482353)
+const COLOR_DETAIL: Color = Color(0.835294, 0.788235, 0.690196)
+
+@onready var _background: TextureRect = $Background
+@onready var _rows: VBoxContainer = $Frame/Column/Scroll/Rows
+@onready var _status: Label = $Frame/Column/Status
+@onready var _back: Button = $Frame/Column/Back
 
 var _message: String = ""
 
+## What `MenuArt` resolved, held so a test can read the outcome rather than re-deriving it.
+## `_face` is null when Papyrus is not on this machine, which is the supported case.
+var _face: Font = null
+var _background_texture: Texture2D = null
+
 
 func _ready() -> void:
+	_dress()
 	_build()
 	_back.pressed.connect(func() -> void: chose.emit(MENU))
 	_back.grab_focus()
 	_status.text = _message
+
+
+## Hangs the temple and puts Back on stone. Everything it needs comes from `MenuArt`; the row
+## panels are built per row in `_row()` for the same reason.
+func _dress() -> void:
+	_background_texture = MenuArt.current_background()
+	_background.texture = _background_texture
+	$Scrim.color = MenuArt.SCRIM_COLOR
+
+	_face = MenuArt.menu_font()
+	for path: String in ["Frame/Column/Title", "Frame/Column/Subtitle", "Frame/Column/Status"]:
+		MenuArt.letter(get_node_or_null(path) as Control, _face)
+
+	MenuArt.dress_slab(_back, _back.text, MenuArt.resting_slab(), MenuArt.pressed_slab(), _face)
+
+
+## The face this screen is lettered in, or `null` when the system font was not available.
+func face() -> Font:
+	return _face
+
+
+## The background cut that was chosen for this device's orientation.
+func background_texture() -> Texture2D:
+	return _background_texture
+
+
+## The panel one row sits on, so a test can measure it against the text it is covering.
+func row_panel(index: int) -> PanelContainer:
+	if index < 0 or index >= _rows.get_child_count():
+		return null
+	return _rows.get_child(index) as PanelContainer
 
 
 ## Satisfies `SceneRouter.MESSAGE_METHOD`, so this screen can carry a line of explanation like
@@ -115,18 +173,13 @@ func _build() -> void:
 ## phone that is simply two narrower columns of wrapped text.
 func _row(binding: Dictionary) -> Control:
 	var panel := PanelContainer.new()
-	panel.add_theme_stylebox_override("panel", _row_style())
-
-	var margin := MarginContainer.new()
-	for side: String in ["left", "right"]:
-		margin.add_theme_constant_override("margin_%s" % side, 20)
-	for side: String in ["top", "bottom"]:
-		margin.add_theme_constant_override("margin_%s" % side, 16)
-	panel.add_child(margin)
+	# The whole reason the table survives being put on top of a photograph. `content_panel()`
+	# carries its own padding, so there is no `MarginContainer` between the panel and the words.
+	panel.add_theme_stylebox_override("panel", MenuArt.content_panel(ROW_PADDING))
 
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
-	margin.add_child(column)
+	panel.add_child(column)
 
 	column.add_child(_label(str(binding.get("label", "")), 26, COLOR_LABEL))
 	column.add_child(_label(str(binding.get("does", "")), 18, COLOR_DETAIL))
@@ -163,13 +216,5 @@ func _label(text: String, size: int, color: Color) -> Label:
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.add_theme_font_size_override("font_size", size)
 	label.add_theme_color_override("font_color", color)
+	MenuArt.letter(label, _face)
 	return label
-
-
-func _row_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.113725, 0.133333, 0.168627)
-	style.border_color = Color(0.207843, 0.243137, 0.301961)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(10)
-	return style
