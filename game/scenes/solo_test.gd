@@ -467,7 +467,14 @@ func _handle(event: Dictionary) -> void:
 			_stop_if_satisfied()
 			if _stopping:
 				return
+		DuelEnums.EV.ATTACK, DuelEnums.EV.BATTLE:
+			_show_combat(event)
 		DuelEnums.EV.NEW_PHASE:
+			# A phase change is the end of any battle that was resolving, and it is the only
+			# event guaranteed to arrive after one. Without this the numbers from the first
+			# attack of the duel would sit on screen for the rest of it.
+			if _hud != null:
+				_hud.set_combat(null, null)
 			_record_phase()
 		DuelEnums.EV.RETRY:
 			# ocgcore turned the last answer down. It is well-formed - `respond()` already said
@@ -486,6 +493,39 @@ func _handle(event: Dictionary) -> void:
 		return
 
 	_on_selection(event)
+
+
+## Puts the attacker's and defender's numbers on screen for the length of a battle.
+##
+## The HUD cannot discover this on its own: ATTACK and BATTLE are passive events, so they leave
+## no trace in `DuelState` and `refresh()` has nothing to read. Without this hook `set_combat()`
+## is a complete feature with no caller - the same shape as a static nobody assigns, and just as
+## invisible, because everything still builds and every test still passes.
+func _show_combat(event: Dictionary) -> void:
+	if _hud == null:
+		return
+
+	var attacker: DuelCard = _card_at_loc(event.get("from", {}))
+	if attacker == null:
+		_hud.set_combat(null, null)
+		return
+
+	# A direct attack carries no defender; the engine zeroes the loc_info and the parser reports
+	# it as `direct`. Passing null is what makes the readout say so rather than inventing a
+	# target.
+	var defender: DuelCard = null
+	if not bool(event.get("direct", false)):
+		defender = _card_at_loc(event.get("to", {}))
+
+	_hud.set_combat(attacker, defender)
+
+
+func _card_at_loc(info: Variant) -> DuelCard:
+	if not (info is Dictionary) or (info as Dictionary).is_empty():
+		return null
+	var at: Dictionary = info
+	return _state.card_at(
+		int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
 
 
 ## Shows a card large, with its name, stats and effect text from the database.
@@ -968,6 +1008,7 @@ func _stop(reason: String) -> void:
 		_turn_changes, _focus.flips])
 	print(_state.describe())
 
+	_probe_combat_readout()
 	_probe_preview()
 	_probe_input_after_teardown()
 	_check_results()
@@ -982,6 +1023,29 @@ func _stop(reason: String) -> void:
 
 	if _headless:
 		get_tree().quit(0 if _failures.is_empty() else 1)
+
+
+## Drives the battle readout directly, because the gate cannot otherwise tell a wired hook from
+## an unwired one: `set_combat()` arrived complete and with no caller, every gate still green.
+func _probe_combat_readout() -> void:
+	if _hud == null:
+		_fail("no HUD to show a battle on")
+		return
+
+	var attacker := DuelCard.new()
+	attacker.code = 11091375
+	attacker.attack = 1900
+	attacker.defense = 1600
+
+	_hud.set_combat(attacker, null)
+	_expect(_hud.combat_is_visible(), "a battle puts its numbers on screen")
+	_expect(_hud.combat_text().contains("1900"),
+		"the readout shows the attacking number (got %s)" % _hud.combat_text())
+	_expect(_hud.combat_text().to_upper().contains("DIRECT"),
+		"an attack with no defender says so (got %s)" % _hud.combat_text())
+
+	_hud.set_combat(null, null)
+	_expect(not _hud.combat_is_visible(), "and it leaves when the battle does")
 
 
 ## Points at a visible card and at a hidden one, and checks what each is willing to say.
