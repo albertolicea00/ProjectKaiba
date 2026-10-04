@@ -467,6 +467,25 @@ func refresh_art(art: CardArt) -> void:
 				view.refresh_art(art)
 
 
+## The view showing a card, without detaching it. `null` when nothing on the board is bound to
+## that handle.
+##
+## This is what the card preview reads. Asking the **view** rather than the model is the whole
+## safety argument: a `CardView` already carries 0 for anything the viewer is not allowed to
+## see, so a preview built from it cannot reveal more than the board does. Judging visibility a
+## second time, from `DuelCard.is_face_up()` and a seat, would be a second chance to get it
+## wrong - and getting it wrong means showing a face-down card to the player it is hidden from.
+func view_by_handle(handle: int) -> CardView:
+	if handle == 0:
+		return null
+	for key: Variant in _occupants.keys():
+		for entry: Variant in (_occupants[key] as Array):
+			var view: CardView = entry as CardView
+			if view != null and view.handle == handle:
+				return view
+	return null
+
+
 ## Detaches the view showing a specific model card, wherever it is parked.
 ##
 ## This is the precise counterpart to `take_view()`, which can only take the top of a pile.
