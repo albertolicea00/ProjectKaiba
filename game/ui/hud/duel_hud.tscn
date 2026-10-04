@@ -1,26 +1,149 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://ui/hud/duel_hud.gd" id="1_hud"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_seat"]
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plate_top"]
+content_margin_left = 24.0
+content_margin_top = 7.0
+content_margin_right = 20.0
+content_margin_bottom = 8.0
+bg_color = Color(0.0470588, 0.0588235, 0.0784314, 0.9)
+border_width_left = 10
+border_color = Color(0.352941, 0.847059, 1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+skew = Vector2(0.3, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_plate_bottom"]
+content_margin_left = 20.0
+content_margin_top = 7.0
+content_margin_right = 24.0
+content_margin_bottom = 8.0
+bg_color = Color(0.0470588, 0.0588235, 0.0784314, 0.9)
+border_width_right = 10
+border_color = Color(0.980392, 0.72549, 0.258824, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+skew = Vector2(-0.3, 0)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_top"]
+content_margin_left = 6.0
+content_margin_top = 6.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(0.0862745, 0.117647, 0.168627, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.352941, 0.847059, 1, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 26
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_avatar_bottom"]
+content_margin_left = 6.0
+content_margin_top = 6.0
+content_margin_right = 6.0
+content_margin_bottom = 6.0
+bg_color = Color(0.0862745, 0.117647, 0.168627, 0.95)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.980392, 0.72549, 0.258824, 0.9)
+corner_radius_top_left = 26
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_chip"]
+content_margin_left = 14.0
+content_margin_top = 6.0
+content_margin_right = 14.0
+content_margin_bottom = 6.0
+bg_color = Color(0.141176, 0.101961, 0.0313726, 0.94)
+border_width_bottom = 4
+border_color = Color(0.980392, 0.72549, 0.258824, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_badge"]
+content_margin_left = 10.0
+content_margin_top = 3.0
+content_margin_right = 10.0
+content_margin_bottom = 3.0
+bg_color = Color(0.0352941, 0.047059, 0.0666667, 0.82)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.352941, 0.847059, 1, 0.55)
+corner_radius_top_left = 6
+corner_radius_top_right = 6
+corner_radius_bottom_right = 6
+corner_radius_bottom_left = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_prompt"]
+content_margin_left = 20.0
+content_margin_top = 14.0
+content_margin_right = 20.0
+content_margin_bottom = 14.0
+bg_color = Color(0.0470588, 0.0666667, 0.0980392, 0.94)
+border_width_left = 5
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.352941, 0.847059, 1, 0.95)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_menu"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.0627451, 0.0823529, 0.117647, 0.9)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.352941, 0.847059, 1, 0.8)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_banner"]
+content_margin_left = 16.0
+content_margin_top = 10.0
+content_margin_right = 16.0
+content_margin_bottom = 10.0
+bg_color = Color(0.0235294, 0.0313726, 0.0470588, 0.72)
+border_width_top = 2
+border_width_bottom = 2
+border_color = Color(0.980392, 0.72549, 0.258824, 0.7)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_combat"]
 content_margin_left = 20.0
 content_margin_top = 10.0
 content_margin_right = 20.0
 content_margin_bottom = 10.0
-bg_color = Color(0.054902, 0.0666667, 0.0862745, 0.8)
-corner_radius_top_left = 10
-corner_radius_top_right = 10
-corner_radius_bottom_right = 10
-corner_radius_bottom_left = 10
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_prompt"]
-content_margin_left = 22.0
-content_margin_top = 14.0
-content_margin_right = 22.0
-content_margin_bottom = 14.0
-bg_color = Color(0.0784314, 0.109804, 0.156863, 0.88)
-border_width_left = 5
-border_color = Color(0.360784, 0.682353, 1, 0.95)
+bg_color = Color(0.0470588, 0.0666667, 0.0980392, 0.92)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.431373, 0.337255, 0.9)
 corner_radius_top_left = 10
 corner_radius_top_right = 10
 corner_radius_bottom_right = 10
@@ -29,152 +152,418 @@ corner_radius_bottom_left = 10
 [node name="DuelHud" type="CanvasLayer"]
 script = ExtResource("1_hud")
 
-[node name="Root" type="MarginContainer" parent="."]
+[node name="Root" type="Control" parent="."]
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-theme_override_constants/margin_left = 28
-theme_override_constants/margin_top = 20
-theme_override_constants/margin_right = 28
-theme_override_constants/margin_bottom = 20
 
-[node name="Column" type="VBoxContainer" parent="Root"]
+[node name="HandZone" type="Control" parent="Root"]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -210.0
+offset_right = -200.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="TopSeat" type="HBoxContainer" parent="Root"]
+layout_mode = 1
+offset_left = 18.0
+offset_top = 18.0
+mouse_filter = 2
+theme_override_constants/separation = 6
+
+[node name="Avatar" type="PanelContainer" parent="Root/TopSeat"]
+custom_minimum_size = Vector2(54, 54)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_top")
+
+[node name="Tag" type="Label" parent="Root/TopSeat/Avatar"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 12
+theme_override_colors/font_color = Color(0.352941, 0.847059, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = "P2"
+horizontal_alignment = 1
+vertical_alignment = 1
 
-[node name="TopRow" type="HBoxContainer" parent="Root/Column"]
+[node name="Life" type="PanelContainer" parent="Root/TopSeat"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_plate_top")
+
+[node name="Box" type="VBoxContainer" parent="Root/TopSeat/Life"]
+custom_minimum_size = Vector2(92, 0)
 layout_mode = 2
 mouse_filter = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 0
 
-[node name="TopSeat" type="PanelContainer" parent="Root/Column/TopRow"]
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_seat")
-
-[node name="Box" type="VBoxContainer" parent="Root/Column/TopRow/TopSeat"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="Seat" type="Label" parent="Root/Column/TopRow/TopSeat/Box"]
+[node name="Seat" type="Label" parent="Root/TopSeat/Life/Box"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
-theme_override_font_sizes/font_size = 18
+theme_override_font_sizes/font_size = 14
 text = "Opponent"
+horizontal_alignment = 2
 
-[node name="Life" type="Label" parent="Root/Column/TopRow/TopSeat/Box"]
+[node name="Life" type="Label" parent="Root/TopSeat/Life/Box"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 32
 text = "-"
+horizontal_alignment = 2
 
-[node name="Gap" type="Control" parent="Root/Column/TopRow"]
-layout_mode = 2
-size_flags_horizontal = 3
+[node name="TurnStack" type="VBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -110.0
+offset_top = 16.0
+offset_right = 110.0
+grow_horizontal = 2
 mouse_filter = 2
+theme_override_constants/separation = 3
+alignment = 1
 
-[node name="Turn" type="PanelContainer" parent="Root/Column/TopRow"]
-layout_mode = 2
-size_flags_vertical = 0
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_seat")
-
-[node name="Box" type="VBoxContainer" parent="Root/Column/TopRow/Turn"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="Count" type="Label" parent="Root/Column/TopRow/Turn/Box"]
+[node name="Count" type="Label" parent="Root/TurnStack"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 17
+text = "-"
+horizontal_alignment = 1
+
+[node name="ChipRow" type="HBoxContainer" parent="Root/TurnStack"]
+layout_mode = 2
+mouse_filter = 2
+alignment = 1
+
+[node name="PhaseChip" type="PanelContainer" parent="Root/TurnStack/ChipRow"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_chip")
+
+[node name="Phase" type="Label" parent="Root/TurnStack/ChipRow/PhaseChip"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.890196, 0.705882, 1)
 theme_override_font_sizes/font_size = 20
 text = "-"
-horizontal_alignment = 2
+horizontal_alignment = 1
 
-[node name="Phase" type="Label" parent="Root/Column/TopRow/Turn/Box"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 30
-text = "-"
-horizontal_alignment = 2
-
-[node name="Middle" type="Control" parent="Root/Column"]
-layout_mode = 2
-size_flags_vertical = 3
-mouse_filter = 2
-
-[node name="BottomRow" type="HBoxContainer" parent="Root/Column"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 12
-
-[node name="BottomSeat" type="PanelContainer" parent="Root/Column/BottomRow"]
-layout_mode = 2
-size_flags_vertical = 8
-mouse_filter = 2
-theme_override_styles/panel = SubResource("StyleBoxFlat_seat")
-
-[node name="Box" type="VBoxContainer" parent="Root/Column/BottomRow/BottomSeat"]
-layout_mode = 2
-mouse_filter = 2
-theme_override_constants/separation = 2
-
-[node name="Seat" type="Label" parent="Root/Column/BottomRow/BottomSeat/Box"]
+[node name="Owner" type="Label" parent="Root/TurnStack"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
-theme_override_font_sizes/font_size = 18
-text = "You"
+theme_override_font_sizes/font_size = 14
+text = ""
+horizontal_alignment = 1
 
-[node name="Life" type="Label" parent="Root/Column/BottomRow/BottomSeat/Box"]
+[node name="Menu" type="Button" parent="Root"]
+custom_minimum_size = Vector2(60, 60)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -60.0
+offset_top = 18.0
+offset_right = -18.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.843137, 0.921569, 1, 1)
+theme_override_font_sizes/font_size = 24
+theme_override_styles/normal = SubResource("StyleBoxFlat_menu")
+theme_override_styles/hover = SubResource("StyleBoxFlat_menu")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_menu")
+theme_override_styles/focus = SubResource("StyleBoxFlat_menu")
+text = "≡"
+
+[node name="BottomSeat" type="VBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -180.0
+offset_top = -140.0
+offset_right = -18.0
+offset_bottom = -18.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 6
+alignment = 2
+
+[node name="Life" type="PanelContainer" parent="Root/BottomSeat"]
+layout_mode = 2
+size_flags_horizontal = 8
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_plate_bottom")
+
+[node name="Box" type="VBoxContainer" parent="Root/BottomSeat/Life"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 0
+
+[node name="Seat" type="Label" parent="Root/BottomSeat/Life/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.627451, 0.690196, 0.760784, 1)
+theme_override_font_sizes/font_size = 14
+text = "You"
+horizontal_alignment = 0
+
+[node name="Life" type="Label" parent="Root/BottomSeat/Life/Box"]
 layout_mode = 2
 mouse_filter = 2
 theme_override_colors/font_color = Color(0.952941, 0.968627, 1, 1)
-theme_override_font_sizes/font_size = 40
+theme_override_font_sizes/font_size = 32
 text = "-"
+horizontal_alignment = 0
 
-[node name="Prompt" type="PanelContainer" parent="Root/Column/BottomRow"]
-visible = false
+[node name="Avatar" type="PanelContainer" parent="Root/BottomSeat"]
+custom_minimum_size = Vector2(54, 54)
 layout_mode = 2
-size_flags_horizontal = 3
-size_flags_vertical = 8
-theme_override_styles/panel = SubResource("StyleBoxFlat_prompt")
+size_flags_horizontal = 8
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_avatar_bottom")
 
-[node name="Body" type="VBoxContainer" parent="Root/Column/BottomRow/Prompt"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="Text" type="Label" parent="Root/Column/BottomRow/Prompt/Body"]
+[node name="Tag" type="Label" parent="Root/BottomSeat/Avatar"]
 layout_mode = 2
 mouse_filter = 2
-theme_override_colors/font_color = Color(0.901961, 0.941176, 1, 1)
-theme_override_font_sizes/font_size = 24
+theme_override_colors/font_color = Color(0.980392, 0.72549, 0.258824, 1)
+theme_override_font_sizes/font_size = 22
+text = "P1"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="TopPiles" type="HBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+anchor_top = 0.3
+anchor_bottom = 0.3
+offset_left = 18.0
+offset_right = -18.0
+grow_horizontal = 2
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Extra" type="PanelContainer" parent="Root/TopPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/TopPiles/Extra"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "EX -"
+
+[node name="Gap" type="Control" parent="Root/TopPiles"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Grave" type="PanelContainer" parent="Root/TopPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/TopPiles/Grave"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "GY -"
+
+[node name="Deck" type="PanelContainer" parent="Root/TopPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/TopPiles/Deck"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "DECK -"
+
+[node name="BottomPiles" type="HBoxContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+anchor_top = 0.66
+anchor_bottom = 0.66
+offset_left = 18.0
+offset_right = -18.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+theme_override_constants/separation = 8
+
+[node name="Extra" type="PanelContainer" parent="Root/BottomPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/BottomPiles/Extra"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "EX -"
+
+[node name="Gap" type="Control" parent="Root/BottomPiles"]
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+
+[node name="Grave" type="PanelContainer" parent="Root/BottomPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/BottomPiles/Grave"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "GY -"
+
+[node name="Deck" type="PanelContainer" parent="Root/BottomPiles"]
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_badge")
+
+[node name="Count" type="Label" parent="Root/BottomPiles/Deck"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 15
+text = "DECK -"
+
+[node name="PhaseBanner" type="PanelContainer" parent="Root"]
+visible = false
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+anchor_top = 0.42
+anchor_bottom = 0.42
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_banner")
+
+[node name="Text" type="Label" parent="Root/PhaseBanner"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.945098, 0.858824, 1)
+theme_override_colors/font_outline_color = Color(0.0117647, 0.0156863, 0.0235294, 1)
+theme_override_constants/outline_size = 10
+theme_override_font_sizes/font_size = 44
 text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
 
-[node name="Actions" type="HBoxContainer" parent="Root/Column/BottomRow/Prompt/Body"]
+[node name="Combat" type="PanelContainer" parent="Root"]
+visible = false
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_top = 0.58
+anchor_right = 0.5
+anchor_bottom = 0.58
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleBoxFlat_combat")
+
+[node name="Box" type="VBoxContainer" parent="Root/Combat"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_constants/separation = 2
+
+[node name="Attacker" type="Label" parent="Root/Combat/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(1, 0.737255, 0.654902, 1)
+theme_override_font_sizes/font_size = 26
+text = ""
+horizontal_alignment = 1
+
+[node name="Defender" type="Label" parent="Root/Combat/Box"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.784314, 0.858824, 0.921569, 1)
+theme_override_font_sizes/font_size = 20
+text = ""
+horizontal_alignment = 1
+
+[node name="Prompt" type="PanelContainer" parent="Root"]
+visible = false
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -226.0
+offset_right = -20.0
+offset_bottom = -226.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_styles/panel = SubResource("StyleBoxFlat_prompt")
+
+[node name="Body" type="VBoxContainer" parent="Root/Prompt"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Text" type="Label" parent="Root/Prompt/Body"]
+layout_mode = 2
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.901961, 0.941176, 1, 1)
+theme_override_font_sizes/font_size = 22
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="Root/Prompt/Body"]
 layout_mode = 2
 alignment = 1
-theme_override_constants/separation = 12
+theme_override_constants/separation = 14
 
-[node name="Cancel" type="Button" parent="Root/Column/BottomRow/Prompt/Body/Actions"]
+[node name="Cancel" type="Button" parent="Root/Prompt/Body/Actions"]
+custom_minimum_size = Vector2(150, 60)
 layout_mode = 2
-custom_minimum_size = Vector2(132, 52)
+theme_override_font_sizes/font_size = 20
 text = "No / Cancel"
 
-[node name="Confirm" type="Button" parent="Root/Column/BottomRow/Prompt/Body/Actions"]
+[node name="Confirm" type="Button" parent="Root/Prompt/Body/Actions"]
+custom_minimum_size = Vector2(150, 60)
 layout_mode = 2
-custom_minimum_size = Vector2(132, 52)
+theme_override_font_sizes/font_size = 20
 text = "Yes / Confirm"

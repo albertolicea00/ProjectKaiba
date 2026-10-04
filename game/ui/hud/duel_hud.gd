@@ -1,11 +1,13 @@
 class_name DuelHud
 extends CanvasLayer
 
-## What a duel in progress looks like to the person playing it: both life point totals, the turn
-## number and whose turn it is, the current phase, and whatever the duel is asking for right now.
+## What a duel in progress looks like to the person playing it, on a phone held upright: both
+## life point totals, the turn number and whose turn it is, the current phase, how many cards
+## are left in each pile, whatever the duel is asking for right now, and - while a battle is
+## resolving - the numbers the battle is being decided by.
 ##
-## Layer: L5 shell (AGENTS.md section 4). It reads `DuelState` and nothing else - no `KaibaCore`,
-## no transport, no rules (V3) - and it never writes to the model.
+## Layer: L5 shell (AGENTS.md section 4). It reads `DuelState` and nothing else - no core, no
+## transport, no rules (V1, V3) - and it never writes to the model.
 ##
 ## Three calls drive it, and nothing else does:
 ##
@@ -13,12 +15,36 @@ extends CanvasLayer
 ##     hud.refresh()                                # whenever the model may have moved
 ##     hud.set_prompt(selection.pending_prompt())   # whenever the pending selection changed
 ##
+## `set_combat()` is a fourth, optional one: a scene that knows an attack is resolving can hand
+## over the two cards involved, and passing `null` puts the readout away again.
+##
+## ------------------------------------------------------------------------------------------
+## The portrait layout
+## ------------------------------------------------------------------------------------------
+## The screen is tall and narrow, so the furniture is pushed to the four corners and the middle
+## third is left to the board:
+##
+##     top-left      opponent's avatar, with their life points on a slanted plate beside it
+##     top-centre    the turn line, the phase chip, and whose turn it is
+##     top-right     the menu button
+##     board edges   a count badge for each seat's deck, extra deck and graveyard
+##     centre        the phase banner (on a change) and the battle readout (during one)
+##     bottom-right  your avatar, with your life plate above it
+##     bottom        `HandZone`, which is deliberately empty
+##
+## `HandZone` holds nothing and draws nothing. It is the strip the 3D hand is fanned across,
+## reserved here so that it is one named rect a test can check nothing else has wandered into.
+## Covering the hand is the failure mode a portrait HUD falls into, and a widget that has to
+## grow can then be seen to collide with it instead of quietly sitting on top of it.
+##
 ## ------------------------------------------------------------------------------------------
 ## Why nothing in this file measures the screen - ARCHITECTURE.md section 10, rule 4
 ## ------------------------------------------------------------------------------------------
 ## No widget may ask the viewport or the window how large it is in order to decide anything:
-## not a layout, not a font size, not an "is this a phone" branch. Everything below is anchors,
-## containers and size flags, and the project's `canvas_items` stretch mode does the scaling.
+## not a layout, not a font size, not an "is this a phone" branch. Everything in the scene is
+## anchors, containers and size flags, and the project's `canvas_items` stretch mode does the
+## scaling. Portrait makes this tempting - "if it is narrow, stack the top row" - and the answer
+## is still no: the stack is unconditional and the anchors hold it together.
 ##
 ## The reason is VR, and honouring it costs nothing today. In Phase 7 this whole CanvasLayer is
 ## re-instantiated inside a `SubViewport` painted on a quad floating above the table. That
@@ -29,6 +55,16 @@ extends CanvasLayer
 ##
 ## So if this HUD ever looks wrong at some resolution, the fix is an anchor, a size flag or a
 ## container. Never a measurement. Please do not "fix" it by reading the screen dimensions.
+##
+## ------------------------------------------------------------------------------------------
+## The slanted life plates, with no texture to slant
+## ------------------------------------------------------------------------------------------
+## `StyleBoxFlat.skew` leans the drawn box without touching its children, so the plate is a
+## parallelogram and the number inside it stays upright and legible. The coloured edge bar is
+## the same box's border: one side is given a width and the other three are left at zero, so
+## only that edge is drawn. The two seats use the same two tricks with the sign of the skew and
+## the side of the bar flipped, which is what makes them read as mirrored rather than as two
+## different widgets. No image file is involved, which matters because this repo ships none.
 ##
 ## ------------------------------------------------------------------------------------------
 ## Rolling life points
@@ -44,6 +80,11 @@ const ROLL_SECONDS: float = 0.45
 ## Floor on the roll speed, in life points per second, so that a 100 point cost still ticks
 ## instead of resolving within a frame.
 const MIN_ROLL_SPEED: float = 400.0
+
+## How long the centre banner holds a phase change, and how much of that is spent fading out.
+## It is an announcement, not a readout: the phase chip at the top is the thing that stays.
+const BANNER_SECONDS: float = 1.5
+const BANNER_FADE_SECONDS: float = 0.6
 
 ## Stand-in for a field there is no model to fill in yet.
 const EMPTY: String = "-"
@@ -67,18 +108,38 @@ const PHASE_NAMES: Dictionary = {
 	DuelEnums.PHASE.END: "End phase",
 }
 
-@onready var _top_panel: PanelContainer = $Root/Column/TopRow/TopSeat
-@onready var _top_seat: Label = $Root/Column/TopRow/TopSeat/Box/Seat
-@onready var _top_life: Label = $Root/Column/TopRow/TopSeat/Box/Life
-@onready var _turn_label: Label = $Root/Column/TopRow/Turn/Box/Count
-@onready var _phase_label: Label = $Root/Column/TopRow/Turn/Box/Phase
-@onready var _bottom_panel: PanelContainer = $Root/Column/BottomRow/BottomSeat
-@onready var _bottom_seat: Label = $Root/Column/BottomRow/BottomSeat/Box/Seat
-@onready var _bottom_life: Label = $Root/Column/BottomRow/BottomSeat/Box/Life
-@onready var _prompt_panel: PanelContainer = $Root/Column/BottomRow/Prompt
-@onready var _prompt_label: Label = $Root/Column/BottomRow/Prompt/Body/Text
-@onready var _prompt_confirm: Button = $Root/Column/BottomRow/Prompt/Body/Actions/Confirm
-@onready var _prompt_cancel: Button = $Root/Column/BottomRow/Prompt/Body/Actions/Cancel
+@onready var _top_panel: Control = $Root/TopSeat
+@onready var _top_seat: Label = $Root/TopSeat/Life/Box/Seat
+@onready var _top_life: Label = $Root/TopSeat/Life/Box/Life
+@onready var _top_tag: Label = $Root/TopSeat/Avatar/Tag
+@onready var _bottom_panel: Control = $Root/BottomSeat
+@onready var _bottom_seat: Label = $Root/BottomSeat/Life/Box/Seat
+@onready var _bottom_life: Label = $Root/BottomSeat/Life/Box/Life
+@onready var _bottom_tag: Label = $Root/BottomSeat/Avatar/Tag
+
+@onready var _turn_label: Label = $Root/TurnStack/Count
+@onready var _phase_label: Label = $Root/TurnStack/ChipRow/PhaseChip/Phase
+@onready var _owner_label: Label = $Root/TurnStack/Owner
+@onready var _menu_button: Button = $Root/Menu
+
+@onready var _top_deck: Label = $Root/TopPiles/Deck/Count
+@onready var _top_extra: Label = $Root/TopPiles/Extra/Count
+@onready var _top_grave: Label = $Root/TopPiles/Grave/Count
+@onready var _bottom_deck: Label = $Root/BottomPiles/Deck/Count
+@onready var _bottom_extra: Label = $Root/BottomPiles/Extra/Count
+@onready var _bottom_grave: Label = $Root/BottomPiles/Grave/Count
+
+@onready var _banner_panel: PanelContainer = $Root/PhaseBanner
+@onready var _banner_label: Label = $Root/PhaseBanner/Text
+
+@onready var _combat_panel: PanelContainer = $Root/Combat
+@onready var _combat_attacker: Label = $Root/Combat/Box/Attacker
+@onready var _combat_defender: Label = $Root/Combat/Box/Defender
+
+@onready var _prompt_panel: PanelContainer = $Root/Prompt
+@onready var _prompt_label: Label = $Root/Prompt/Body/Text
+@onready var _prompt_confirm: Button = $Root/Prompt/Body/Actions/Confirm
+@onready var _prompt_cancel: Button = $Root/Prompt/Body/Actions/Cancel
 
 ## Which seat belongs to the person holding the device. `DuelState` does not know and should not
 ## - it is a board model, not a client - so it is configuration here. A hot seat duel leaves it
@@ -104,6 +165,11 @@ var _prompt: String = ""
 signal confirmed
 signal cancelled
 
+## Raised by the top-right button. Nothing in the duel scenes listens yet; the button is here
+## because a phone has no Escape key and a duel with no way out of it is a worse omission than
+## an unhandled signal.
+signal menu_pressed
+
 ## Life points as drawn, as the model has them, and how fast the first is chasing the second.
 var _shown: Array[float] = [0.0, 0.0]
 var _target: Array[int] = [0, 0]
@@ -113,12 +179,19 @@ var _speed: Array[float] = [0.0, 0.0]
 ## zero because the HUD was attached a frame late.
 var _snap: bool = true
 
+## The phase the banner last announced, and how long the announcement has left to live. The
+## phase is tracked rather than compared against the chip's text because two phase bits share
+## the name "Battle phase" and a banner must not fire for a change the player cannot see.
+var _announced_phase: int = 0
+var _banner_time: float = 0.0
+
 
 func _ready() -> void:
 	set_process(false)
 	refresh()
 	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
 	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
+	_menu_button.pressed.connect(func() -> void: menu_pressed.emit())
 	_paint_prompt()
 
 
@@ -131,6 +204,10 @@ func _ready() -> void:
 func bind(state: DuelState) -> void:
 	_state = state
 	_snap = true
+	# The phase the duel is already in is not a change, so binding mid-duel must not raise a
+	# banner for it. Armed from here on.
+	_announced_phase = state.phase if state != null else 0
+	_banner_time = 0.0
 	refresh()
 
 
@@ -142,6 +219,7 @@ func refresh() -> void:
 	_refresh_life()
 	_refresh_turn()
 	_refresh_phase()
+	_refresh_piles()
 
 
 ## The pending prompt, verbatim from `SelectionController.pending_prompt()`. An empty string
@@ -154,13 +232,78 @@ func set_prompt(text: String) -> void:
 	_paint_prompt()
 
 
-## Finishes any running life point roll immediately. For a scene change, and for tests that
-## would otherwise have to wait out an animation to read a number.
+## The two cards a battle is being decided between. `defender` may be `null`, which is a direct
+## attack; `attacker` may be `null`, which puts the readout away.
+##
+## The readout is centred rather than pinned over the attacking monster. Pinning it there would
+## mean projecting a world position into screen space inside a widget, which is the measurement
+## ARCHITECTURE.md section 10 rule 4 forbids and which has no meaning at all once this layer is
+## a quad in VR. See the report in `_combat_line()` for what the model would have to expose for
+## a better answer.
+func set_combat(attacker: DuelCard, defender: DuelCard) -> void:
+	if not is_node_ready():
+		return
+	if attacker == null:
+		_combat_panel.visible = false
+		_combat_attacker.text = ""
+		_combat_defender.text = ""
+		return
+	_combat_panel.visible = true
+	_combat_attacker.text = _combat_line(attacker)
+	_combat_defender.text = "DIRECT ATTACK" if defender == null else "vs  %s" % _combat_line(defender)
+
+
+## Finishes any running animation immediately: the life point roll lands on the model's total
+## and the phase banner stops announcing. For a scene change, and for tests that would otherwise
+## have to wait one out to read a number.
 func settle() -> void:
 	for player: int in range(DuelEnums.PLAYER_COUNT):
 		_shown[player] = float(_target[player])
+	_banner_time = 0.0
 	_paint_life()
+	_paint_banner()
 	set_process(false)
+
+
+# ----------------------------------------------------------------------------------------------
+# Readouts a test asks for rather than reaching into the node tree
+#
+# The previous version of the suite indexed `Root/Column/BottomRow/Prompt/Text` directly and
+# broke the moment the panel grew a button row - a failure about the test's reach, not about the
+# behaviour it was checking. Everything a case needs to assert on has an accessor here.
+# ----------------------------------------------------------------------------------------------
+
+func prompt_text() -> String:
+	return _prompt_label.text if _prompt_label != null else ""
+
+
+func prompt_is_visible() -> bool:
+	return _prompt_panel != null and _prompt_panel.visible
+
+
+func phase_banner_text() -> String:
+	return _banner_label.text if _banner_label != null else ""
+
+
+func phase_banner_is_visible() -> bool:
+	return _banner_panel != null and _banner_panel.visible
+
+
+func combat_is_visible() -> bool:
+	return _combat_panel != null and _combat_panel.visible
+
+
+func combat_text() -> String:
+	if _combat_attacker == null or _combat_defender == null:
+		return ""
+	return "%s %s" % [_combat_attacker.text, _combat_defender.text]
+
+
+## Count badge text for one seat's pile. `location` is a `DuelEnums.LOCATION`; anything this
+## HUD draws no badge for returns an empty string rather than guessing.
+func pile_text(player: int, location: int) -> String:
+	var label: Label = _pile_label(player, location)
+	return label.text if label != null else ""
 
 
 # ----------------------------------------------------------------------------------------------
@@ -169,7 +312,8 @@ func settle() -> void:
 
 func _process(delta: float) -> void:
 	_advance_roll(delta)
-	if not _is_rolling():
+	_advance_banner(delta)
+	if not _is_animating():
 		set_process(false)
 
 
@@ -187,9 +331,15 @@ func _is_rolling() -> bool:
 	return false
 
 
+func _is_animating() -> bool:
+	return _is_rolling() or _banner_time > 0.0
+
+
 func _refresh_life() -> void:
 	_top_seat.text = _seat_name(_opponent())
 	_bottom_seat.text = _seat_name(local_player)
+	_top_tag.text = _seat_tag(_opponent())
+	_bottom_tag.text = _seat_tag(local_player)
 
 	if _state == null:
 		_top_life.text = EMPTY
@@ -207,7 +357,7 @@ func _refresh_life() -> void:
 
 	_snap = false
 	_paint_life()
-	set_process(_is_rolling())
+	set_process(_is_animating())
 
 
 func _paint_life() -> void:
@@ -224,17 +374,21 @@ func _paint_life() -> void:
 func _refresh_turn() -> void:
 	if _state == null:
 		_turn_label.text = EMPTY
+		_owner_label.text = ""
 		_top_panel.modulate.a = 1.0
 		_bottom_panel.modulate.a = 1.0
 		return
 
 	if _state.is_finished:
 		_turn_label.text = _result_text()
+		_owner_label.text = ""
 	elif _state.turn_count <= 0:
 		# START has arrived but NEW_TURN has not: there is a first player, not yet a turn 1.
 		_turn_label.text = "Duel start"
+		_owner_label.text = ""
 	else:
 		_turn_label.text = "Turn %d - %s" % [_state.turn_count, _turn_owner_text()]
+		_owner_label.text = _turn_owner_text()
 
 	var active: bool = not _state.is_finished
 	_top_panel.modulate.a = 1.0 if (active and _state.turn_player == _opponent()) else DIM_INACTIVE
@@ -245,12 +399,37 @@ func _refresh_phase() -> void:
 	if _state == null or _state.phase == 0:
 		_phase_label.text = EMPTY
 		return
-	# Falls back to the enum name rather than going blank: an unmapped phase is a HUD gap, and a
-	# raw `PHASE(128)` on screen says so out loud instead of hiding it (same spirit as V13).
-	if PHASE_NAMES.has(_state.phase):
-		_phase_label.text = PHASE_NAMES[_state.phase]
-	else:
-		_phase_label.text = DuelEnums.phase_name(_state.phase)
+	_phase_label.text = _phase_text(_state.phase)
+
+	if _state.phase != _announced_phase:
+		_announced_phase = _state.phase
+		_banner_time = BANNER_SECONDS
+		_banner_label.text = _phase_label.text.to_upper()
+		set_process(true)
+	_paint_banner()
+
+
+## Name of a phase bit. Falls back to the enum name rather than going blank: an unmapped phase
+## is a HUD gap, and a raw `PHASE(512)` on screen says so out loud instead of hiding it (same
+## spirit as V13).
+func _phase_text(phase: int) -> String:
+	if PHASE_NAMES.has(phase):
+		return str(PHASE_NAMES[phase])
+	return DuelEnums.phase_name(phase)
+
+
+func _advance_banner(delta: float) -> void:
+	if _banner_time <= 0.0:
+		return
+	_banner_time = maxf(0.0, _banner_time - delta)
+	_paint_banner()
+
+
+func _paint_banner() -> void:
+	_banner_panel.visible = _banner_time > 0.0
+	if not _banner_panel.visible:
+		return
+	_banner_panel.modulate.a = minf(1.0, _banner_time / BANNER_FADE_SECONDS)
 
 
 func _turn_owner_text() -> String:
@@ -264,21 +443,76 @@ func _result_text() -> String:
 
 
 # ----------------------------------------------------------------------------------------------
-# Prompt
+# Pile badges
+#
+# Counts, never contents. The deck is hidden information and `DuelState` holds face-down
+# placeholders for it (see its header); the size of that array is the one thing about it that is
+# public, which is exactly what a badge shows.
 # ----------------------------------------------------------------------------------------------
 
-## What the prompt panel is currently showing, and whether it is showing at all.
+## The three piles a badge is drawn for, and the prefix each one wears. The graveyard is the
+## only one of the three whose count changes for a reason the player did not choose, which is
+## why it is on the board edge next to the deck rather than tucked away with the avatars.
+const PILE_BADGES: Array[Dictionary] = [
+	{"loc": DuelEnums.LOCATION.DECK, "prefix": "DECK"},
+	{"loc": DuelEnums.LOCATION.EXTRA, "prefix": "EX"},
+	{"loc": DuelEnums.LOCATION.GRAVE, "prefix": "GY"},
+]
+
+
+func _refresh_piles() -> void:
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		for badge: Dictionary in PILE_BADGES:
+			var location: int = int(badge["loc"])
+			var label: Label = _pile_label(player, location)
+			if label == null:
+				continue
+			var prefix: String = str(badge["prefix"])
+			if _state == null:
+				label.text = "%s %s" % [prefix, EMPTY]
+			else:
+				label.text = "%s %d" % [prefix, _state.pile_for(player, location).size()]
+
+
+## The badge belonging to a seat and a pile. The local seat's badges live on the near edge of
+## the board and the opponent's on the far edge, so this is the same mirroring the avatars and
+## the life plates use and it follows `local_player` for the same reason.
+func _pile_label(player: int, location: int) -> Label:
+	var row: String = "BottomPiles" if player == local_player else "TopPiles"
+	var slot: String = ""
+	match location:
+		DuelEnums.LOCATION.DECK:
+			slot = "Deck"
+		DuelEnums.LOCATION.EXTRA:
+			slot = "Extra"
+		DuelEnums.LOCATION.GRAVE:
+			slot = "Grave"
+		_:
+			return null
+	return get_node_or_null("Root/%s/%s/Count" % [row, slot]) as Label
+
+
+# ----------------------------------------------------------------------------------------------
+# Battle readout
+# ----------------------------------------------------------------------------------------------
+
+## One card's side of the battle. `DuelCard` carries `attack` and `defense` as the engine last
+## reported them, and `is_defense()` says which of the two the battle will actually use - so the
+## number that decides the outcome is the one shown large, and the other is not shown at all.
 ##
-## Exists so a test asks the HUD rather than reaching into its node tree. The previous version
-## indexed `Root/Column/BottomRow/Prompt/Text` directly and broke the moment the panel grew a
-## button row - a failure about the test's reach, not about the behaviour it was checking.
-func prompt_text() -> String:
-	return _prompt_label.text if _prompt_label != null else ""
+## What is missing is a name: `DuelCard` holds `code`, and turning a passcode into a printed
+## name needs `CardRegistry`, which this HUD is not given. The readout is therefore numbers
+## only. Handing the HUD a registry, or putting the resolved name on `DuelCard`, is what would
+## fix it - see the report.
+func _combat_line(card: DuelCard) -> String:
+	if card.is_defense():
+		return "DEF %d" % card.defense
+	return "ATK %d" % card.attack
 
 
-func prompt_is_visible() -> bool:
-	return _prompt_panel != null and _prompt_panel.visible
-
+# ----------------------------------------------------------------------------------------------
+# Prompt
+# ----------------------------------------------------------------------------------------------
 
 func _paint_prompt() -> void:
 	_prompt_label.text = _prompt
@@ -295,3 +529,10 @@ func _opponent() -> int:
 
 func _seat_name(player: int) -> String:
 	return "You" if player == local_player else "Opponent"
+
+
+## What goes in the avatar frame until there is art to put there. The repo ships no images on
+## purpose, so the frame is a drawn box with the seat's number in it rather than a path to a
+## file that does not exist - a placeholder that is honestly a placeholder.
+func _seat_tag(player: int) -> String:
+	return "P%d" % (player + 1)
