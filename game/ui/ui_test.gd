@@ -265,6 +265,7 @@ func _process(_delta: float) -> bool:
 
 	_case_router_reaches_the_menu()
 	_case_router_reaches_solo()
+	_case_router_refuses_a_mistyped_navigation_signal()
 	_case_router_sends_unbuilt_destinations_home()
 	_case_menu_offers_every_destination()
 	_case_the_unbuilt_slabs_explain_themselves_in_the_status_line()
@@ -2582,7 +2583,7 @@ func _case_the_picker_lists_and_reports_a_choice() -> void:
 	# rebinds the lambda's own copy and the outer variable never moves - the signal fires and the
 	# test still reads an empty Dictionary.
 	var chosen: Dictionary = {}
-	picker.chose.connect(func(entry: Dictionary) -> void: chosen.merge(entry, true))
+	picker.deck_chosen.connect(func(entry: Dictionary) -> void: chosen.merge(entry, true))
 	picker._commit()
 
 	_check("committing emits the entry", not chosen.is_empty(), "nothing was emitted")
@@ -2706,6 +2707,48 @@ func _case_only_the_offered_cards_glow() -> void:
 		not lit.is_highlighted() and not dark.is_highlighted(), "a card stayed lit")
 
 	board.queue_free()
+	_end()
+
+
+
+## The router connects to a screen's navigation signal **by name**. That is a duck-typed
+## contract, and it held right up until two screens disagreed about what the verb meant:
+## `MainMenu.chose(String)` says "go here", while `DeckPicker` once declared `chose(Dictionary)`
+## for "this is the deck". The router handed the Dictionary to a String parameter, the engine
+## refused at the signal boundary, and picking a deck did nothing at all - with the error
+## pointing at the emitter rather than at the disagreement.
+##
+## Renaming the picker's signal fixed the instance. Checking the signature fixes the class.
+func _case_router_refuses_a_mistyped_navigation_signal() -> void:
+	_begin("the router checks a navigation signal before trusting its name")
+	var router: RouterScript = _router()
+
+	var proper := Node.new()
+	proper.add_user_signal(RouterScript.CHOSE_SIGNAL,
+		[{"name": "destination", "type": TYPE_STRING}])
+	_check("a screen that speaks the verb properly is accepted",
+		router._takes_a_destination(proper), "a String destination was rejected")
+
+	var mistyped := Node.new()
+	mistyped.add_user_signal(RouterScript.CHOSE_SIGNAL,
+		[{"name": "entry", "type": TYPE_DICTIONARY}])
+	_check("one carrying the wrong payload is refused",
+		not router._takes_a_destination(mistyped),
+		"a Dictionary would have been handed to a String parameter")
+
+	var wrong_arity := Node.new()
+	wrong_arity.add_user_signal(RouterScript.CHOSE_SIGNAL, [])
+	_check("and so is one carrying nothing at all",
+		not router._takes_a_destination(wrong_arity), "a bare signal was accepted")
+
+	var silent := Node.new()
+	_check("a screen that does not navigate is simply not connected",
+		not router._takes_a_destination(silent), "a screen with no such signal was accepted")
+
+	proper.free()
+	mistyped.free()
+	wrong_arity.free()
+	silent.free()
 	_end()
 
 
