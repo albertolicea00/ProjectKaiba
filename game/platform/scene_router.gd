@@ -31,12 +31,16 @@ extends Node
 signal changed(destination: String)
 
 const MENU: String = "menu"
+## The duel you can play on your own: a hot seat, both turns yours.
+##
+## There used to be two - a `solo` against a passive opponent and a `solo_test` hot seat - and
+## a player's first reaction was that they were the same thing. They were not quite, but the
+## difference was not worth two menu entries while the opponent has no opinion to have.
+##
+## `scenes/solo.tscn` and `PassiveAgent` are still here and still gated by `make solo`. They are
+## waiting for `heuristic_agent`, not abandoned: the moment an opponent can actually play, the
+## second entry earns its place back.
 const SOLO: String = "solo"
-## The hot-seat test bench. A separate destination from `solo` rather than a flag on it: they
-## are the same duel wired to two different shells, and the one thing this one adds - a camera
-## and a HUD that change seats with the turn - is exactly what a real solo duel against an AI
-## must never do.
-const SOLO_TEST: String = "solo_test"
 const DECKS: String = "decks"
 ## Every gesture the game listens for, on both devices. A destination rather than an overlay
 ## because it has to be reachable before a duel exists - a player who cannot work out how to
@@ -44,8 +48,7 @@ const DECKS: String = "decks"
 const CONTROLS: String = "controls"
 
 const MENU_SCENE: String = "res://ui/main_menu/main_menu.tscn"
-const SOLO_SCENE: String = "res://scenes/solo.tscn"
-const SOLO_TEST_SCENE: String = "res://scenes/solo_test.tscn"
+const SOLO_SCENE: String = "res://scenes/solo_test.tscn"
 ## Decks are chosen, not edited. See `DeckLibrary` for why: a `.ydk` built in any other
 ## client works here untouched, and owning a deck format would cut this one off from all
 ## of them.
@@ -72,7 +75,6 @@ const PENDING: Dictionary = {
 var routes: Dictionary = {
 	MENU: MENU_SCENE,
 	SOLO: SOLO_SCENE,
-	SOLO_TEST: SOLO_TEST_SCENE,
 	DECKS: DECKS_SCENE,
 	CONTROLS: CONTROLS_SCENE,
 }
