@@ -94,6 +94,9 @@ const TRAP_HOLE: int = 4206964
 const DECK_SIZE: int = 40
 
 ## Set when a chosen deck is loaded, for the log line and the HUD.
+## Prompts answered without asking, because they offered nothing to choose.
+var _auto_passed: int = 0
+
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
 
@@ -466,6 +469,7 @@ func _rearm_after_retry() -> void:
 	_focus.set_pending(_last_selection, _selection.pending_prompt())
 	_focus.note_rejected()
 	_board.clear_highlights()
+	_board.highlight_cards(_selection.actionable_handles(_state))
 	_banner.refresh()
 	_idle_frames = 0
 
@@ -473,6 +477,17 @@ func _rearm_after_retry() -> void:
 ## A selection has arrived. It is parked, never answered here, and it never moves the camera.
 func _on_selection(event: Dictionary) -> void:
 	_selection.set_pending(event)
+
+	# ocgcore passes priority after almost every action, whether or not the other seat has
+	# anything to respond with - so a duel is full of prompts offering zero effects, which the
+	# prompt itself admits: "0 available, cancel to pass". Answer those before anyone sees them.
+	# One extra tap per action sounds small until it is every action, and it buries the prompts
+	# that do matter among ones that never did.
+	var trivial: Dictionary = _selection.auto_answer()
+	if not trivial.is_empty():
+		_auto_passed += 1
+		_answer_pending(_selection.pending_type(), trivial)
+		return
 	# Kept so a rejected answer can be re-asked. ocgcore does not re-send a selection it turned
 	# down (AGENTS.md section 8b trap 8), so if we forget it here there is nothing left to
 	# answer and the duel looks frozen.
@@ -481,6 +496,11 @@ func _on_selection(event: Dictionary) -> void:
 
 	var seat_before: int = _focus.seat_in_view
 	_focus.set_pending(event, _selection.pending_prompt())
+
+	# Light what the engine is actually offering, so "there is something to do" is a glance
+	# rather than a sentence. Resolved through the model because a selection event carries
+	# locations, not handles.
+	_board.highlight_cards(_selection.actionable_handles(_state))
 
 	if _focus.decision_seat != int(event.get("player", 0)):
 		_decision_mismatches += 1
@@ -597,6 +617,15 @@ func _on_intent(data: Dictionary) -> void:
 	if answer.is_empty():
 		return
 
+	_answers_from_intents += 1
+	_answer_pending(type, answer)
+
+
+## Sends one answer and clears everything that was describing the question.
+##
+## Shared by the input path and the auto-pass so the two cannot drift: an answer that forgot to
+## clear the pending selection would leave the board lit for a decision that is already made.
+func _answer_pending(type: int, answer: Dictionary) -> void:
 	var responded: Dictionary = _core.respond(type, answer)
 	if not bool(responded.get("ok", false)):
 		_fail("respond(%s, %s) failed: %s" % [
@@ -604,10 +633,10 @@ func _on_intent(data: Dictionary) -> void:
 		_stop("respond failed")
 		return
 
-	_answers_from_intents += 1
 	_selection.clear()
 	_focus.clear_pending()
 	_board.clear_highlights()
+	_board.clear_card_highlights()
 	_banner.refresh()
 	_idle_frames = 0
 
