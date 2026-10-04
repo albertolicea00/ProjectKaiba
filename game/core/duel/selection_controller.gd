@@ -235,6 +235,66 @@ func pending_prompt() -> String:
 ##
 ## `{}` is the normal return for most taps. A three-card selection answers on the third one; a
 ## tap on a card the request never offered answers on none of them.
+## The answer this selection would have if the player had no real choice, or `{}` when they do.
+##
+## ocgcore hands priority to the other player after almost every action, and it does so whether
+## or not that player has anything to respond with - it only short-circuits for `DUEL_SIMPLE_AI`
+## (`playerop.cpp:460`). So a duel is full of `MSG_SELECT_CHAIN` prompts offering **zero**
+## effects, which the prompt itself admits: "0 available, cancel to pass". Asking a person to
+## decline nothing, once per action, is noise that makes the real decisions harder to notice.
+##
+## Only genuinely empty, non-forced chains qualify. `spe_count` does **not** hide options: EDOPro
+## reads `specount == 0x7f` purely to switch its trigger panel on (`duelclient.cpp:2132`), and
+## the options themselves always come from the list length. A forced chain with an empty list
+## would be a contradiction, so it is left alone rather than guessed at - a wrong auto-answer
+## costs the player a legal play, which is far worse than one extra tap.
+func auto_answer() -> Dictionary:
+	if not is_waiting():
+		return {}
+	if _type != DuelEnums.EV.SELECT_CHAIN:
+		return {}
+	if bool(_pending.get("forced", false)):
+		return {}
+	if not _list("chains").is_empty():
+		return {}
+	return {"cancel": true}
+
+
+## Cards the pending selection is actually offering, by handle. Empty when it names no cards.
+##
+## Needs the model, because a selection event does **not** carry handles. `MsgParser` writes
+## `{"card": code, "at": loc_info}` - handles are minted by `DuelState` and stamped onto Level-2
+## intents by `EventTranslator`, which is a later stage entirely. Reading `"handle"` off these
+## entries would quietly return nothing on every call.
+##
+## L4 uses this to light what can be acted on, so "there is something to do" is visible without
+## reading the prompt.
+func actionable_handles(state: DuelState) -> PackedInt32Array:
+	var out: PackedInt32Array = PackedInt32Array()
+	if not is_waiting() or state == null:
+		return out
+
+	for key: String in OFFER_LISTS:
+		for entry: Variant in _list(key):
+			var at: Dictionary = (entry as Dictionary).get("at", {}) as Dictionary
+			if at.is_empty():
+				continue
+			var card: DuelCard = state.card_at(
+				int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
+			if card != null and card.handle != 0 and not out.has(card.handle):
+				out.append(card.handle)
+	return out
+
+
+## Every key under which a selection event can list cards it is offering. One place, because a
+## list added to `MsgParser` and forgotten here goes dark rather than wrong, which is harder to
+## notice than a crash.
+const OFFER_LISTS: Array[String] = [
+	"chains", "cards", "must",
+	"summon", "spsummon", "mset", "sset", "repos", "activate", "attack",
+]
+
+
 func resolve(input: Dictionary) -> Dictionary:
 	if not is_waiting():
 		return {}
