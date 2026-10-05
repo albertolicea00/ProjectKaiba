@@ -30,48 +30,33 @@
 ## 🗺️ Roadmap
 
 Where the project stands and what is next: **[ROADMAP.md](ROADMAP.md)**.
-Full technical plan and rationale: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
-| doc | for |
-|---|---|
-| [AGENTS.md](AGENTS.md) | the rules anyone changing this repo has to hold |
-| [docs/BUILD.md](docs/BUILD.md) | toolchain and build steps |
-| [docs/DATA.md](docs/DATA.md) | card database, scripts and art (none of it versioned) |
-| [docs/DUEL.md](docs/DUEL.md) | how a duel runs in code: the loop, selections, message coverage |
-| [docs/UI.md](docs/UI.md) | screens, navigation, the menu dress, input verbs |
-| [docs/TESTING.md](docs/TESTING.md) | the ten gates and how they have lied |
-
-### MVP — Core System & Rules
-- [ ] Phase 0 — Toolchain: GDExtension wrapper around `ocgcore`, Android + host builds
-- [ ] Phase 0 — Card database and Lua script pipeline (`base.pck`)
-- [ ] Phase 1 — Headless duel: full duel to `MSG_WIN` with no UI
-- [ ] Local Offline Mode support
-- [ ] Deck Editor with `.ydk` import/export
-- [ ] Preconstructed Anime Decks (Classic DM / Kaiba era movies)
-- [ ] Basic Local AI (strictly for development and testing purposes)
-
-### MVP — Visuals & Gameplay
-- [ ] 3D Field implementation (real-world scale)
-- [ ] Dynamic Camera system
-- [ ] Card animations (Summon/Attack)
-- [ ] 3D Monsters via optional asset packs, always with 2D fallback
-- [ ] VR-ready foundations (abstractions only — no VR build in the MVP)
-
-### MVP — Multiplayer (LAN only)
-- [ ] LAN Multiplayer support over TCP
-- [ ] Direct IP Host & Join system
-- [ ] LAN host discovery via UDP broadcast
-- [ ] Replay recording and playback
+- [x] **Core Rules Engine** — C++ `ocgcore` integration via GDExtension, headless duel execution
+- [x] **Deck Loading** — External `.ydk` deck format parsing and in-game deck picker
+- [~] **Touch UI & Solo Play** — Mobile-first 3D field, dynamic camera, animations, audio, and solo duels
+- [ ] **Network Layer (L2)** — Decoupled host/client services and loopback transport
+- [ ] **LAN Multiplayer** — Local TCP duels and UDP broadcast discovery
+- [ ] **AI Opponent** — Local heuristic agent
+- [ ] **3D Monster Avatars** — Optional 3D asset packs with 2D fallbacks
+- [ ] **Replays** — Deterministic duel recording and playback (`KBRP`)
+- [ ] **Future Platforms** — PC client and VR support (Post-MVP)
 
 ---
 
-### Post-MVP (not scheduled)
-- [ ] PC client (mouse/keyboard camera rig)
-- [ ] Compatibility with existing EDOPro, YGOPro and YDXPro servers *(isolated CTOS/STOC adapter — expect breakage on every EDOPro release)*
-- [ ] EDOPro `.yrp` / `.yrpX` replay import/export
-- [ ] Remote AI integration for complex decision making
-- [ ] Downloadable asset packs
-- [ ] VR client
+## 📖 Documentation
+
+Full technical plan, architecture rationale, and project guides:
+
+| Document | Description |
+|---|---|
+| **[ROADMAP.md](ROADMAP.md)** | Current project status, next actions, and settled decisions |
+| **[AGENTS.md](AGENTS.md)** | Operating rules, invariants, and contribution standards |
+| **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** | Full technical architecture, design rationale, and layer map |
+| **[docs/BUILD.md](docs/BUILD.md)** | Toolchain setup, compilation, and Android/host builds |
+| **[docs/DATA.md](docs/DATA.md)** | Card database, scripts, and asset management (none versioned) |
+| **[docs/DUEL.md](docs/DUEL.md)** | Duel loop, selection handling, and engine message coverage |
+| **[docs/UI.md](docs/UI.md)** | Screens, navigation contract, menu dress, and input verbs |
+| **[docs/TESTING.md](docs/TESTING.md)** | Test suites, the ten quality gates, and verification scripts |
 
 ---
 
