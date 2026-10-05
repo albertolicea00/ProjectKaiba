@@ -29,7 +29,17 @@
 
 ## 🗺️ Roadmap
 
-Full technical plan, phase breakdown and estimates: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+Where the project stands and what is next: **[ROADMAP.md](ROADMAP.md)**.
+Full technical plan and rationale: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+
+| doc | for |
+|---|---|
+| [AGENTS.md](AGENTS.md) | the rules anyone changing this repo has to hold |
+| [docs/BUILD.md](docs/BUILD.md) | toolchain and build steps |
+| [docs/DATA.md](docs/DATA.md) | card database, scripts and art (none of it versioned) |
+| [docs/DUEL.md](docs/DUEL.md) | how a duel runs in code: the loop, selections, message coverage |
+| [docs/UI.md](docs/UI.md) | screens, navigation, the menu dress, input verbs |
+| [docs/TESTING.md](docs/TESTING.md) | the ten gates and how they have lied |
 
 ### MVP — Core System & Rules
 - [ ] Phase 0 — Toolchain: GDExtension wrapper around `ocgcore`, Android + host builds
