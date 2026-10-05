@@ -1,7 +1,16 @@
 # AGENTS.md — Project Kaiba
 
 Operating rules for any agent or contributor working in this repo.
-Full design rationale: **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Build steps: **[docs/BUILD.md](docs/BUILD.md)**.
+
+| read this | for |
+|---|---|
+| **[ROADMAP.md](ROADMAP.md)** | what is done, what is next, and what is settled. **Start here after a break.** |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | the design and its rationale |
+| [docs/BUILD.md](docs/BUILD.md) | toolchain and build steps |
+| [docs/DATA.md](docs/DATA.md) | card database, scripts and art — none of it versioned |
+| [docs/DUEL.md](docs/DUEL.md) | how a duel runs in code: the loop, selections, message coverage |
+| [docs/UI.md](docs/UI.md) | screens, navigation contract, the menu dress, input verbs |
+| [docs/TESTING.md](docs/TESTING.md) | the ten gates, and the ways they have passed while proving nothing |
 
 ---
 
@@ -39,14 +48,21 @@ duel payload as raw ocgcore bytes (§7 of ARCHITECTURE.md), which is what keeps 
 ## 4. Layer map
 
 ```
-L5 Platform shell   CameraRig, InputSource, HUD shell
-L4 Visual Layer     BoardView, CardView, MonsterAvatar, AnimationDirector
-L3 Game Adapter     DuelState, EventTranslator, registries, deck, replay
-L2 Networking       ITransport, HostService, ClientService
+L5 Platform shell   CameraRig, InputSource, SceneRouter, screens under game/ui/
+L4 Visual Layer     BoardView, CardView, MonsterAvatar, AnimationDirector, FX, audio
+L3 Game Adapter     DuelState, EventTranslator, SelectionController, registries, deck, replay
+L2 Networking       ITransport, HostService, ClientService        <-- DOES NOT EXIST YET
 L1 Core (C++)       KaibaCore → ocgapi.h, DuelThread, CardDB, ScriptVFS, MsgParser
 ```
 
 No layer may know about the layer above it.
+
+**L2 is empty.** `game/net/` does not exist; every duel scene reaches `KaibaCore` directly. That
+is why V7 currently has nowhere to live and why LAN cannot start. Building it is the next
+structural task — `ROADMAP.md` §2 and §3 N1. Do not add a fourth scene that talks to the core
+without reading that first.
+
+`game/ui/` is L5 (screens and the router) with L4 widgets inside it; see `docs/UI.md`.
 
 ---
 
@@ -70,6 +86,9 @@ Violating any of these is a bug, not a style preference. Cite them by id in comm
 | V12 | Adding or removing a 3D model touches zero lines in L1–L3. |
 | V13 | Unimplemented `MSG_*` opcodes log a WARN and continue. They never crash or abort the duel. |
 | V14 | Only `Dictionary` / `PackedByteArray` cross the C++↔GDScript boundary. Never raw structs. |
+| V15 | `signal chose(destination: String)` means navigation and nothing else. A screen with a second thing to report names it something else. |
+| V16 | No widget sizes, positions or lays itself out from the screen. Choosing an *asset* from a device fact is allowed; choosing a *number* is not. |
+| V17 | A licensed system font is loaded from its system path or not at all. Never copied into the repo or an export. |
 
 ---
 
@@ -83,12 +102,15 @@ native/              C++ only. GDExtension + vendored ocgcore + lua.
   src/               our C++ sources
 game/                Godot 4 project
   bin/               built .so/.dll + kaiba.gdextension (binaries untracked)
-  core/              L3 — zero scene dependencies
-  net/               L2
-  view/              L4
-  platform/          L5
+  core/              L3 — zero scene dependencies (duel, deck, registry)
+  net/               L2 — NOT CREATED YET
+  view/              L4 — board, anim, fx, audio
+  ui/                L5 screens + L4 widgets. menu_art.gd is shared by all of them
+  platform/          L5 — camera, input, scene_router.gd
+  scenes/            duel scenes; several double as test gates
+  ai/                passive_agent.gd (heuristic_agent not written)
 data/                NOT versioned. cards.cdb, Lua scripts, art, packs.
-docs/                ARCHITECTURE.md, BUILD.md
+docs/                ARCHITECTURE, BUILD, DATA, DUEL, UI, TESTING
 tools/               pack builder, cdb check, replay verifier
 ```
 
@@ -106,6 +128,18 @@ make host        # build for this machine (editor)
 make android     # build all 3 Android ABIs
 make selftest    # run the Phase 0 core selftest headless
 ```
+
+**The ten gates.** There is no CI; these are the suite. Run all of them after a pull, before any
+commit touching more than one layer, and after any `class_name` move:
+
+```bash
+make verify smoke duel test-gd duel-real test-selectors touch test-ui solo solo-test
+```
+
+A gate that **times out is a failed gate** — a non-compiling tree was committed once by waving a
+timeout through. A gate that prints `SKIP` has not passed. Read the case count: **zero cases is a
+failure**, not a success. `docs/TESTING.md` explains each gate and lists every way they have
+passed while proving nothing.
 
 Toolchain verified on this machine (2026-10-01): Godot 4.6.3, Android NDK 28.2.13676358,
 `ANDROID_HOME=~/Library/Android/sdk`, Apple clang 17, Python 3.12.
@@ -212,5 +246,36 @@ read a raw packet.
   and gitignored on purpose; pinning it breaks Principle 2 (new cards must work as soon as their
   Lua exists). The rationale, and the one condition that would justify changing it, are in
   `.gitmodules` and `docs/ARCHITECTURE.md` section 7.
+- **Connecting a signal by name is a contract, so check the signature.** `SceneRouter` looks
+  `chose` up by name on whatever scene it loads. A screen that declared `chose(Dictionary)`
+  handed a Dictionary to a String parameter, and the error named the *emitter* rather than the
+  disagreement. `_takes_a_destination()` now verifies the declared argument before connecting.
+  (V15, `docs/UI.md` §2.)
+- **GDScript lambdas capture by value.** `chosen = entry` inside a lambda rebinds the copy. Use
+  `merge()` on a Dictionary you mean to mutate.
+- **`set_process(false)` does not stop signal-driven input.** A scene that has ended must
+  disconnect too, or it keeps taking taps after teardown — which is how a summary line got
+  printed above five failures.
+- **A feature with no caller passes every gate.** `CardView.art_source` was a static nothing ever
+  assigned; `set_combat()` shipped complete and uncalled; `CONFIRM` existed with no gesture bound
+  to it. When you add a capability, add the thing that proves it is *reached*, not only the thing
+  that proves it is correct. Self-policing tables (`BINDINGS`, the audio map, the `EV`
+  `static_assert`s) are the pattern that works.
+- **A new assertion is not finished until it has failed on purpose once.** `make solo-test` used
+  `grep -qv "FAIL"`, which succeeds whenever *any* line lacks the word, and printed PASS above
+  three real failures. See `docs/TESTING.md` §3.
 - State assumptions explicitly. Prefer saying "I don't know" over inventing engine behavior — the
   authority for ocgcore semantics is the source in `native/vendor/ocgcore/`, not memory.
+
+---
+
+## 10. Settled decisions — do not relitigate
+
+Full table with reasons in **[ROADMAP.md](ROADMAP.md) §4**. In short: no deck editor (decks are
+external `.ydk` files the player picks); the card script collection is not a submodule; LAN only,
+no EDOPro server compatibility in the MVP; `solo` and `solo_test` are one menu entry until an
+opponent can actually play; Papyrus is loaded from the system and never bundled (V17); no widget
+measures the screen (V16); nothing under `data/` is ever committed.
+
+When documentation and code disagree, fix one of them in the same commit. `ROADMAP.md` §1 is the
+authority on what is built; `docs/ARCHITECTURE.md` is the authority on why it is shaped that way.
