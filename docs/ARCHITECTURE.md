@@ -536,75 +536,20 @@ The real VR phase (Phase 7+) is `RigVR` + `XRSource` + `UIWorld3D` + an `xr` pac
 
 ---
 
-## 12. Roadmap by phase
+## 12. Roadmap
 
-Every phase ends in something runnable. No pure-infrastructure phases.
+**Moved to [../ROADMAP.md](../ROADMAP.md).** One roadmap, so the two cannot drift apart.
 
-### Where this actually is
+It carries the real state per phase, the original phase plan for reference, the ordered next
+actions, the settled decisions, and the ranked risks.
 
-The phases below are the original plan. Work did not follow them in order, so this is the real
-state, kept here because a roadmap nobody trusts is worse than none.
-
-| phase | state |
-|---|---|
-| 0 — Data and toolchain | **done.** All three Android ABIs build; arm64 carries the 16 KB page flag |
-| 1 — Headless duel | **done.** `MsgParser` covers 62 of 97 opcodes; the rest degrade to `EV::UNHANDLED` |
-| 2 — First playable duel | **mostly done**, with one gap — see below |
-| 3 — Decks, LAN, replays | deck editor in progress; LAN and replays not started |
-| 4 — Polish and 3D | dynamic camera and summon/attack VFX landed early; no 3D models, no `PackManager` |
-
-Things that were built but never appeared in the plan: real card faces from `data/base/pics/`,
-the large card preview, zone markers, stable card handles, and the `cover/` themed card back.
-They came out of using the thing, which is the argument for shipping something playable early.
-
-### The gap worth naming: there is no L2
-
-`game/net/` does not exist. No `ITransport`, no `HostService`, no `ClientService`. Every duel
-scene talks to `KaibaCore` directly, which works for solo play and is why solo play arrived
-quickly.
-
-Three consequences, in order of when they bite:
-
-1. **Invariant V7 has nowhere to live.** Hidden-information filtering is supposed to happen in
-   `HostService` before the transport. Today nothing filters, because there is no transport and
-   both seats are the same process.
-2. **LAN cannot start without it.** Phase 3's `TcpTransport` plugs into an interface that was
-   never written.
-3. **The architecture diagram in section 1 describes a layer that is not there.** That is the
-   kind of drift that makes a document stop being worth reading.
-
-The fix is not large and the shape is already decided (section 5): `HostService` owns the
-`OCG_Duel` and the event filter, `ClientService` holds the mirrored `DuelState`, and solo play
-uses a `LoopbackTransport` so the single-player path exercises the same code as LAN. Doing it
-before LAN rather than during it is the difference between adding a layer and retrofitting one.
-
-
-**Phase 0 — Data and toolchain**
-Init submodules. Build `base.pck` with cdb + scripts + 2D art. SConstruct producing `libkaiba_core.so` for macOS (editor) and android-arm64. "Hello ocgcore": call `OCG_GetVersion` from GDScript.
-→ *Exit: Godot prints "11.0" on Android.*
-
-**Phase 1 — Headless duel**
-Port `core_utils` / `bufferio`. Build `CardDB`, `ScriptVFS`, `DuelThread`. `MsgParser` batch 1 (~45 opcodes). `DuelState`. Console driver: two fixed decks, scripted auto-responses, a complete duel through `MSG_WIN` with no UI.
-→ *Exit: a full duel in the logs. This phase is what proves the project is viable.*
-
-**Phase 2 — First playable duel**
-`BoardView` as 2D-in-3D (cards as quads, no models). `EventTranslator` + `AnimationDirector`. `TouchSource`. HUD. `LoopbackTransport` with `HostService`/`ClientService` in-process. A dumb `heuristic_agent`.
-→ *Exit: you play a full duel on your phone against a bad AI. **The first real milestone.***
-
-**Phase 3 — Decks, LAN, replays**
-`DeckEditor` + `.ydk` I/O + validator. `TcpTransport` + `LanDiscovery` + `Lobby`. Replay record/playback. `MsgParser` batch 2 (~70). Preconstructed DM/Kaiba decks.
-→ *Exit: a LAN duel against a friend using your own decks.*
-
-**Phase 4 — Polish and 3D**
-`PackManager` + `VisualRegistry` + `MonsterAvatar` + `AvatarPool`. First 3 models. Dynamic camera. Summon and attack VFX. `MsgParser` batch 3 (all 97). Android profiling.
-→ *Exit: it looks like a game.*
-
-**Phase 5 — MVP release (private)**
-Remaining 7 models. Battery and thermal optimization. Network error handling. Signed Android export. Real testing with friends.
-→ *Exit: MVP complete.*
-
-**Phase 6+ — Future**
-PC (`RigPC`, `MouseSource`). Remote AI. EDOPro/YGOPro server compatibility (isolated CTOS/STOC adapter, assume it breaks on every EDOPro release). Downloadable packs. VR (Phase 7).
+The one thing worth repeating here, because it contradicts section 1 of this document: **L2 does
+not exist.** `game/net/` is empty, every duel scene talks to `KaibaCore` directly, and so V7
+(hidden-information filtering in `HostService`, before the transport) has nowhere to live and LAN
+cannot start. The shape is already decided in section 5 — `HostService` owns the `OCG_Duel` and
+the filter, `ClientService` holds the mirrored `DuelState`, and solo play runs over a
+`LoopbackTransport` so the single-player path exercises the same code as LAN. Doing it before LAN
+rather than during it is the difference between adding a layer and retrofitting one.
 
 ---
 
