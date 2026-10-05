@@ -133,12 +133,145 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   4.6.3, `OCG_CreateDuel` succeeds, a Lua chunk runs inside the duel's own state, and the duel is
   destroyed cleanly. ocgcore reports 11.0.
 
+### Added (decks)
+- `game/core/deck/` — `YdkIo`, `DeckModel`, `DeckValidator`, `DeckLibrary`. Decks are **external
+  `.ydk` files the player picks**, discovered from `user://decks/` first and `data/base/decks/`
+  second, so a player's own copy shadows a bundled one.
+- `game/ui/deck_picker/` — lists what the library found with main/extra/side counts read by
+  parsing each file, warns about a short or oversized main deck before the engine refuses it, and
+  remembers the choice in `user://last_deck.cfg` so it survives a restart.
+- The chosen deck is played in Solo.
+
+### Removed
+- **The deck editor.** It existed briefly and was replaced by the picker above. An editor would
+  have had to reimplement search, filtering, banlists and validation that EDOPro already does
+  better, and would have owned a format nobody else could read. `.ydk` is what every other client
+  speaks, so a deck built anywhere works here untouched. Reasoning in `ROADMAP.md` section 4.
+
+### Added (input, controls and the card preview)
+- A **set-face-down gesture**: a short downward drag on touch, middle click or Shift+click on PC.
+  `IDLE_ALT_PRIORITY` reads the idle lists set-before-play, so the player states which reading of
+  a tap they meant instead of a priority table guessing.
+- `game/ui/controls/` — every gesture, touch and PC, rendered **from the `BINDINGS` table
+  itself**, so a verb cannot be added without appearing in the player-facing table.
+- On-screen Yes / No / Confirm on the prompt panel. `CONFIRM` was in the enum with no gesture able
+  to emit it; a yes/no question deserves a visible yes rather than an undocumented flick.
+- `game/ui/preview/card_preview.gd` — a card shown large with its database text: type line,
+  attribute, race, ATK/DEF, link markers and effect text. Reached through `POINT_AT`, which never
+  counts as an answer, so looking at a card is always safe.
+- Zone markers on the board naming each zone, and the themed card back from `data/base/pics/back`
+  for everything face-down. The back is deliberately **outside** the `CardArt` LRU budget: it is
+  on screen constantly, so evicting it is the one eviction that always costs.
+
+### Added (solo, the hot seat and the seat in view)
+- `game/ai/passive_agent.gd` and `scenes/solo.tscn` — one seat yours, the board never turns.
+- `scenes/solo_test.tscn` — the hot seat: both seats yours, the board turns, and face-down cards
+  are audited from **both** sides. That audit is the cheapest available stand-in for V7 while
+  there is no `HostService`.
+- `SeatFocus` and the hot-seat banner: which seat is in view is stated at all times and follows
+  the turn, never a prompt.
+- `BoardView.view_by_handle()` / `take_view_by_handle()` — following a card across zones by its
+  stable handle rather than by position.
+- `make solo` and `make solo-test` as separate gates. They assert **opposite things about the
+  camera**, so merging them would mean dropping one of the two assertions.
+
+### Added (portrait and the menu dress)
+- The board is held upright in portrait and the HUD restyled for it; `Camera3D.KEEP_WIDTH`.
+- Battle numbers during an attack (`DuelHud.set_combat()`), so a trade is legible.
+- `game/ui/menu_art.gd` — one place that decides the background cut, the stone slab nine-patch,
+  the lettering and the dark content panel. Everything in it is `static`, so every decision is
+  testable with no window and no rendered frame.
+- Menu art and app icon under `game/ui/art/menu/`. The main menu, the deck picker and the controls
+  table all wear it. Papyrus is loaded from the macOS system path when present and **never copied
+  into the repository or an export**; `menu_font()` returns `null` otherwise and the engine face
+  is used (V17).
+
+### Changed
+- **`Solo` and `Solo Test` collapsed into one menu entry.** Players could not tell them apart
+  while the opponent passes on everything. `scenes/solo.tscn` and `PassiveAgent` stay, gated by
+  `make solo`, and earn the entry back when `heuristic_agent` lands.
+- `menu_art.gd` moved from `game/ui/main_menu/` to `game/ui/`. Three screens wear it, and a file
+  three siblings share is not one sibling's property.
+- The deck picker prints `.../folder/deck.ydk` instead of a full path: the pane is 244 px on a
+  720-wide phone and the tail is what tells two same-named decks apart.
+- The roadmap moved out of `docs/ARCHITECTURE.md` section 12 into `ROADMAP.md`. Two roadmaps
+  drift; they had already started to.
+
+### Fixed
+- **A duel could freeze after a well-formed but illegal answer.** `respond()` returns ok, the
+  scene cleared its pending state, and ocgcore replied `MSG_RETRY` — which does **not** resend the
+  selection it rejected. Nothing was left to answer. The selection is now re-armed and the refusal
+  is announced on screen; a silent refusal is indistinguishable from a hang.
+- **Prompts with nothing to answer.** `Respond with an effect? 0 available` was a question with no
+  answers. `SelectionController.auto_answer()` now cancels a **non-forced** `SELECT_CHAIN` whose
+  offer list is **empty**, and only that. When there is something to do, the offered cards glow
+  instead (`actionable_handles()` → `highlight_cards()`).
+- **The deck picker overloaded the navigation verb.** It declared `signal chose(entry: Dictionary)`
+  while the menu declares `chose(destination: String)`, and `SceneRouter` connects that signal by
+  name — so it handed a Dictionary to a String parameter and the choice died at the signal
+  boundary, with the error naming the emitter rather than the disagreement
+  (`Cannot convert argument 1 from Dictionary to String`). Back was dead for a related reason:
+  `cancelled` had no listener anywhere. Split into `deck_chosen(Dictionary)` and
+  `chose(String)`.
+- `SceneRouter._takes_a_destination()` now verifies a navigation signal's declared argument before
+  connecting it, so the next name collision fails loudly instead of at the boundary. Four cases
+  cover it (V15).
+- A scene kept taking input after the duel closed: `set_process(false)` does not stop
+  signal-driven input.
+- `make solo-test` asserted with `grep -qv "FAIL"`, which succeeds whenever *any* line lacks the
+  word, and printed PASS above three real failures. Fixed to `! grep -qE "^  FAIL"` and proved to
+  fail by injecting a failure. The same run had emitted its summary line **before** teardown.
+- `game/ui/art/menu` paths and `CardArt.DEFAULT_PICS_PATH` were inverted (`base/cards/pics`
+  instead of `base/pics/cards`), so the art tests skipped every case and printed `0 cases,
+  0 failed`. A suite reporting zero cases is now treated as a failure.
+- Set spells and traps were drawn sideways: ocgcore encodes a set spell as `FACEDOWN_DEFENSE`, the
+  same position value that lays a monster on its side. `BoardView.zone_turns()` consults the zone
+  as well as the position.
+
+### Documentation
+- `ROADMAP.md` — the single roadmap: real state per phase against the gate that proves it, the
+  ordered next actions, the settled decisions, and the ranked risks. `docs/ARCHITECTURE.md`
+  section 12 now points here.
+- `docs/DUEL.md` — the duel loop as it runs in code: the three event levels, the `KaibaCore`
+  surface, how each selection type is answered, why handles and not passcodes, and the failure
+  mode that defines the layer (a wrong answer is reported as a hang, not an error).
+- `docs/UI.md` — screens, the navigation contract and the bug that produced it, `MenuArt`, the
+  input verb table, the board, the HUD and the preview.
+- `docs/TESTING.md` — the ten gates and what each proves, plus a section listing every way they
+  have passed while proving nothing.
+- `AGENTS.md` — a documentation index, L2 marked absent in the layer map, invariants **V15**
+  (the navigation verb), **V16** (nothing measures the screen) and **V17** (system fonts are never
+  bundled), the ten gates, five new working rules, and a settled-decisions section.
+
+### Verified (2026-10-05)
+- All ten gates green on macOS arm64 with Godot 4.6.3:
+  `verify smoke duel test-gd duel-real test-selectors touch test-ui solo solo-test`.
+  The UI suite reports **52 cases, 0 failed**.
+- `make duel-real` and `make test-selectors` run against the real `cards.cdb` and the ProjectIgnis
+  script collection, not synthetic decks.
+- Layouts measured headlessly at 720x1280, 1080x2340 and 1920x1080: frame containment, no sibling
+  overlap, a 48 px touch floor, and every panel enclosing the text under it.
+- Pinned submodules unchanged since the table above: `godot-cpp` at `27d9dd2`,
+  `ocgcore` at `efc21aa` (v11.0-96). No core bump, so no replay-determinism risk taken.
+
 ### Known blockers
-- No `cards.cdb` and no card scripts are present yet. See `docs/DATA.md`. Until these exist, only
-  the toolchain can be exercised, not a duel.
-- **Android does not build yet.** `$ANDROID_HOME/ndk/28.2.13676358/` exists but is empty: the NDK
-  was never fully installed. The Makefile pins `NDK_VERSION` (godot-cpp 4.5 defaults to
-  `28.1.13356709`, which is also absent). `make doctor` reports the mismatch.
+*Updated 2026-10-05. The two blockers recorded here previously — missing card data and a
+broken Android build — are both resolved: `data/base/cards.cdb` and the ProjectIgnis script
+collection are installed (`make data-scripts`), and all three Android ABIs build, with arm64
+carrying the 16 KB page flag.*
+
+- **Nothing has ever run on a real phone.** `make android-templates` is a 1.17 GB download that
+  has not been run, so there is no APK. Touch is proven headlessly, which proves verb routing and
+  nothing about ergonomics, latency, thermals or battery.
+- **There is no L2.** `game/net/` does not exist — no `ITransport`, no `HostService`, no
+  `ClientService`. Every duel scene reaches `KaibaCore` directly, so invariant V7 has nowhere to
+  live and LAN cannot start. This is the next structural task (`ROADMAP.md` section 3, N1).
+- **35 of 97 `MSG_*` opcodes are unimplemented.** They degrade to `EV::UNHANDLED` and the duel
+  continues (V13) — safe, and also silent.
+- **`SELECT_OPTION`, `SORT_CARD` and `SORT_CHAIN` have no gesture.** They are answered with their
+  least-destructive default and flagged by `can_answer()`, so a card offering two effects to
+  choose between leaves the player stuck.
+- **The only opponent is `PassiveAgent`**, which passes on everything.
 
 ### Upstream bugs worked around
 - Godot 4.6.3 segfaults in `EditorHelp::_gen_extensions_docs()` during `Main::cleanup` on the
