@@ -317,7 +317,7 @@ func _process(_delta: float) -> void:
 		_idle_frames = 0
 		return
 	_idle_frames += 1
-	if _idle_frames >= IDLE_FRAMES_BEFORE_GIVING_UP:
+	if _headless and _idle_frames >= IDLE_FRAMES_BEFORE_GIVING_UP:
 		_stop("no further events; the duel thread has gone quiet")
 
 
