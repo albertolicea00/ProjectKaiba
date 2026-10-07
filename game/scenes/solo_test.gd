@@ -67,6 +67,8 @@ extends Node3D
 ## real tap runs through. The run plays several turns so that a turn change - and the seat flip
 ## it causes - actually happens, and then asserts on what the focus and the overlay hold.
 
+signal chose(destination: String)
+
 const CORE_CLASS: String = "KaibaCore"
 const CDB_PATH: String = "res://../data/base/cards.cdb"
 const SCRIPT_ROOTS: Array[String] = [
@@ -76,20 +78,17 @@ const SCRIPT_ROOTS: Array[String] = [
 	"res://../data/base/script/pre-release",
 ]
 
-## Same deck as `scenes/duel_touch.gd`, for the same reason: it offers real choices. A level 4
-## vanilla is offered as both `summon` and `mset`; Pot of Greed as both `activate` and `sset`.
+## A diverse deck for testing: level 4 beaters, a tribute monster, draw spell, equip spell,
+## field-clearing spell, attack-negating trap, and the trap that validates face-down rendering.
 const BEATERS: Array[int] = [11091375, 14898066, 33256280, 35052053]
 const BIG: int = 89631139
 const POT_OF_GREED: int = 55144522
+const DARK_HOLE: int = 53129443
+const NEGATE_ATTACK: int = 14315573
+const AXE_OF_DESPAIR: int = 40619825
 
-## Trap Hole. The only card in this deck that a tap can turn into a **set** card, and the one
-## the honesty check needs on the board.
-##
-## `SelectionController.IDLE_PRIORITY` resolves a tapped card against `activate`, `summon`,
-## `spsummon`, `mset`, `sset`, `repos` in that order, and a monster in hand is offered as both
-## `summon` and `mset` while a spell is offered as both `activate` and `sset` - so for every
-## other card in this deck the tap lands on the face-up command first. A trap is only ever
-## `sset`, which makes it the one way to reach a face-down card from input alone.
+## Trap Hole. Validates face-down rendering: a trap is only ever offered in `sset`, making
+## it the one card a player can set from input alone regardless of priority resolution.
 const TRAP_HOLE: int = 4206964
 const DECK_SIZE: int = 40
 
@@ -101,6 +100,7 @@ var _auto_passed: int = 0
 var _opponent_answers: int = 0
 
 var _preview: CardPreview = null
+var _action_menu: ActionMenu = null
 
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
@@ -243,6 +243,11 @@ func _ready() -> void:
 
 	_preview = PREVIEW_SCENE.instantiate() as CardPreview
 	add_child(_preview)
+
+	_action_menu = ActionMenu.new()
+	_action_menu.name = "ActionMenu"
+	add_child(_action_menu)
+	_action_menu.action_chosen.connect(_on_action_chosen)
 
 	_hud.bind(_state)
 
@@ -409,15 +414,21 @@ func _deck_for_play() -> PackedInt32Array:
 	return main
 
 
-## The built-in fallback: a deck of known cards that exercises summon, set, trap and a draw
-## effect. Used only when no `.ydk` is installed.
+## The built-in fallback: a diverse deck that exercises summon, set, equip, field-clear,
+## attack negation and draw. Gives both players enough variety to test all gameplay paths.
 func _build_deck() -> PackedInt32Array:
 	var deck: PackedInt32Array = PackedInt32Array()
 	for index: int in DECK_SIZE:
 		if index % 10 == 0:
 			deck.append(BIG)
-		elif index % 7 == 0:
+		elif index == 7 or index == 21:
 			deck.append(TRAP_HOLE)
+		elif index == 14:
+			deck.append(NEGATE_ATTACK)
+		elif index == 28:
+			deck.append(DARK_HOLE)
+		elif index == 3 or index == 23:
+			deck.append(AXE_OF_DESPAIR)
 		elif index % 5 == 0:
 			deck.append(POT_OF_GREED)
 		else:
@@ -489,6 +500,9 @@ func _handle(event: Dictionary) -> void:
 			_rearm_after_retry()
 			return
 
+	if _headless and _set_trap and _set_zones_audited == 0:
+		_audit_facedown()
+
 	if type < FIRST_SELECT_EVENT or type > LAST_SELECT_EVENT:
 		return
 
@@ -548,6 +562,59 @@ func _preview_handle(handle: int) -> void:
 	var info: Dictionary = _core.get_card_info(view.card_id) if _core != null else {}
 	var face: Texture2D = _art.texture_for(view.card_id) if _art != null else null
 	_preview.show_card(info, face)
+
+
+## Opens the action menu for a card during an idle or battle command selection.
+func _show_action_menu(handle: int) -> void:
+	if _action_menu == null or _core == null:
+		return
+
+	var actions: Array[Dictionary] = _selection.available_actions_for(handle)
+	if actions.is_empty():
+		# No actions available for this card; show preview instead.
+		_preview_handle(handle)
+		return
+
+	var view: CardView = _board.view_by_handle(handle)
+	var card_name: String = ""
+	if view != null and view.card_id != 0:
+		var info: Dictionary = _core.get_card_info(view.card_id)
+		card_name = str(info.get("name", ""))
+
+	_action_menu.show_actions(card_name, actions)
+
+
+## The player picked an action from the menu.
+func _on_action_chosen(cmd: String, index: int) -> void:
+	if cmd == "_surrender":
+		_do_surrender()
+		return
+	if not _selection.is_waiting():
+		return
+	var type: int = _selection.pending_type()
+	var answer: Dictionary = _selection.resolve_action(cmd, index)
+	if answer.is_empty():
+		return
+	_answers_from_intents += 1
+	_answer_pending(type, answer)
+
+
+## Long press on the deck offers to surrender and return to the menu.
+func _offer_surrender() -> void:
+	if _action_menu == null:
+		return
+	var surrender_actions: Array[Dictionary] = [{
+		"key": "_surrender",
+		"label": "Surrender",
+		"index": 0,
+	}]
+	_action_menu.show_actions("Deck", surrender_actions)
+
+
+func _do_surrender() -> void:
+	print("[solo] player surrendered")
+	_stop("surrendered")
+	chose.emit("menu")
 
 
 ## Puts the rejected selection back in front of the player.
@@ -708,24 +775,45 @@ func _apply_seat(seat: int) -> void:
 # ----------------------------------------------------------------------------------------------
 
 func _on_intent(data: Dictionary) -> void:
-	# `set_process(false)` does not stop this: intents arrive by signal, not on the frame clock.
-	# Without this guard a tap after the duel ended still reached `respond()`, which answered
-	# "no duel is running" - a confusing engine error for what is really "the duel is over".
 	if _stopping or not _running:
+		return
+
+	# Dismiss the action menu on any intent while it is open. The player tapped elsewhere.
+	if _action_menu != null and _action_menu.is_open():
+		_action_menu.hide_menu()
 		return
 
 	var kind: String = str(data.get("kind", ""))
 
-	# Inspecting a card is never an answer, so it is handled before the pending check: you can
-	# read a card whether or not the duel is waiting on you, which is when you most want to.
+	# Tap/click = preview. Always safe, always available.
 	if kind == InputSource.KIND_POINT_AT:
 		_preview_handle(int(data.get("handle", 0)))
 		return
 
+	# Long press on deck = surrender.
+	if kind == InputSource.KIND_SELECT_CARD:
+		var anchor: String = str(data.get("anchor", ""))
+		if anchor.begins_with("DECK_"):
+			_offer_surrender()
+			return
+
 	if not _selection.is_waiting():
+		# Outside a selection, a long press previews the card.
+		if kind == InputSource.KIND_SELECT_CARD:
+			_preview_handle(int(data.get("handle", 0)))
 		return
 
 	var type: int = _selection.pending_type()
+
+	# During idle or battle command, a long press on a card opens the action menu
+	# instead of auto-resolving through priority.
+	if not _headless and kind == InputSource.KIND_SELECT_CARD:
+		if type == DuelEnums.EV.SELECT_IDLECMD or type == DuelEnums.EV.SELECT_BATTLECMD:
+			var handle: int = int(data.get("handle", 0))
+			if handle != 0:
+				_show_action_menu(handle)
+				return
+
 	var answer: Dictionary = _selection.resolve(data)
 	if answer.is_empty():
 		return
@@ -774,7 +862,7 @@ func _stop_if_satisfied() -> void:
 		return
 	if hot_seat and _focus.flips < FLIPS_WANTED:
 		return
-	if not _set_trap:
+	if not _set_trap or _set_zones_audited == 0:
 		return
 	_stop("a full turn cycle played out and the view followed the turn player both ways")
 
@@ -827,10 +915,11 @@ func _synthesise_intent() -> Dictionary:
 
 	match _selection.pending_type():
 		DuelEnums.EV.SELECT_IDLECMD:
-			# A set card first. It is the card this mode must draw honestly - face-down, no
-			# passcode, and upright rather than on its side - and nothing else on this board
-			# can prove any of that.
-			if not _set_trap and _trap_in(event):
+			# Set a trap whenever one is available. The face-down audit runs at the end of
+			# the duel, so at least one must still be on the board at that point. With cards
+			# like Dark Hole in the deck a single early set can be destroyed long before the
+			# audit, so keep setting them.
+			if _trap_in(event):
 				_set_trap = true
 				return _tap(event, "sset", _trap_index(event))
 			if not _summoned and not (event.get("summon", []) as Array).is_empty():
@@ -996,6 +1085,8 @@ func _stop(reason: String) -> void:
 	# Close the duel *before* auditing it. The audit prints the verdict, and anything that could
 	# still fail after that line has already made the verdict wrong - which is how "all checks
 	# passed" ended up printed above five failures.
+	if _action_menu != null:
+		_action_menu.hide_menu()
 	if _core != null:
 		_core.end_duel()
 	_selection.clear()

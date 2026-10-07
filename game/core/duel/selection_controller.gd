@@ -295,6 +295,70 @@ const OFFER_LISTS: Array[String] = [
 ]
 
 
+## Human-readable labels for the command list keys. Used by the action menu to present
+## choices the player actually recognises.
+const ACTION_LABELS: Dictionary = {
+	"summon": "Normal Summon",
+	"spsummon": "Special Summon",
+	"mset": "Set (face-down)",
+	"sset": "Set",
+	"activate": "Activate",
+	"repos": "Change Position",
+	"attack": "Attack",
+}
+
+
+## Every action the pending selection offers for the card identified by `handle`.
+##
+## Returns an array of `{"key": String, "label": String, "index": int}`. Empty when the
+## card is not offered in any list, or no selection is pending, or the selection is not an
+## idle or battle command.
+func available_actions_for(handle: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if not is_waiting() or _state == null or handle == 0:
+		return out
+
+	var card: DuelCard = _card_by_handle(handle)
+	if card == null:
+		return out
+
+	var where: Dictionary = {
+		"con": card.controller,
+		"loc": card.location,
+		"seq": card.sequence,
+		"code": card.code,
+	}
+
+	var keys: Array[String] = []
+	match _type:
+		DuelEnums.EV.SELECT_IDLECMD:
+			keys.assign(IDLE_PRIORITY)
+		DuelEnums.EV.SELECT_BATTLECMD:
+			keys.assign(BATTLE_PRIORITY)
+		_:
+			return out
+
+	for key: String in keys:
+		var index: int = _index_in_list(key, where)
+		if index >= 0:
+			out.append({
+				"key": key,
+				"label": ACTION_LABELS.get(key, key),
+				"index": index,
+			})
+	return out
+
+
+## Builds the response for a specific action the player chose from the action menu.
+func resolve_action(cmd: String, index: int) -> Dictionary:
+	if not is_waiting():
+		return {}
+	match _type:
+		DuelEnums.EV.SELECT_IDLECMD, DuelEnums.EV.SELECT_BATTLECMD:
+			return {"cmd": cmd, "index": index}
+	return {}
+
+
 func resolve(input: Dictionary) -> Dictionary:
 	if not is_waiting():
 		return {}

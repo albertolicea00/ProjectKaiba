@@ -97,11 +97,18 @@ const KIND_CANCEL: String = "CANCEL"
 ## to a monitor, a desktop with a touchscreen and a tablet with a keyboard are all one build.
 const BINDINGS: Array[Dictionary] = [
 	{
-		"kind": KIND_SELECT_CARD,
-		"label": "Select a card",
-		"does": "Plays it the usual way: summon a monster, activate a spell, declare an attack.",
+		"kind": KIND_POINT_AT,
+		"label": "Look at a card",
+		"does": "Shows the card up close with its name, stats and effect text. Never counts as an answer.",
 		"touch": "Tap the card",
 		"pc": "Left click",
+	},
+	{
+		"kind": KIND_SELECT_CARD,
+		"label": "Play a card",
+		"does": "Opens the action menu during your turn, showing what you can do with the card.",
+		"touch": "Press and hold the card",
+		"pc": "Hold left click on the card",
 	},
 	{
 		"kind": KIND_SELECT_ALT,
@@ -114,25 +121,13 @@ const BINDINGS: Array[Dictionary] = [
 		"kind": KIND_SELECT_ZONE,
 		"label": "Choose a zone",
 		"does": "Answers a request for a place - where a summoned monster goes, which zone to set into.",
-		"touch": "Tap the empty zone",
-		"pc": "Left click the empty zone",
-	},
-	{
-		"kind": KIND_POINT_AT,
-		"label": "Look at a card",
-		"does": "Shows the card up close. Never counts as an answer, so it is always safe.",
-		"touch": "Press and hold",
-		"pc": "Hover the cursor over it",
+		"touch": "Hold on the empty zone",
+		"pc": "Hold left click on the empty zone",
 	},
 	{
 		"kind": KIND_CONFIRM,
 		"label": "Confirm",
 		"does": "Says yes, finishes a multi-card selection, or moves to the next phase.",
-		# A button, not a gesture. `TouchSource` still emits no CONFIRM - there is no finger
-		# movement for it - so the prompt panel in `DuelHud` carries a visible Yes/Confirm the
-		# whole time a selection is pending. That is the better answer anyway: a yes/no question
-		# deserves a visible yes, and hiding the only affirmative behind an undocumented flick
-		# would be a worse version of the gap it replaced.
 		"touch": "Yes / Confirm button on the prompt",
 		"pc": "Enter or Space, or the Yes / Confirm button",
 	},

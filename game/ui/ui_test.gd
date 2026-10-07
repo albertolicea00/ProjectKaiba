@@ -1603,9 +1603,10 @@ func _case_a_downward_drag_sets_and_a_tap_does_not() -> void:
 			% [TouchSource.SET_DRAG_DISTANCE, TouchSource.TAP_SLOP])
 
 	# A plain tap, with the few pixels of wander a real finger puts on one.
+	# Tap now shows the card up close (preview) rather than playing it.
 	_tap_screen(source, Vector2(400, 400), Vector2(404, 403))
 	_equal("a tap emits exactly one intent", seen.size(), 1)
-	_equal("and it is a plain selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+	_equal("and it is a preview", str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
 
 	# Down past the threshold.
 	seen.clear()
@@ -1662,9 +1663,10 @@ func _case_middle_click_and_shift_click_both_set() -> void:
 	var seen: Array[Dictionary] = []
 	source.intent.connect(func(data: Dictionary) -> void: seen.append(data))
 
+	# A quick left click shows the card up close (preview).
 	_click(source, MOUSE_BUTTON_LEFT, false)
 	_equal("left click emits one intent", seen.size(), 1)
-	_equal("and it is a plain selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+	_equal("and it is a preview", str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
 
 	seen.clear()
 	_click(source, MOUSE_BUTTON_MIDDLE, false)
@@ -1682,10 +1684,9 @@ func _case_middle_click_and_shift_click_both_set() -> void:
 	# Shift is read per event, never remembered. A modifier that outlives its event is a mode.
 	seen.clear()
 	_click(source, MOUSE_BUTTON_LEFT, false)
-	_equal("the next unmodified click is plain again",
-		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
+	_equal("the next unmodified click is a preview again",
+		str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
 
-	# Long press is the preview and stays the preview; nothing above moved it.
 	seen.clear()
 	_click(source, MOUSE_BUTTON_RIGHT, false)
 	_equal("right click still cancels", str(seen[0].get("kind", "")), InputSource.KIND_CANCEL)
@@ -1950,14 +1951,21 @@ func _touch_event(position: Vector2, pressed: bool) -> InputEventScreenTouch:
 	return event
 
 
-## One press. Releases are ignored by `MouseSource`, so sending one would prove nothing.
+## A full click: press and release. MouseSource uses long-press detection, so a quick
+## release produces a preview (POINT_AT) while a held press produces a selection.
 func _click(source: InputSource, button: int, shift: bool) -> void:
-	var event := InputEventMouseButton.new()
-	event.button_index = button
-	event.pressed = true
-	event.shift_pressed = shift
-	event.position = Vector2(400, 400)
-	source._unhandled_input(event)
+	var down := InputEventMouseButton.new()
+	down.button_index = button
+	down.pressed = true
+	down.shift_pressed = shift
+	down.position = Vector2(400, 400)
+	source._unhandled_input(down)
+	var up := InputEventMouseButton.new()
+	up.button_index = button
+	up.pressed = false
+	up.shift_pressed = shift
+	up.position = Vector2(400, 400)
+	source._unhandled_input(up)
 
 
 ## A started duel where player 0 holds five known cards, 1001..1005 at hand sequences 0..4.
@@ -2993,9 +3001,6 @@ func _case_every_verb_is_reachable_on_a_phone() -> void:
 	for binding: Dictionary in InputSource.BINDINGS:
 		var kind: String = str(binding.get("kind", "?"))
 		var touch: String = str(binding.get("touch", ""))
-		# POINT_AT is a preview; a phone without it loses nothing it cannot get by tapping.
-		if kind == InputSource.KIND_POINT_AT:
-			continue
 		_check("%s can be reached by hand" % kind, not touch.is_empty(),
 			"%s has no touch binding, so a handheld player cannot produce it" % kind)
 
