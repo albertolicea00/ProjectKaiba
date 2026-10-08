@@ -237,6 +237,7 @@ func _ready() -> void:
 	# or close a multi-card selection, and the duel parks with no way out.
 	_hud.confirmed.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CONFIRM}))
 	_hud.cancelled.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CANCEL}))
+	_hud.phase_pressed.connect(_on_phase_pressed)
 
 	# Solo watches one half all duel; hot seat turns the board on every turn change.
 	_focus.follow_turn = hot_seat
@@ -611,6 +612,37 @@ func _offer_surrender() -> void:
 	_action_menu.show_actions("Deck", surrender_actions)
 
 
+## Shows phase buttons matching the available phase transitions in the event.
+func _update_phase_buttons(event: Dictionary) -> void:
+	if _hud == null:
+		return
+	var type: int = _selection.pending_type()
+	var commands: Array[String] = []
+	if type == DuelEnums.EV.SELECT_IDLECMD:
+		if bool(event.get("to_bp", false)):
+			commands.append("to_bp")
+		if bool(event.get("to_ep", false)):
+			commands.append("to_ep")
+	elif type == DuelEnums.EV.SELECT_BATTLECMD:
+		if bool(event.get("to_m2", false)):
+			commands.append("to_m2")
+		if bool(event.get("to_ep", false)):
+			commands.append("to_ep")
+	_hud.set_phase_commands(commands)
+
+
+## A phase button was clicked (BP, M2, EP).
+func _on_phase_pressed(cmd: String) -> void:
+	if not _selection.is_waiting():
+		return
+	var type: int = _selection.pending_type()
+	if type != DuelEnums.EV.SELECT_IDLECMD and type != DuelEnums.EV.SELECT_BATTLECMD:
+		return
+	var answer: Dictionary = {"cmd": cmd}
+	_answers_from_intents += 1
+	_answer_pending(type, answer)
+
+
 func _do_surrender() -> void:
 	print("[solo] player surrendered")
 	_stop("surrendered")
@@ -687,6 +719,7 @@ func _on_selection(event: Dictionary) -> void:
 
 	_highlight_for(event)
 	_banner.refresh()
+	_update_phase_buttons(event)
 
 	print("[solo] %s -> %s (looking from %s)%s" % [
 		DuelEnums.ev_name(_focus.decision_event),
@@ -785,12 +818,12 @@ func _on_intent(data: Dictionary) -> void:
 
 	var kind: String = str(data.get("kind", ""))
 
-	# Tap/click = preview. Always safe, always available.
+	# Hover / long press = preview. Always safe, always available.
 	if kind == InputSource.KIND_POINT_AT:
 		_preview_handle(int(data.get("handle", 0)))
 		return
 
-	# Long press on deck = surrender.
+	# Click on deck = surrender.
 	if kind == InputSource.KIND_SELECT_CARD:
 		var anchor: String = str(data.get("anchor", ""))
 		if anchor.begins_with("DECK_"):
@@ -798,15 +831,15 @@ func _on_intent(data: Dictionary) -> void:
 			return
 
 	if not _selection.is_waiting():
-		# Outside a selection, a long press previews the card.
+		# Outside a selection, clicking a card previews it.
 		if kind == InputSource.KIND_SELECT_CARD:
 			_preview_handle(int(data.get("handle", 0)))
 		return
 
 	var type: int = _selection.pending_type()
 
-	# During idle or battle command, a long press on a card opens the action menu
-	# instead of auto-resolving through priority.
+	# During idle or battle command, clicking a card opens the action menu
+	# showing what you can do with it (summon, set, activate, attack).
 	if not _headless and kind == InputSource.KIND_SELECT_CARD:
 		if type == DuelEnums.EV.SELECT_IDLECMD or type == DuelEnums.EV.SELECT_BATTLECMD:
 			var handle: int = int(data.get("handle", 0))
@@ -846,6 +879,8 @@ func _answer_pending(type: int, answer: Dictionary) -> void:
 	_focus.clear_pending()
 	_board.clear_highlights()
 	_board.clear_card_highlights()
+	if _hud != null:
+		_hud.set_phase_commands([])
 	_banner.refresh()
 	_idle_frames = 0
 

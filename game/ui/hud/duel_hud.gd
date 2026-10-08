@@ -170,6 +170,10 @@ signal cancelled
 ## an unhandled signal.
 signal menu_pressed
 
+## Raised when the player clicks a phase button (BP, M2, EP). The command string matches what
+## SelectionController expects: "to_bp", "to_m2", "to_ep".
+signal phase_pressed(cmd: String)
+
 ## Life points as drawn, as the model has them, and how fast the first is chasing the second.
 var _shown: Array[float] = [0.0, 0.0]
 var _target: Array[int] = [0, 0]
@@ -192,6 +196,7 @@ func _ready() -> void:
 	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
 	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
 	_menu_button.pressed.connect(func() -> void: menu_pressed.emit())
+	_build_phase_buttons()
 	_paint_prompt()
 
 
@@ -517,6 +522,63 @@ func _combat_line(card: DuelCard) -> String:
 func _paint_prompt() -> void:
 	_prompt_label.text = _prompt
 	_prompt_panel.visible = not _prompt.is_empty()
+
+
+# ----------------------------------------------------------------------------------------------
+# Phase buttons (EDOPro-style)
+# ----------------------------------------------------------------------------------------------
+
+const PHASE_BUTTON_LABELS: Dictionary = {
+	"to_bp": "BP",
+	"to_m2": "M2",
+	"to_ep": "EP",
+}
+
+const PHASE_BUTTON_MIN: Vector2 = Vector2(64, 44)
+
+var _phase_box: VBoxContainer = null
+var _phase_buttons: Dictionary = {}
+
+
+func _build_phase_buttons() -> void:
+	_phase_box = VBoxContainer.new()
+	_phase_box.name = "PhaseButtons"
+	_phase_box.set_anchors_preset(Control.PRESET_CENTER_RIGHT)
+	_phase_box.offset_left = -82.0
+	_phase_box.offset_right = -18.0
+	_phase_box.offset_top = -80.0
+	_phase_box.offset_bottom = 80.0
+	_phase_box.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_phase_box.add_theme_constant_override("separation", 6)
+	_phase_box.visible = false
+	get_node("Root").add_child(_phase_box)
+
+	for cmd: String in ["to_bp", "to_m2", "to_ep"]:
+		var btn: Button = Button.new()
+		btn.name = cmd
+		btn.text = str(PHASE_BUTTON_LABELS.get(cmd, cmd))
+		btn.custom_minimum_size = PHASE_BUTTON_MIN
+		btn.add_theme_font_size_override("font_size", 18)
+		btn.pressed.connect(_on_phase_button.bind(cmd))
+		_phase_box.add_child(btn)
+		_phase_buttons[cmd] = btn
+
+
+func _on_phase_button(cmd: String) -> void:
+	phase_pressed.emit(cmd)
+
+
+## Shows the phase buttons that match the available commands in the current selection.
+## Pass an empty array to hide them.
+func set_phase_commands(commands: Array[String]) -> void:
+	if _phase_box == null:
+		return
+	if commands.is_empty():
+		_phase_box.visible = false
+		return
+	for cmd: String in _phase_buttons:
+		(_phase_buttons[cmd] as Button).visible = commands.has(cmd)
+	_phase_box.visible = true
 
 
 # ----------------------------------------------------------------------------------------------

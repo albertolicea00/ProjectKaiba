@@ -97,18 +97,11 @@ const KIND_CANCEL: String = "CANCEL"
 ## to a monitor, a desktop with a touchscreen and a tablet with a keyboard are all one build.
 const BINDINGS: Array[Dictionary] = [
 	{
-		"kind": KIND_POINT_AT,
-		"label": "Look at a card",
-		"does": "Shows the card up close with its name, stats and effect text. Never counts as an answer.",
-		"touch": "Tap the card",
-		"pc": "Left click",
-	},
-	{
 		"kind": KIND_SELECT_CARD,
 		"label": "Play a card",
 		"does": "Opens the action menu during your turn, showing what you can do with the card.",
-		"touch": "Press and hold the card",
-		"pc": "Hold left click on the card",
+		"touch": "Tap the card",
+		"pc": "Left click",
 	},
 	{
 		"kind": KIND_SELECT_ALT,
@@ -121,8 +114,15 @@ const BINDINGS: Array[Dictionary] = [
 		"kind": KIND_SELECT_ZONE,
 		"label": "Choose a zone",
 		"does": "Answers a request for a place - where a summoned monster goes, which zone to set into.",
-		"touch": "Hold on the empty zone",
-		"pc": "Hold left click on the empty zone",
+		"touch": "Tap the empty zone",
+		"pc": "Left click on the empty zone",
+	},
+	{
+		"kind": KIND_POINT_AT,
+		"label": "Look at a card",
+		"does": "Shows the card in the info panel with its name, stats and effect text. Never counts as an answer.",
+		"touch": "Press and hold the card",
+		"pc": "Hover over the card",
 	},
 	{
 		"kind": KIND_CONFIRM,

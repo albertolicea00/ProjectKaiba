@@ -11,8 +11,8 @@ extends InputSource
 ## -------------------------------------------------------------------------------------------
 ## Gestures
 ## -------------------------------------------------------------------------------------------
-##   tap                 POINT_AT - shows the card up close (preview)
-##   long press >500 ms  SELECT_CARD / SELECT_ZONE at the held finger
+##   tap                 SELECT_CARD / SELECT_ZONE - plays a card or chooses a zone
+##   long press >500 ms  POINT_AT - shows the card up close (preview)
 ##   short drag down     SELECT_ALT on the card the drag started on - "set this"
 ##   two-finger tap      CANCEL
 ##
@@ -162,12 +162,8 @@ func _on_touch(event: InputEventScreenTouch) -> void:
 	if consumed:
 		return
 
-	# A tap shows the card up close rather than playing it. The deliberate action of
-	# playing goes through long press, which gives the player a moment to see what the
-	# card is before committing. This is the swap that makes preview the quick gesture
-	# and play the considered one.
 	if event.position.distance_to(_origin) <= TAP_SLOP:
-		point_at(event.position)
+		select_at(event.position)
 
 
 ## Does the movement from `origin` to `release` read as "set this card"?
@@ -199,6 +195,4 @@ func _on_long_press() -> void:
 		return
 	_consumed = true
 	_previewed = true
-	# Long press is the deliberate action: it selects the card or zone under the finger,
-	# which during an idle or battle command triggers the action menu at the scene level.
-	select_at(_origin)
+	point_at(_origin)

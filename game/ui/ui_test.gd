@@ -1603,10 +1603,10 @@ func _case_a_downward_drag_sets_and_a_tap_does_not() -> void:
 			% [TouchSource.SET_DRAG_DISTANCE, TouchSource.TAP_SLOP])
 
 	# A plain tap, with the few pixels of wander a real finger puts on one.
-	# Tap now shows the card up close (preview) rather than playing it.
+	# EDOPro model: tap selects the card (opens action menu in context).
 	_tap_screen(source, Vector2(400, 400), Vector2(404, 403))
 	_equal("a tap emits exactly one intent", seen.size(), 1)
-	_equal("and it is a preview", str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
+	_equal("and it is a selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
 
 	# Down past the threshold.
 	seen.clear()
@@ -1663,10 +1663,10 @@ func _case_middle_click_and_shift_click_both_set() -> void:
 	var seen: Array[Dictionary] = []
 	source.intent.connect(func(data: Dictionary) -> void: seen.append(data))
 
-	# A quick left click shows the card up close (preview).
+	# EDOPro model: left click selects the card (opens action menu in context).
 	_click(source, MOUSE_BUTTON_LEFT, false)
 	_equal("left click emits one intent", seen.size(), 1)
-	_equal("and it is a preview", str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
+	_equal("and it is a selection", str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
 
 	seen.clear()
 	_click(source, MOUSE_BUTTON_MIDDLE, false)
@@ -1684,8 +1684,8 @@ func _case_middle_click_and_shift_click_both_set() -> void:
 	# Shift is read per event, never remembered. A modifier that outlives its event is a mode.
 	seen.clear()
 	_click(source, MOUSE_BUTTON_LEFT, false)
-	_equal("the next unmodified click is a preview again",
-		str(seen[0].get("kind", "")), InputSource.KIND_POINT_AT)
+	_equal("the next unmodified click is a selection again",
+		str(seen[0].get("kind", "")), InputSource.KIND_SELECT_CARD)
 
 	seen.clear()
 	_click(source, MOUSE_BUTTON_RIGHT, false)
