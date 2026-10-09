@@ -1414,6 +1414,33 @@ func _show_announce_number_dialog(event: Dictionary) -> void:
 	_action_menu.show_actions("Choose a number", actions)
 
 
+func _show_sum_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var cards: Array = event.get("cards", []) as Array
+	var target: int = int(event.get("acc", 0))
+	var must: Array = event.get("must", []) as Array
+	var actions: Array[Dictionary] = []
+	for i: int in range(cards.size()):
+		var entry: Dictionary = cards[i] as Dictionary
+		var code: int = int(entry.get("card", 0))
+		var sum_param: int = int(entry.get("sum_param", 0))
+		var low: int = sum_param & 0xffff
+		var high: int = (sum_param >> 16) & 0xffff
+		var val_text: String = str(low) if low == high or high == 0 else "%d/%d" % [low, high]
+		var label_text: String = "%s (Lv %s)" % [_card_name(code), val_text]
+		actions.append({"key": "_sort", "label": label_text, "index": i})
+		if i == 0 and code != 0 and not _headless:
+			_preview_code(code)
+	var must_text: String = ""
+	if not must.is_empty():
+		var must_names: PackedStringArray = PackedStringArray()
+		for m: Dictionary in must:
+			must_names.append(_card_name(int(m.get("card", 0))))
+		must_text = " (Must: %s)" % ", ".join(must_names)
+	_action_menu.show_actions("Select for total %d%s" % [target, must_text], actions)
+
+
 ## Shows phase buttons matching the available phase transitions in the event.
 func _update_phase_buttons(event: Dictionary) -> void:
 	if _hud == null:
@@ -1588,6 +1615,8 @@ func _on_selection(event: Dictionary) -> void:
 			_show_announce_card_dialog(event)
 		elif pending == DuelEnums.EV.ANNOUNCE_NUMBER:
 			_show_announce_number_dialog(event)
+		elif pending == DuelEnums.EV.SELECT_SUM:
+			_show_sum_dialog(event)
 
 	print("[solo] %s -> %s (looking from %s)%s" % [
 		DuelEnums.ev_name(_focus.decision_event),
