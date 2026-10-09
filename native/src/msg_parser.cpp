@@ -697,6 +697,51 @@ Dictionary parse_player_hint(Cursor& cursor) {
 	return event;
 }
 
+/// MSG_FIELD_DISABLED: u32 bitmask of disabled zones.
+Dictionary parse_field_disabled(Cursor& cursor) {
+	Dictionary event = make_event(EV::FIELD_DISABLED);
+	event["flag"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	return event;
+}
+
+/// MSG_DECK_TOP: u8 player, u32 index from top, u32 code, u32 position.
+Dictionary parse_deck_top(Cursor& cursor) {
+	Dictionary event = make_event(EV::DECK_TOP);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	event["index"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["card"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	event["position"] = static_cast<int32_t>(cursor.read<uint32_t>());
+	return event;
+}
+
+/// MSG_CONFIRM_EXTRATOP: u8 player, u32 count, then per card: u32 code, u8 con, u8 loc, u32 seq.
+Dictionary parse_confirm_extratop(Cursor& cursor) {
+	Dictionary event = make_event(EV::CONFIRM_EXTRATOP);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	Array cards;
+	const uint32_t count = cursor.read<uint32_t>();
+	for (uint32_t i = 0; i < count && cursor.ok(); ++i) {
+		Dictionary card;
+		card["code"] = static_cast<int32_t>(cursor.read<uint32_t>());
+		card["con"] = static_cast<int32_t>(cursor.read<uint8_t>());
+		card["loc"] = static_cast<int32_t>(cursor.read<uint8_t>());
+		card["seq"] = static_cast<int32_t>(cursor.read<uint32_t>());
+		cards.push_back(card);
+	}
+	event["cards"] = cards;
+	return event;
+}
+
+/// MSG_SWAP_GRAVE_DECK: u8 player, then a bitfield marking extra-deck monsters.
+/// Complex enough that we just emit the player — the state rebuild happens via full refresh.
+Dictionary parse_swap_grave_deck(Cursor& cursor) {
+	Dictionary event = make_event(EV::SWAP_GRAVE_DECK);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	// Skip remaining bitfield — consume it so the cursor stays ok().
+	while (cursor.remaining() > 0 && cursor.ok()) cursor.read<uint8_t>();
+	return event;
+}
+
 Dictionary parse_confirm_decktop(Cursor& cursor) {
 	Dictionary event = make_event(EV::CONFIRM_DECKTOP);
 	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
@@ -898,9 +943,16 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		case MSG_ANNOUNCE_CARD:        event = parse_announce_options(cursor, EV::ANNOUNCE_CARD); break;
 		case MSG_ANNOUNCE_NUMBER:      event = parse_announce_options(cursor, EV::ANNOUNCE_NUMBER); break;
 
-		// TODO(batch4): MSG_UNEQUIP, MSG_FIELD_DISABLED, MSG_CARD_SELECTED,
-		// MSG_SWAP_GRAVE_DECK, MSG_REVERSE_DECK, MSG_DECK_TOP, MSG_MATCH_KILL,
-		// MSG_BE_CHAIN_TARGET, MSG_TAG_SWAP, MSG_RELOAD_FIELD.
+		case MSG_CARD_SELECTED:     event = parse_loc_list(cursor, EV::CARD_SELECTED); break;
+		case MSG_BE_CHAIN_TARGET:   event = parse_loc_list(cursor, EV::BE_CHAIN_TARGET); break;
+		case MSG_UNEQUIP:           event = parse_loc_pair(cursor, EV::UNEQUIP); break;
+		case MSG_FIELD_DISABLED:    event = parse_field_disabled(cursor); break;
+		case MSG_DECK_TOP:          event = parse_deck_top(cursor); break;
+		case MSG_CONFIRM_EXTRATOP:  event = parse_confirm_extratop(cursor); break;
+		case MSG_SWAP_GRAVE_DECK:   event = parse_swap_grave_deck(cursor); break;
+		case MSG_REVERSE_DECK:      event = parse_empty(EV::REVERSE_DECK); break;
+		case MSG_MATCH_KILL:        event = parse_empty(EV::MATCH_KILL); break;
+		// MSG_TAG_SWAP and MSG_RELOAD_FIELD: multiplayer-only, not used in solo mode.
 
 		default:
 			// Invariant V13: an opcode this batch does not cover is reported, not fatal.

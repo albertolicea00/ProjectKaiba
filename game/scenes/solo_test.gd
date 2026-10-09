@@ -526,10 +526,21 @@ func _handle(event: Dictionary) -> void:
 			var solving_idx: int = int(event.get("chain", 0))
 			if _chain_handles.has(solving_idx):
 				_board.set_card_indicator(int(_chain_handles[solving_idx]), "act")
+		DuelEnums.EV.CHAINED:
+			var chained_idx: int = int(event.get("chain", 0))
+			if _chain_handles.has(chained_idx):
+				_board.set_card_indicator(int(_chain_handles[chained_idx]), "chain")
+		DuelEnums.EV.CHAIN_SOLVED:
+			var solved_idx: int = int(event.get("chain", 0))
+			if _chain_handles.has(solved_idx):
+				_board.clear_card_indicator(int(_chain_handles[solved_idx]))
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
 			_chain_handles.clear()
+		DuelEnums.EV.SHUFFLE_SET_CARD:
+			if _audio != null:
+				_audio.play_effect("shuffle")
 		DuelEnums.EV.EQUIP:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
@@ -553,6 +564,19 @@ func _handle(event: Dictionary) -> void:
 			var cancel_tgt: DuelCard = _card_at_loc(event.get("to", {}))
 			if cancel_tgt != null:
 				_board.clear_card_indicator(cancel_tgt.handle)
+		DuelEnums.EV.CARD_SELECTED, DuelEnums.EV.BE_CHAIN_TARGET:
+			var sel_cards: Array = event.get("cards", [])
+			for sel_loc: Dictionary in sel_cards:
+				var sel_card: DuelCard = _card_at_loc(sel_loc)
+				if sel_card != null:
+					_board.set_card_indicator(sel_card.handle, "target")
+		DuelEnums.EV.UNEQUIP:
+			var uneq_card: DuelCard = _card_at_loc(event.get("from", {}))
+			if uneq_card != null:
+				_board.clear_card_indicator(uneq_card.handle)
+		DuelEnums.EV.CONFIRM_EXTRATOP:
+			if not _headless:
+				_show_confirm_cards(event, false)
 		DuelEnums.EV.PAY_LPCOST:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
@@ -1572,6 +1596,18 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles hand" % seat)
 			if _audio != null:
 				_audio.play_effect("shuffle")
+		DuelEnums.EV.SHUFFLE_SET_CARD:
+			_duel_log.append("Set cards shuffled")
+		DuelEnums.EV.SHUFFLE_EXTRA:
+			_duel_log.append("%s shuffles extra deck" % seat)
+			if _audio != null:
+				_audio.play_effect("shuffle")
+		DuelEnums.EV.CHAIN_SOLVED:
+			var solved_name: String = _card_name(code)
+			if solved_name != "?":
+				_duel_log.append("Resolved: %s" % solved_name)
+		DuelEnums.EV.DAMAGE_STEP_START:
+			_duel_log.append_system("Damage Step")
 		DuelEnums.EV.REMOVE_CARDS:
 			var rem_cards: Array = event.get("cards", [])
 			if not rem_cards.is_empty():
@@ -1613,8 +1649,27 @@ func _log_event(type: int, event: Dictionary) -> void:
 		DuelEnums.EV.MISSED_EFFECT:
 			if code != 0:
 				_duel_log.append("%s missed timing" % _card_name(code), Color(0.7, 0.5, 0.5))
-		DuelEnums.EV.DAMAGE_STEP_START:
-			_duel_log.append_system("Damage Step")
+		DuelEnums.EV.UNEQUIP:
+			_duel_log.append("Unequipped: %s" % _card_name(code))
+		DuelEnums.EV.SWAP_GRAVE_DECK:
+			_duel_log.append("%s swaps GY and Deck" % seat)
+		DuelEnums.EV.REVERSE_DECK:
+			_duel_log.append("Decks reversed")
+		DuelEnums.EV.DECK_TOP:
+			var dtcode: int = int(event.get("card", 0))
+			if dtcode != 0:
+				_duel_log.append("Deck top: %s" % _card_name(dtcode))
+		DuelEnums.EV.CONFIRM_EXTRATOP:
+			var ext_cards: Array = event.get("cards", [])
+			if not ext_cards.is_empty():
+				var ext_names: PackedStringArray = PackedStringArray()
+				for entry: Variant in ext_cards:
+					var d: Dictionary = entry as Dictionary
+					if d != null:
+						ext_names.append(_card_name(int(d.get("code", 0))))
+				_duel_log.append("Extra top: %s" % ", ".join(ext_names))
+		DuelEnums.EV.FIELD_DISABLED:
+			_duel_log.append_system("Field zones updated")
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
