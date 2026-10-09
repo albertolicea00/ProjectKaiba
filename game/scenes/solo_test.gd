@@ -551,6 +551,10 @@ func _handle(event: Dictionary) -> void:
 			if not summon_at.is_empty():
 				var summon_colour: Color = Color(1.0, 0.55, 0.85, 1.0) if type == DuelEnums.EV.SPSUMMONING else Color(0.72, 0.84, 1.0, 1.0)
 				_board.flash_zone(EventTranslator.anchor_of(summon_at), summon_colour)
+			if type == DuelEnums.EV.SPSUMMONING and _hud != null and not _headless:
+				_hud.flash_screen(Color(0.5, 0.2, 0.7, 0.2))
+			elif type == DuelEnums.EV.FLIPSUMMONING and _hud != null and not _headless:
+				_hud.flash_screen(Color(0.9, 0.8, 0.2, 0.2))
 		DuelEnums.EV.SUMMONED, DuelEnums.EV.SPSUMMONED, DuelEnums.EV.FLIPSUMMONED:
 			_board.clear_card_indicators()
 			_board.clear_target_lines()
@@ -2026,6 +2030,10 @@ func _log_event(type: int, event: Dictionary) -> void:
 				var pos_name: String = "ATK" if (new_pos & DuelEnums.POSITION.ATTACK) != 0 else "DEF"
 				var face_name: String = "face-up" if (new_pos & DuelEnums.POSITION.FACEUP) != 0 else "face-down"
 				_duel_log.append("%s -> %s %s" % [_card_name(code), face_name, pos_name])
+				var pos_loc: Dictionary = event.get("at", {}) as Dictionary
+				if not pos_loc.is_empty():
+					var pos_col: Color = Color(0.4, 0.75, 1.0, 0.6) if (new_pos & DuelEnums.POSITION.ATTACK) != 0 else Color(0.3, 0.5, 0.9, 0.6)
+					_board.flash_zone(EventTranslator.anchor_of(pos_loc), pos_col)
 				if _audio != null:
 					if (new_pos & DuelEnums.POSITION.FACEUP) != 0:
 						_audio.play_effect("flip")

@@ -282,7 +282,7 @@ const DAMAGE_FLASH_THRESHOLD: int = 1000
 var _damage_flash: ColorRect = null
 
 
-func flash_damage() -> void:
+func flash_screen(colour: Color) -> void:
 	if not is_node_ready():
 		return
 	if _damage_flash == null:
@@ -296,10 +296,14 @@ func flash_damage() -> void:
 			root.add_child(_damage_flash)
 		else:
 			add_child(_damage_flash)
-	_damage_flash.color = Color(1.0, 0.0, 0.0, 0.3)
+	_damage_flash.color = colour
 	_damage_flash.z_index = 100
 	var tween: Tween = create_tween()
-	tween.tween_property(_damage_flash, "color:a", 0.0, 0.4)
+	tween.tween_property(_damage_flash, "color:a", 0.0, 0.35)
+
+
+func flash_damage() -> void:
+	flash_screen(Color(1.0, 0.0, 0.0, 0.3))
 
 
 func show_lp_change(player: int, amount: int) -> void:
