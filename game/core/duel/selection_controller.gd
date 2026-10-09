@@ -171,6 +171,7 @@ const ANSWERABLE: Array[int] = [
 	DuelEnums.EV.SELECT_IDLECMD,
 	DuelEnums.EV.SELECT_BATTLECMD,
 	DuelEnums.EV.SELECT_PLACE,
+	DuelEnums.EV.SELECT_DISFIELD,
 	DuelEnums.EV.SELECT_CARD,
 	DuelEnums.EV.SELECT_TRIBUTE,
 	DuelEnums.EV.SELECT_SUM,
@@ -206,7 +207,7 @@ func pending_prompt() -> String:
 			return "Main phase: tap a card to play it%s" % _advance_hint("to_bp", "battle phase")
 		DuelEnums.EV.SELECT_BATTLECMD:
 			return "Battle phase: tap a monster to attack%s" % _advance_hint("to_m2", "main phase 2")
-		DuelEnums.EV.SELECT_PLACE:
+		DuelEnums.EV.SELECT_PLACE, DuelEnums.EV.SELECT_DISFIELD:
 			var wanted: int = maxi(1, int(_pending.get("count", 1)))
 			return "Choose %d zone(s): %d picked, %d free" % [
 				wanted, _places.size(), free_places().size()]
@@ -412,7 +413,7 @@ func resolve(input: Dictionary) -> Dictionary:
 			return _resolve_command(input, priority, "to_bp", "to_ep")
 		DuelEnums.EV.SELECT_BATTLECMD:
 			return _resolve_command(input, BATTLE_PRIORITY, "to_m2", "to_ep")
-		DuelEnums.EV.SELECT_PLACE:
+		DuelEnums.EV.SELECT_PLACE, DuelEnums.EV.SELECT_DISFIELD:
 			return _resolve_place(input, kind)
 		DuelEnums.EV.SELECT_CARD, DuelEnums.EV.SELECT_TRIBUTE:
 			return _resolve_card_list(input, kind)
@@ -743,7 +744,7 @@ static func is_place_free(flag: int, asking_player: int, con: int, loc: int, seq
 ## that wants to light up the legal slots, and for the prompt.
 func free_places() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	if _type != DuelEnums.EV.SELECT_PLACE:
+	if _type != DuelEnums.EV.SELECT_PLACE and _type != DuelEnums.EV.SELECT_DISFIELD:
 		return out
 
 	var flag: int = int(_pending.get("flag", 0))

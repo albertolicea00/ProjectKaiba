@@ -1642,7 +1642,8 @@ func _highlight_for(event: Dictionary) -> void:
 			if markers.has(anchor):
 				wanted[anchor] = true
 
-	if int(event.get("t", 0)) == DuelEnums.EV.SELECT_PLACE:
+	var ev_type: int = int(event.get("t", 0))
+	if ev_type == DuelEnums.EV.SELECT_PLACE or ev_type == DuelEnums.EV.SELECT_DISFIELD:
 		for place: Dictionary in _selection.free_places():
 			var anchor: String = EventTranslator.anchor_of(place)
 			if markers.has(anchor):
@@ -2269,7 +2270,7 @@ func _synthesise_intent() -> Dictionary:
 		DuelEnums.EV.SELECT_BATTLECMD:
 			return {"kind": InputSource.KIND_CONFIRM}
 
-		DuelEnums.EV.SELECT_PLACE:
+		DuelEnums.EV.SELECT_PLACE, DuelEnums.EV.SELECT_DISFIELD:
 			var free: Array[Dictionary] = _selection.free_places()
 			if free.is_empty():
 				return {"kind": InputSource.KIND_CANCEL}

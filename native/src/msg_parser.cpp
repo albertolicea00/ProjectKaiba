@@ -36,7 +36,7 @@ static_assert(static_cast<int32_t>(EV::SELECT_PLACE) == MSG_SELECT_PLACE, "EV/MS
 static_assert(static_cast<int32_t>(EV::SELECT_POSITION) == MSG_SELECT_POSITION, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SELECT_TRIBUTE) == MSG_SELECT_TRIBUTE, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SELECT_SUM) == MSG_SELECT_SUM, "EV/MSG drift");
-static_assert(static_cast<int32_t>(EV::SELECT_SUM) == MSG_SELECT_SUM, "EV/MSG drift");
+static_assert(static_cast<int32_t>(EV::SELECT_DISFIELD) == MSG_SELECT_DISFIELD, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SORT_CARD) == MSG_SORT_CARD, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::CONFIRM_CARDS) == MSG_CONFIRM_CARDS, "EV/MSG drift");
 static_assert(static_cast<int32_t>(EV::SHUFFLE_DECK) == MSG_SHUFFLE_DECK, "EV/MSG drift");
@@ -558,8 +558,8 @@ Dictionary parse_select_chain(Cursor& cursor) {
 	return event;
 }
 
-Dictionary parse_select_place(Cursor& cursor) {
-	Dictionary event = make_event(EV::SELECT_PLACE);
+Dictionary parse_select_place(Cursor& cursor, EV ev = EV::SELECT_PLACE) {
+	Dictionary event = make_event(ev);
 	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
 	event["count"] = static_cast<int32_t>(cursor.read<uint8_t>());
 	// Bitmask of zones that are NOT selectable. L3 inverts it against the field layout.
@@ -926,6 +926,7 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		case MSG_SELECT_SUM:        event = parse_select_sum(cursor); break;
 		case MSG_SELECT_CHAIN:      event = parse_select_chain(cursor); break;
 		case MSG_SELECT_PLACE:      event = parse_select_place(cursor); break;
+		case MSG_SELECT_DISFIELD:   event = parse_select_place(cursor, EV::SELECT_DISFIELD); break;
 		case MSG_SELECT_POSITION:   event = parse_select_position(cursor); break;
 
 		// --- batch 2 -------------------------------------------------------------------
