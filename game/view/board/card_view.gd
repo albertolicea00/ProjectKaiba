@@ -170,6 +170,14 @@ static var art_source: CardArt = null
 ## `refresh_art()` on every card every frame is a comparison rather than a material write.
 var _front_texture: Texture2D = null
 
+var _stat_label: Label3D = null
+
+const STAT_FONT_SIZE: int = 48
+const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKNESS * 0.5 + 0.001)
+const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
+const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
+const STAT_COLOUR_REDUCED: Color = Color(1.0, 0.3, 0.3)
+
 
 func _init() -> void:
 	_build()
@@ -395,6 +403,53 @@ func is_highlighted() -> bool:
 	return _highlight != null and _highlight.visible
 
 
+func set_stats(atk: int, def: int, base_atk: int, base_def: int) -> void:
+	_ensure_stat_label()
+	var atk_col: Color = _stat_colour(atk, base_atk)
+	var def_col: Color = _stat_colour(def, base_def)
+	if atk_col == STAT_COLOUR_NORMAL and def_col == STAT_COLOUR_NORMAL:
+		_stat_label.text = "%d/%d" % [atk, def]
+		_stat_label.modulate = STAT_COLOUR_NORMAL
+	else:
+		_stat_label.text = "%d/%d" % [atk, def]
+		_stat_label.modulate = atk_col if atk_col != STAT_COLOUR_NORMAL else def_col
+	_stat_label.visible = true
+
+
+func clear_stats() -> void:
+	if _stat_label != null:
+		_stat_label.visible = false
+
+
+func _stat_colour(current: int, base: int) -> Color:
+	if current > base:
+		return STAT_COLOUR_BOOSTED
+	if current < base:
+		return STAT_COLOUR_REDUCED
+	return STAT_COLOUR_NORMAL
+
+
+func _ensure_stat_label() -> void:
+	if _stat_label != null:
+		return
+	_stat_label = Label3D.new()
+	_stat_label.name = "Stats"
+	_stat_label.pixel_size = 0.001
+	_stat_label.font_size = STAT_FONT_SIZE
+	_stat_label.outline_size = 8
+	_stat_label.modulate = STAT_COLOUR_NORMAL
+	_stat_label.outline_modulate = Color(0, 0, 0, 0.9)
+	_stat_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_stat_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	_stat_label.position = STAT_LABEL_OFFSET
+	_stat_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+	_stat_label.shaded = false
+	_stat_label.double_sided = false
+	_stat_label.no_depth_test = true
+	_stat_label.visible = false
+	add_child(_stat_label)
+
+
 func _ensure_highlight() -> void:
 	if _highlight != null:
 		return
@@ -458,6 +513,7 @@ func _on_visibility_changed() -> void:
 	_refresh_pickable()
 	if not visible:
 		set_opacity(1.0)
+		clear_stats()
 
 
 ## Layer `PICK_LAYER` while the card is on the board, layer 0 - which no query can match - while

@@ -627,6 +627,11 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	view.set_orientation(card.is_face_up(), card.is_defense() and zone_turns(anchor))
 	place_view(view, anchor)
 
+	if card.is_face_up() and (card.type & DuelEnums.TYPE.MONSTER) != 0:
+		view.set_stats(card.attack, card.defense, card.base_attack, card.base_defense)
+	else:
+		view.clear_stats()
+
 	var materials: int = mini(card.overlay_codes.size(), OVERLAY_VIEW_LIMIT)
 	for index: int in range(materials):
 		var material_view: CardView = _pool.acquire()
