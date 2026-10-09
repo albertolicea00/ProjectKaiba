@@ -378,6 +378,8 @@ func _start_duel() -> void:
 
 	# Resolved once: both seats play the same list, and asking twice would parse the file twice.
 	var main_deck: PackedInt32Array = _deck_for_play()
+	if not _headless:
+		_shuffle_array(main_deck)
 	if _art != null:
 		_art.preload_codes(main_deck)
 
@@ -444,6 +446,14 @@ func _deck_for_play() -> PackedInt32Array:
 	return main
 
 
+static func _shuffle_array(arr: PackedInt32Array) -> void:
+	for i: int in range(arr.size() - 1, 0, -1):
+		var j: int = randi_range(0, i)
+		var tmp: int = arr[i]
+		arr[i] = arr[j]
+		arr[j] = tmp
+
+
 ## The built-in fallback: a diverse deck that exercises summon, set, equip, field-clear,
 ## attack negation and draw. Gives both players enough variety to test all gameplay paths.
 func _build_deck() -> PackedInt32Array:
@@ -502,6 +512,11 @@ func _handle(event: Dictionary) -> void:
 		_begin_flip()
 
 	match type:
+		DuelEnums.EV.START:
+			if _hud != null and not _headless:
+				_hud.show_duel_start()
+			if _audio != null:
+				_audio.play_effect("duelstart")
 		DuelEnums.EV.NEW_TURN:
 			_turn_changes += 1
 			if _focus.seat_in_view != _state.turn_player:

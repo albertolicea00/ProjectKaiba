@@ -536,9 +536,13 @@ const PHASE_COLOURS: Dictionary = {
 
 
 static func _try_load_texture(path: String) -> Texture2D:
-	if not FileAccess.file_exists(path):
+	var abs_path: String = ProjectSettings.globalize_path(path)
+	if not FileAccess.file_exists(abs_path):
 		return null
-	return load(path) as Texture2D
+	var image: Image = Image.new()
+	if image.load(abs_path) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 # ----------------------------------------------------------------------------------------------
@@ -609,6 +613,18 @@ func _paint_banner() -> void:
 	if not _banner_panel.visible:
 		return
 	_banner_panel.modulate.a = minf(1.0, _banner_time / BANNER_FADE_SECONDS)
+
+
+func show_duel_start() -> void:
+	if not is_node_ready():
+		return
+	if _turn_banner == null:
+		_build_turn_banner()
+	_turn_banner.text = "DUEL!"
+	_turn_banner.add_theme_color_override("font_color", Color(1.0, 0.85, 0.2))
+	_turn_banner_time = TURN_BANNER_SECONDS + 0.5
+	set_process(true)
+	_paint_turn_banner()
 
 
 func show_turn_banner(turn_player: int) -> void:
