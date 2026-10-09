@@ -183,11 +183,14 @@ var _speed: Array[float] = [0.0, 0.0]
 ## zero because the HUD was attached a frame late.
 var _snap: bool = true
 
-var _lp_bars: Array[ColorRect] = []
-const LP_BAR_HEIGHT: float = 4.0
+var _lp_bars: Array[TextureRect] = []
+var _lp_frames: Array[TextureRect] = []
+const LP_BAR_HEIGHT: float = 16.0
 const LP_BAR_COLOUR_HIGH: Color = Color(0.2, 0.85, 0.3)
 const LP_BAR_COLOUR_LOW: Color = Color(0.95, 0.2, 0.2)
 const LP_BAR_MAX: int = 8000
+const LP_BAR_TEX_PATH: String = "res://../data/base/textures/lp.png"
+const LP_FRAME_TEX_PATH: String = "res://../data/base/textures/lpf.png"
 
 ## The phase the banner last announced, and how long the announcement has left to live. The
 ## phase is tracked rather than compared against the chip's text because two phase bits share
@@ -411,31 +414,60 @@ func _paint_life() -> void:
 
 func _build_lp_bars() -> void:
 	_lp_bars.resize(DuelEnums.PLAYER_COUNT)
+	_lp_frames.resize(DuelEnums.PLAYER_COUNT)
+	var bar_tex: Texture2D = _try_load_texture(LP_BAR_TEX_PATH)
+	var frame_tex: Texture2D = _try_load_texture(LP_FRAME_TEX_PATH)
 	for player: int in range(DuelEnums.PLAYER_COUNT):
 		var life_label: Label = _bottom_life if player == local_player else _top_life
 		var box: Control = life_label.get_parent() as Control
 		if box == null:
 			continue
-		var bar: ColorRect = ColorRect.new()
-		bar.color = LP_BAR_COLOUR_HIGH
+
+		var container: Control = Control.new()
+		container.custom_minimum_size = Vector2(0, LP_BAR_HEIGHT)
+		container.size_flags_horizontal = Control.SIZE_FILL
+		container.size_flags_vertical = Control.SIZE_SHRINK_END
+		container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(container)
+
+		var bar: TextureRect = TextureRect.new()
+		bar.texture = bar_tex
+		bar.stretch_mode = TextureRect.STRETCH_SCALE
 		bar.custom_minimum_size = Vector2(0, LP_BAR_HEIGHT)
-		bar.size_flags_horizontal = Control.SIZE_FILL
-		bar.size_flags_vertical = Control.SIZE_SHRINK_END
+		bar.size = Vector2(0, LP_BAR_HEIGHT)
+		bar.modulate = LP_BAR_COLOUR_HIGH
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(bar)
+		container.add_child(bar)
 		_lp_bars[player] = bar
+
+		if frame_tex != null:
+			var frame: TextureRect = TextureRect.new()
+			frame.texture = frame_tex
+			frame.stretch_mode = TextureRect.STRETCH_SCALE
+			frame.custom_minimum_size = Vector2(0, LP_BAR_HEIGHT)
+			frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			frame.size_flags_horizontal = Control.SIZE_FILL
+			container.add_child(frame)
+			_lp_frames[player] = frame
 
 
 func _paint_lp_bars() -> void:
 	for player: int in range(DuelEnums.PLAYER_COUNT):
 		if player >= _lp_bars.size() or _lp_bars[player] == null:
 			continue
-		var bar: ColorRect = _lp_bars[player]
+		var bar: TextureRect = _lp_bars[player]
 		var ratio: float = clampf(_shown[player] / float(LP_BAR_MAX), 0.0, 1.0)
 		var parent: Control = bar.get_parent() as Control
 		if parent != null:
 			bar.size.x = parent.size.x * ratio
-		bar.color = LP_BAR_COLOUR_HIGH.lerp(LP_BAR_COLOUR_LOW, 1.0 - ratio)
+			bar.size.y = LP_BAR_HEIGHT
+		bar.modulate = LP_BAR_COLOUR_HIGH.lerp(LP_BAR_COLOUR_LOW, 1.0 - ratio)
+
+
+static func _try_load_texture(path: String) -> Texture2D:
+	if not FileAccess.file_exists(path):
+		return null
+	return load(path) as Texture2D
 
 
 # ----------------------------------------------------------------------------------------------
