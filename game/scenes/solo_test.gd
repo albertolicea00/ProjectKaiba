@@ -1319,8 +1319,6 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append("%s targets %s" % [_card_name(ct_from.code), _card_name(ct_to.code)])
 		DuelEnums.EV.PAY_LPCOST:
 			_duel_log.append("%s pays %d LP" % [seat, int(event.get("amount", 0))])
-		DuelEnums.EV.CHAIN_NEGATED:
-			_duel_log.append("Chain link negated")
 		DuelEnums.EV.CHAIN_DISABLED:
 			_duel_log.append("Chain link disabled")
 		DuelEnums.EV.ATTACK_DISABLED:
@@ -1341,6 +1339,10 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("Counter +%d" % int(event.get("count", 0)))
 		DuelEnums.EV.REMOVE_COUNTER:
 			_duel_log.append("Counter -%d" % int(event.get("count", 0)))
+		DuelEnums.EV.SHUFFLE_DECK:
+			_duel_log.append("%s shuffles deck" % seat)
+		DuelEnums.EV.SHUFFLE_HAND:
+			_duel_log.append("%s shuffles hand" % seat)
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
