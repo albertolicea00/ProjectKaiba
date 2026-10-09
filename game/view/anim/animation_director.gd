@@ -313,8 +313,17 @@ func _build_motion(intent: Dictionary, entry: Dictionary, duration: float) -> vo
 		return
 
 	var kind: String = str(intent.get("kind", ""))
-	if kind == EventTranslator.KIND_SUMMON and not leaving:
+	if (kind == EventTranslator.KIND_SUMMON or kind == EventTranslator.KIND_SPECIAL_SUMMON) and not leaving:
 		entry["tween"] = _build_summon_flight(intent, view, target, duration, to_anchor)
+		return
+
+	if kind == EventTranslator.KIND_DESTROY:
+		_shatter_at(view.global_transform)
+		entry["tween"] = _arc(view, target, duration)
+		return
+	if kind == EventTranslator.KIND_BANISH:
+		_banish_at(view.global_transform)
+		entry["tween"] = _arc(view, target, duration)
 		return
 
 	entry["tween"] = _arc(view, target, duration)
@@ -341,7 +350,8 @@ func _build_summon_flight(
 	if arrives_face_up:
 		tween.tween_callback(func() -> void: _board.apply_face(view, face, to_anchor))
 	tween.tween_method(flight.apply, 0.5, 1.0, duration * 0.5)
-	tween.tween_callback(func() -> void: _flash_at(target, SUMMON_FLASH_RADIUS, SUMMON_FLASH_COLOUR))
+	var flash_colour: Color = SPSUMMON_FLASH_COLOUR if str(intent.get("summon_kind", "")) == EventTranslator.SUMMON_SPECIAL else SUMMON_FLASH_COLOUR
+	tween.tween_callback(func() -> void: _flash_at(target, SUMMON_FLASH_RADIUS, flash_colour))
 	return tween
 
 
@@ -354,8 +364,14 @@ func _shatter_at(seat: Transform3D) -> void:
 	fx.ring(seat, 0.02, 0.11, DESTROY_COLOUR, 0.35)
 
 
-## A ground flash seated at a transform. Silently does nothing when the layer is full or absent,
-## which is the right behaviour for decoration.
+func _banish_at(seat: Transform3D) -> void:
+	var fx: FxLayer = _ensure_fx()
+	if fx == null:
+		return
+	fx.ring(seat, 0.01, 0.13, BANISH_COLOUR, 0.4)
+	fx.flash(seat, 0.06, BANISH_COLOUR, 0.3)
+
+
 func _flash_at(seat: Transform3D, radius: float, colour: Color) -> void:
 	var fx: FxLayer = _ensure_fx()
 	if fx != null:
@@ -514,6 +530,8 @@ const SUMMON_FLASH_RADIUS: float = 0.075
 const SUMMON_FLASH_COLOUR: Color = Color(0.72, 0.84, 1.0, 1.0)
 
 const DESTROY_COLOUR: Color = Color(1.0, 0.52, 0.26, 1.0)
+const BANISH_COLOUR: Color = Color(0.6, 0.3, 1.0, 1.0)
+const SPSUMMON_FLASH_COLOUR: Color = Color(1.0, 0.55, 0.85, 1.0)
 const BATTLE_RING_COLOUR: Color = Color(1.0, 0.74, 0.35, 1.0)
 
 var _fx: FxLayer = null
@@ -565,6 +583,8 @@ const SILENT_KINDS: Array[String] = [
 	EventTranslator.KIND_TURN_START,
 	EventTranslator.KIND_LP_CHANGE,
 	EventTranslator.KIND_ATTACK_CANCEL,
+	EventTranslator.KIND_COIN_TOSS,
+	EventTranslator.KIND_DICE_ROLL,
 ]
 
 

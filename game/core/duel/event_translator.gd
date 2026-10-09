@@ -189,6 +189,9 @@ const PROFILES: Dictionary = {
 	KIND_LP_CHANGE: {"duration": 0.7, "blocking": false},
 	KIND_TURN_START: {"duration": 1.0, "blocking": true},
 	KIND_PHASE_CHANGE: {"duration": 0.35, "blocking": false},
+	KIND_EQUIP: {"duration": 0.3, "blocking": false},
+	KIND_COIN_TOSS: {"duration": 0.6, "blocking": true},
+	KIND_DICE_ROLL: {"duration": 0.6, "blocking": true},
 }
 
 const DEFAULT_PROFILE: Dictionary = {"duration": 0.4, "blocking": false}
