@@ -904,6 +904,19 @@ bool encode(int32_t event_type, const Dictionary &intent, Bytes &bytes, String *
 			return encode_announce_card(intent, bytes, error);
 		case MSG_ANNOUNCE_NUMBER:
 			return encode_announce_number(intent, bytes, error);
+		case MSG_ROCK_PAPER_SCISSORS: {
+			if (!intent.has("hand")) {
+				set_error(error, "RPS: missing 'hand' key");
+				return false;
+			}
+			int32_t hand = static_cast<int32_t>(static_cast<int64_t>(intent["hand"]));
+			if (hand < 1 || hand > 3) {
+				set_error(error, "RPS: hand must be 1 (rock), 2 (paper), or 3 (scissors)");
+				return false;
+			}
+			put_i32(bytes, hand);
+			return true;
+		}
 
 		default: {
 			String message = "ResponseBuilder: ";

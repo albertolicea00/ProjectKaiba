@@ -608,7 +608,11 @@ func _handle(event: Dictionary) -> void:
 	if _headless and _set_trap and _set_zones_audited == 0:
 		_audit_facedown()
 
-	if type < FIRST_SELECT_EVENT or type > LAST_SELECT_EVENT:
+	if type == DuelEnums.EV.ROCK_PAPER_SCISSORS:
+		_answer_pending(type, {"hand": randi_range(1, 3)})
+		return
+
+	if not _is_selection_event(type):
 		return
 
 	_on_selection(event)
@@ -637,6 +641,13 @@ func _show_combat(event: Dictionary) -> void:
 		defender = _card_at_loc(event.get("to", {}))
 
 	_hud.set_combat(attacker, defender)
+
+
+func _is_selection_event(type: int) -> bool:
+	if type >= FIRST_SELECT_EVENT and type <= LAST_SELECT_EVENT:
+		return true
+	return type == DuelEnums.EV.ANNOUNCE_RACE or type == DuelEnums.EV.ANNOUNCE_ATTRIB \
+		or type == DuelEnums.EV.ANNOUNCE_CARD or type == DuelEnums.EV.ANNOUNCE_NUMBER
 
 
 func _card_at_loc(info: Variant) -> DuelCard:
@@ -772,6 +783,12 @@ func _on_action_chosen(cmd: String, index: int) -> void:
 			return
 		_answers_from_intents += 1
 		_answer_pending(_selection.pending_type(), {"index": index})
+		return
+	if cmd == "_card":
+		if not _selection.is_waiting():
+			return
+		_answers_from_intents += 1
+		_answer_pending(_selection.pending_type(), {"code": index})
 		return
 	if not _selection.is_waiting():
 		return
@@ -1110,6 +1127,18 @@ func _show_announce_attrib_dialog(event: Dictionary) -> void:
 	_action_menu.show_actions("Declare %d attribute(s)" % needed, actions)
 
 
+func _show_announce_card_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var options: Array = event.get("options", []) as Array
+	var actions: Array[Dictionary] = []
+	for i: int in range(options.size()):
+		var code: int = int(options[i])
+		var name: String = _card_name(code)
+		actions.append({"key": "_card", "label": name, "index": code})
+	_action_menu.show_actions("Declare a card", actions)
+
+
 func _show_announce_number_dialog(event: Dictionary) -> void:
 	if _action_menu == null:
 		return
@@ -1290,6 +1319,8 @@ func _on_selection(event: Dictionary) -> void:
 			_show_announce_race_dialog(event)
 		elif pending == DuelEnums.EV.ANNOUNCE_ATTRIB:
 			_show_announce_attrib_dialog(event)
+		elif pending == DuelEnums.EV.ANNOUNCE_CARD:
+			_show_announce_card_dialog(event)
 		elif pending == DuelEnums.EV.ANNOUNCE_NUMBER:
 			_show_announce_number_dialog(event)
 
