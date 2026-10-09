@@ -107,6 +107,7 @@ var _duel_log: DuelLog = null
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
 var _chain_handles: Dictionary = {}
+var _last_hint_card: String = ""
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -304,7 +305,10 @@ func _process(_delta: float) -> void:
 
 	if _hud != null:
 		_hud.refresh()
-		_hud.set_prompt(_selection.pending_prompt() if _selection != null else "")
+		var prompt: String = _selection.pending_prompt() if _selection != null else ""
+		if not prompt.is_empty() and not _last_hint_card.is_empty():
+			prompt = "[%s] %s" % [_last_hint_card, prompt]
+		_hud.set_prompt(prompt)
 	if _banner != null:
 		_banner.refresh()
 
@@ -608,6 +612,13 @@ func _handle(event: Dictionary) -> void:
 			_retries += 1
 			_rearm_after_retry()
 			return
+
+	if type == DuelEnums.EV.HINT:
+		var hint_type: int = int(event.get("hint_type", 0))
+		if hint_type == 5:
+			var hint_code: int = int(event.get("data", 0))
+			_last_hint_card = _card_name(hint_code) if hint_code != 0 else ""
+		return
 
 	if _headless and _set_trap and _set_zones_audited == 0:
 		_audit_facedown()
@@ -1492,6 +1503,7 @@ func _answer_pending(type: int, answer: Dictionary) -> void:
 	_focus.clear_pending()
 	_board.clear_highlights()
 	_board.clear_card_highlights()
+	_last_hint_card = ""
 	if _hud != null:
 		_hud.set_phase_commands([])
 	_banner.refresh()
