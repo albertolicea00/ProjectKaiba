@@ -93,6 +93,11 @@ var deck: Array[Array] = []
 
 var extra_deck: Array[Array] = []
 
+## Whether decks are reversed (Convulsion of Nature). Toggles on REVERSE_DECK.
+var deck_reversed: bool = false
+## Known top card code per player when deck top is revealed. Reset on shuffle/draw.
+var deck_top_code: Array[int] = [0, 0]
+
 var life_points: Array[int] = [0, 0]
 var turn_player: int = 0
 var turn_count: int = 0
@@ -167,8 +172,6 @@ const PASSIVE_EVENTS: Array[int] = [
 	DuelEnums.EV.SWAP,
 	DuelEnums.EV.FIELD_DISABLED,
 	DuelEnums.EV.SWAP_GRAVE_DECK,
-	DuelEnums.EV.REVERSE_DECK,
-	DuelEnums.EV.DECK_TOP,
 	DuelEnums.EV.MATCH_KILL,
 	DuelEnums.EV.ROCK_PAPER_SCISSORS,
 	DuelEnums.EV.HAND_RES,
@@ -216,6 +219,8 @@ func reset() -> void:
 		field_zone.append(null)
 
 	life_points = [0, 0]
+	deck_reversed = false
+	deck_top_code = [0, 0]
 	turn_player = 0
 	turn_count = 0
 	phase = 0
@@ -276,6 +281,12 @@ func apply(event: Dictionary) -> void:
 			_on_add_counter(event)
 		DuelEnums.EV.REMOVE_COUNTER:
 			_on_remove_counter(event)
+		DuelEnums.EV.REVERSE_DECK:
+			deck_reversed = not deck_reversed
+			deck_top_code = [0, 0]
+		DuelEnums.EV.DECK_TOP:
+			var dt_player: int = _player_of(event, "player")
+			deck_top_code[dt_player] = _as_int(event.get("card", 0), 0)
 		DuelEnums.EV.WIN:
 			_on_win(event)
 		_:
@@ -332,6 +343,7 @@ func _on_draw(event: Dictionary) -> void:
 		_append_to_pile(hand[player], card, player, DuelEnums.LOCATION.HAND)
 
 	_resequence(deck[player])
+	deck_top_code[player] = 0
 
 
 func _on_move(event: Dictionary) -> void:
@@ -491,8 +503,9 @@ func _on_shuffle_pile(event: Dictionary, location: int) -> void:
 
 ## No observable state change: the deck holds face-down placeholders. Handled explicitly so it
 ## does not look unimplemented.
-func _on_shuffle_deck(_event: Dictionary) -> void:
-	pass
+func _on_shuffle_deck(event: Dictionary) -> void:
+	var player: int = _player_of(event, "player")
+	deck_top_code[player] = 0
 
 
 ## Permutes face-down cards among their zones. `from[i]` ends up where `to[i]` says.

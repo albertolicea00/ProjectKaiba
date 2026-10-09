@@ -680,7 +680,8 @@ func sync_from_state(state: DuelState) -> void:
 		_sync_hand(state.hand[player], player)
 		_sync_pile(state.graveyard[player], "GY_P%d" % player, PILE_VIEW_LIMIT, true)
 		_sync_pile(state.banished[player], "BANISH_P%d" % player, PILE_VIEW_LIMIT, true)
-		_sync_pile(state.deck[player], "DECK_P%d" % player, DECK_VIEW_LIMIT, false)
+		_sync_pile(state.deck[player], "DECK_P%d" % player, DECK_VIEW_LIMIT, false,
+				state.deck_top_code[player] if state.deck_reversed or state.deck_top_code[player] != 0 else 0)
 		_sync_pile(state.extra_deck[player], "EXTRA_P%d" % player, PILE_VIEW_LIMIT, false)
 
 	_update_field_spell_bg(state)
@@ -769,19 +770,21 @@ func _sync_hand(cards: Array, player: int) -> void:
 		place_view(view, anchor)
 
 
-func _sync_pile(cards: Array, anchor: String, limit: int, face_up: bool) -> void:
+func _sync_pile(cards: Array, anchor: String, limit: int, face_up: bool, top_code: int = 0) -> void:
 	var shown: int = mini(cards.size(), limit)
 	var first: int = cards.size() - shown
 	for index: int in range(first, cards.size()):
 		var card: DuelCard = cards[index] as DuelCard
 		if card == null:
 			continue
+		var is_top: bool = (index == cards.size() - 1) and top_code != 0
+		var show_face: bool = face_up or is_top
 		var view: CardView = _pool.acquire()
 		if view == null:
 			return
-		view.set_card_id(card.code if face_up else 0)
+		view.set_card_id(top_code if is_top else (card.code if face_up else 0))
 		view.handle = card.handle
-		view.set_orientation(face_up, false)
+		view.set_orientation(show_face, false)
 		place_view(view, anchor)
 
 
