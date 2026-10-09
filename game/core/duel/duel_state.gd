@@ -163,9 +163,6 @@ const PASSIVE_EVENTS: Array[int] = [
 	DuelEnums.EV.EQUIP,
 	DuelEnums.EV.CARD_TARGET,
 	DuelEnums.EV.CANCEL_TARGET,
-	DuelEnums.EV.PAY_LPCOST,
-	DuelEnums.EV.ADD_COUNTER,
-	DuelEnums.EV.REMOVE_COUNTER,
 	DuelEnums.EV.SWAP,
 	DuelEnums.EV.REMOVE_CARDS,
 	DuelEnums.EV.ANNOUNCE_RACE,
@@ -265,6 +262,12 @@ func apply(event: Dictionary) -> void:
 			_on_shuffle_deck(event)
 		DuelEnums.EV.SHUFFLE_SET_CARD:
 			_on_shuffle_set_card(event)
+		DuelEnums.EV.PAY_LPCOST:
+			_on_pay_lpcost(event)
+		DuelEnums.EV.ADD_COUNTER:
+			_on_add_counter(event)
+		DuelEnums.EV.REMOVE_COUNTER:
+			_on_remove_counter(event)
 		DuelEnums.EV.WIN:
 			_on_win(event)
 		_:
@@ -388,6 +391,40 @@ func _on_recover(event: Dictionary) -> void:
 func _on_lp_update(event: Dictionary) -> void:
 	var player: int = _player_of(event, "player")
 	life_points[player] = maxi(0, _as_int(event.get("lp", life_points[player]), life_points[player]))
+
+
+func _on_pay_lpcost(event: Dictionary) -> void:
+	var player: int = _player_of(event, "player")
+	life_points[player] = maxi(0, life_points[player] - _as_int(event.get("amount", 0), 0))
+
+
+func _on_add_counter(event: Dictionary) -> void:
+	var at: Dictionary = event.get("at", {}) as Dictionary
+	if at.is_empty():
+		return
+	var card: DuelCard = _card_at(at)
+	if card == null:
+		return
+	var counter_type: int = _as_int(event.get("counter_type", 0), 0)
+	var count: int = _as_int(event.get("count", 0), 0)
+	card.counters[counter_type] = int(card.counters.get(counter_type, 0)) + count
+
+
+func _on_remove_counter(event: Dictionary) -> void:
+	var at: Dictionary = event.get("at", {}) as Dictionary
+	if at.is_empty():
+		return
+	var card: DuelCard = _card_at(at)
+	if card == null:
+		return
+	var counter_type: int = _as_int(event.get("counter_type", 0), 0)
+	var count: int = _as_int(event.get("count", 0), 0)
+	var current: int = int(card.counters.get(counter_type, 0))
+	var remaining: int = maxi(0, current - count)
+	if remaining > 0:
+		card.counters[counter_type] = remaining
+	else:
+		card.counters.erase(counter_type)
 
 
 ## Refreshes a whole location from a query batch. Entries carry their own `seq` where the host
