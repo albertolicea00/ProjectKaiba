@@ -734,6 +734,11 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	else:
 		view.clear_pendulum_scales()
 
+	if card.overlay_codes.size() > 0:
+		view.set_overlay_count(card.overlay_codes.size())
+	else:
+		view.clear_overlay_count()
+
 	var materials: int = mini(card.overlay_codes.size(), OVERLAY_VIEW_LIMIT)
 	for index: int in range(materials):
 		var material_view: CardView = _pool.acquire()

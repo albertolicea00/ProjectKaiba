@@ -176,6 +176,7 @@ var _indicator_type: String = ""
 var _chain_label: Label3D = null
 var _lscale_label: Label3D = null
 var _rscale_label: Label3D = null
+var _overlay_label: Label3D = null
 
 const STAT_FONT_SIZE: int = 48
 const SCALE_FONT_SIZE: int = 36
@@ -183,6 +184,9 @@ const SCALE_COLOUR: Color = Color(0.2, 0.6, 1.0)
 const LSCALE_OFFSET: Vector3 = Vector3(-CARD_WIDTH * 0.38, -CARD_HEIGHT * 0.32, CARD_THICKNESS * 0.5 + 0.001)
 const RSCALE_OFFSET: Vector3 = Vector3(CARD_WIDTH * 0.38, -CARD_HEIGHT * 0.32, CARD_THICKNESS * 0.5 + 0.001)
 const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKNESS * 0.5 + 0.001)
+const OVERLAY_LABEL_OFFSET: Vector3 = Vector3(CARD_WIDTH * 0.35, CARD_HEIGHT * 0.38, CARD_THICKNESS * 0.5 + 0.001)
+const OVERLAY_FONT_SIZE: int = 32
+const OVERLAY_COLOUR: Color = Color(1.0, 0.85, 0.2)
 const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
 const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
 const STAT_COLOUR_REDUCED: Color = Color(1.0, 0.3, 0.3)
@@ -442,6 +446,36 @@ func set_pendulum_scales(left: int, right: int) -> void:
 	_rscale_label.text = str(right)
 	_lscale_label.visible = true
 	_rscale_label.visible = true
+
+
+func set_overlay_count(count: int) -> void:
+	if count <= 0:
+		clear_overlay_count()
+		return
+	_ensure_overlay_label()
+	_overlay_label.text = "x%d" % count
+	_overlay_label.visible = true
+
+
+func clear_overlay_count() -> void:
+	if _overlay_label != null:
+		_overlay_label.visible = false
+
+
+func _ensure_overlay_label() -> void:
+	if _overlay_label != null:
+		return
+	_overlay_label = Label3D.new()
+	_overlay_label.name = "OverlayCount"
+	_overlay_label.font_size = OVERLAY_FONT_SIZE
+	_overlay_label.modulate = OVERLAY_COLOUR
+	_overlay_label.outline_modulate = Color(0, 0, 0, 1)
+	_overlay_label.outline_size = 8
+	_overlay_label.position = OVERLAY_LABEL_OFFSET
+	_overlay_label.no_depth_test = true
+	_overlay_label.double_sided = false
+	_overlay_label.visible = false
+	add_child(_overlay_label)
 
 
 func clear_pendulum_scales() -> void:
