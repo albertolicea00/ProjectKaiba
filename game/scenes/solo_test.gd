@@ -522,6 +522,12 @@ func _handle(event: Dictionary) -> void:
 				var tgt: DuelCard = _card_at_loc(loc)
 				if tgt != null:
 					_board.set_card_indicator(tgt.handle, "target")
+		DuelEnums.EV.CHAIN_NEGATED, DuelEnums.EV.CHAIN_DISABLED:
+			_board.clear_card_indicators()
+			_board.clear_card_chain_numbers()
+		DuelEnums.EV.PAY_LPCOST:
+			if _hud != null:
+				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
 		DuelEnums.EV.WIN:
 			if _hud != null:
 				_hud.show_result(_state.winner)
@@ -1283,6 +1289,30 @@ func _log_event(type: int, event: Dictionary) -> void:
 						names.append(_card_name(tgt.code))
 				if not names.is_empty():
 					_duel_log.append("Targeted: %s" % ", ".join(names))
+		DuelEnums.EV.PAY_LPCOST:
+			_duel_log.append("%s pays %d LP" % [seat, int(event.get("amount", 0))])
+		DuelEnums.EV.CHAIN_NEGATED:
+			_duel_log.append("Chain link negated")
+		DuelEnums.EV.CHAIN_DISABLED:
+			_duel_log.append("Chain link disabled")
+		DuelEnums.EV.ATTACK_DISABLED:
+			_duel_log.append("Attack disabled")
+		DuelEnums.EV.TOSS_COIN:
+			var results: Array = event.get("results", [])
+			var labels: PackedStringArray = PackedStringArray()
+			for r: int in results:
+				labels.append("Heads" if r == 1 else "Tails")
+			_duel_log.append("Coin: %s" % ", ".join(labels))
+		DuelEnums.EV.TOSS_DICE:
+			var results: Array = event.get("results", [])
+			var labels: PackedStringArray = PackedStringArray()
+			for r: int in results:
+				labels.append(str(r))
+			_duel_log.append("Dice: %s" % ", ".join(labels))
+		DuelEnums.EV.ADD_COUNTER:
+			_duel_log.append("Counter +%d" % int(event.get("count", 0)))
+		DuelEnums.EV.REMOVE_COUNTER:
+			_duel_log.append("Counter -%d" % int(event.get("count", 0)))
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
