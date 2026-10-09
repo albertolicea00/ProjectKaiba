@@ -1376,6 +1376,16 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles deck" % seat)
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+		DuelEnums.EV.REMOVE_CARDS:
+			var rem_cards: Array = event.get("cards", [])
+			if not rem_cards.is_empty():
+				var rnames: PackedStringArray = PackedStringArray()
+				for loc: Dictionary in rem_cards:
+					var rc: DuelCard = _card_at_loc(loc)
+					if rc != null and rc.code != 0:
+						rnames.append(_card_name(rc.code))
+				if not rnames.is_empty():
+					_duel_log.append("Removed: %s" % ", ".join(rnames))
 		DuelEnums.EV.SWAP:
 			var swap_code1: int = int(event.get("card", 0))
 			var swap_code2: int = int(event.get("card2", 0))
