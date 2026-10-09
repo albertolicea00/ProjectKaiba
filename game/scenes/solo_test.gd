@@ -1369,6 +1369,20 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles deck" % seat)
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+		DuelEnums.EV.RANDOM_SELECTED:
+			var rand_cards: Array = event.get("cards", [])
+			for loc: Dictionary in rand_cards:
+				var rc: DuelCard = _card_at_loc(loc)
+				if rc != null:
+					_board.set_card_indicator(rc.handle, "target")
+			if not rand_cards.is_empty():
+				var rnames: PackedStringArray = PackedStringArray()
+				for loc: Dictionary in rand_cards:
+					var rc: DuelCard = _card_at_loc(loc)
+					if rc != null:
+						rnames.append(_card_name(rc.code))
+				if not rnames.is_empty():
+					_duel_log.append("Randomly selected: %s" % ", ".join(rnames))
 		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
 			var revealed: Array = event.get("cards", [])
 			if not revealed.is_empty():
