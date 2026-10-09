@@ -475,6 +475,33 @@ func _result_text() -> String:
 	return "Duel over - you win" if _state.winner == local_player else "Duel over - you lose"
 
 
+func show_result(winner: int) -> void:
+	if not is_node_ready():
+		return
+	var won: bool = winner == local_player
+	var text: String = "YOU WIN" if won else ("YOU LOSE" if winner != DuelEnums.PLAYER.NONE else "DRAW")
+	var colour: Color = Color(1.0, 0.85, 0.2) if won else Color(0.9, 0.3, 0.3)
+	if winner == DuelEnums.PLAYER.NONE:
+		colour = Color(0.7, 0.7, 0.8)
+
+	var root: Control = get_node_or_null("Root") as Control
+	if root == null:
+		return
+	var label: Label = Label.new()
+	label.text = text
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.set_anchors_preset(Control.PRESET_CENTER)
+	label.add_theme_font_size_override("font_size", 72)
+	label.add_theme_color_override("font_color", colour)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	label.add_theme_constant_override("outline_size", 8)
+	label.modulate.a = 0.0
+	root.add_child(label)
+	var tween: Tween = create_tween()
+	tween.tween_property(label, "modulate:a", 1.0, 0.5)
+
+
 # ----------------------------------------------------------------------------------------------
 # Pile badges
 #

@@ -516,6 +516,9 @@ func _handle(event: Dictionary) -> void:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
 				_board.set_card_indicator(equip_card.handle, "equip")
+		DuelEnums.EV.WIN:
+			if _hud != null:
+				_hud.show_result(_state.winner)
 		DuelEnums.EV.DAMAGE:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
