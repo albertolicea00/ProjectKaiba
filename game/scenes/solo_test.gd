@@ -650,6 +650,18 @@ func _handle(event: Dictionary) -> void:
 				_board.flash_zone(EventTranslator.anchor_of(event.get("at", {})),
 					Color(1.0, 0.85, 0.3, 0.8) if type == DuelEnums.EV.ADD_COUNTER else Color(0.7, 0.4, 0.4, 0.8))
 			_board.sync_from_state(_state)
+		DuelEnums.EV.MOVE:
+			var move_to: Dictionary = event.get("to", {}) as Dictionary
+			if not move_to.is_empty():
+				var to_loc: int = int(move_to.get("loc", 0))
+				if to_loc == DuelEnums.LOCATION.MZONE or to_loc == DuelEnums.LOCATION.SZONE:
+					var move_reason: int = int(event.get("reason", 0))
+					var move_colour: Color = Color(0.8, 0.4, 0.4, 0.7)
+					if (move_reason & DuelEnums.REASON.DESTROY) != 0:
+						move_colour = Color(1.0, 0.2, 0.2, 0.9)
+					elif to_loc == DuelEnums.LOCATION.SZONE:
+						move_colour = Color(0.4, 0.8, 0.5, 0.7)
+					_board.flash_zone(EventTranslator.anchor_of(move_to), move_colour)
 		DuelEnums.EV.UPDATE_DATA, DuelEnums.EV.UPDATE_CARD:
 			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:

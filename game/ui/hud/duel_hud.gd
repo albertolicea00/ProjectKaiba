@@ -318,6 +318,7 @@ func show_lp_change(player: int, amount: int) -> void:
 	tween.tween_property(popup, "position:y", popup.position.y - LP_POPUP_DRIFT, LP_POPUP_SECONDS)
 	tween.tween_property(popup, "modulate:a", 0.0, LP_POPUP_SECONDS).set_delay(0.3)
 	tween.chain().tween_callback(popup.queue_free)
+	_flash_lp_bar(player, amount)
 
 
 ## Finishes any running animation immediately: the life point roll lands on the model's total
@@ -487,6 +488,31 @@ func _paint_lp_bars() -> void:
 		bar.modulate = LP_BAR_COLOUR_HIGH.lerp(LP_BAR_COLOUR_LOW, 1.0 - ratio)
 
 
+func _flash_lp_bar(player: int, amount: int) -> void:
+	if player < 0 or player >= _lp_bars.size() or _lp_bars[player] == null:
+		return
+	var bar: TextureRect = _lp_bars[player]
+	var flash_colour: Color = Color(1.0, 1.0, 1.0) if amount < 0 else Color(0.3, 1.0, 0.5)
+	bar.modulate = flash_colour
+	var tw: Tween = create_tween()
+	tw.tween_interval(0.15)
+	tw.tween_callback(_paint_lp_bars)
+
+
+const PHASE_COLOURS: Dictionary = {
+	DuelEnums.PHASE.DRAW: Color(0.3, 0.6, 1.0),
+	DuelEnums.PHASE.STANDBY: Color(0.6, 0.7, 0.85),
+	DuelEnums.PHASE.MAIN1: Color(0.3, 0.85, 0.4),
+	DuelEnums.PHASE.BATTLE_START: Color(1.0, 0.35, 0.3),
+	DuelEnums.PHASE.BATTLE_STEP: Color(1.0, 0.4, 0.35),
+	DuelEnums.PHASE.DAMAGE: Color(1.0, 0.3, 0.2),
+	DuelEnums.PHASE.DAMAGE_CAL: Color(1.0, 0.25, 0.15),
+	DuelEnums.PHASE.BATTLE: Color(1.0, 0.35, 0.3),
+	DuelEnums.PHASE.MAIN2: Color(0.3, 0.75, 0.5),
+	DuelEnums.PHASE.END: Color(0.55, 0.55, 0.65),
+}
+
+
 static func _try_load_texture(path: String) -> Texture2D:
 	if not FileAccess.file_exists(path):
 		return null
@@ -526,11 +552,14 @@ func _refresh_phase() -> void:
 		_phase_label.text = EMPTY
 		return
 	_phase_label.text = _phase_text(_state.phase)
+	var phase_col: Color = PHASE_COLOURS.get(_state.phase, Color(0.85, 0.9, 1.0)) as Color
+	_phase_label.add_theme_color_override("font_color", phase_col)
 
 	if _state.phase != _announced_phase:
 		_announced_phase = _state.phase
 		_banner_time = BANNER_SECONDS
 		_banner_label.text = _phase_label.text.to_upper()
+		_banner_label.add_theme_color_override("font_color", phase_col)
 		set_process(true)
 	_paint_banner()
 
