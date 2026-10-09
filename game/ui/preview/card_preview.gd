@@ -248,6 +248,15 @@ func show_card(info: Dictionary, face: Texture2D) -> void:
 	# A dictionary with no text row at all is as text-less as an empty one, so both land on
 	# the same sentence rather than on an empty paragraph.
 	var desc: String = str(info.get("desc", "")).strip_edges()
+	var extra_info: PackedStringArray = PackedStringArray()
+	var counter_text: String = str(info.get("counter_text", ""))
+	if not counter_text.is_empty():
+		extra_info.append("[Counters: %s]" % counter_text)
+	var overlay_count: int = int(info.get("overlay_count", 0))
+	if overlay_count > 0:
+		extra_info.append("[Xyz Materials: %d]" % overlay_count)
+	if not extra_info.is_empty():
+		desc = desc + "\n\n" + "\n".join(extra_info) if not desc.is_empty() else "\n".join(extra_info)
 	_desc.text = desc if not desc.is_empty() else UNKNOWN_DESC
 
 	var type: int = int(info.get("type", 0))

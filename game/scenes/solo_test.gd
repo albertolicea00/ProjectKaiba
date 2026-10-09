@@ -822,6 +822,15 @@ func _enrich_live_stats(info: Dictionary, handle: int) -> void:
 						info["live_attack"] = dc.attack
 					if dc.defense >= 0:
 						info["live_defense"] = dc.defense
+					if not dc.counters.is_empty():
+						var counter_text: PackedStringArray = PackedStringArray()
+						for ct_key: Variant in dc.counters:
+							var ct_id: int = int(ct_key)
+							var ct_val: int = int(dc.counters[ct_key])
+							counter_text.append("%s: %d" % [_counter_name(ct_id), ct_val])
+						info["counter_text"] = ", ".join(counter_text)
+					if not dc.overlay_codes.is_empty():
+						info["overlay_count"] = dc.overlay_codes.size()
 					return
 		var fz: DuelCard = _state.field_zone[p] as DuelCard
 		if fz != null and fz.handle == handle:
