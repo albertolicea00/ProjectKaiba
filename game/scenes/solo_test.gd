@@ -518,7 +518,7 @@ func _handle(event: Dictionary) -> void:
 			if _hud != null and not _headless:
 				_hud.show_duel_start()
 			if _audio != null:
-				_audio.play_effect("duelstart")
+				_audio.play_effect("playerenter")
 		DuelEnums.EV.NEW_TURN:
 			_turn_changes += 1
 			if _focus.seat_in_view != _state.turn_player:
@@ -2203,8 +2203,12 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_audio.play_effect("equip")
 		DuelEnums.EV.SWAP_GRAVE_DECK:
 			_duel_log.append("%s swaps GY and Deck" % seat)
+			if _audio != null:
+				_audio.play_effect("shuffle")
 		DuelEnums.EV.REVERSE_DECK:
 			_duel_log.append("Decks reversed")
+			if _audio != null:
+				_audio.play_effect("shuffle")
 		DuelEnums.EV.DECK_TOP:
 			var dtcode: int = int(event.get("card", 0))
 			if dtcode != 0:
