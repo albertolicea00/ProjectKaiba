@@ -203,6 +203,7 @@ func _ready() -> void:
 	refresh()
 	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
 	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
+	_style_prompt_buttons()
 	_menu_button.pressed.connect(func() -> void: menu_pressed.emit())
 	_build_phase_buttons()
 	_paint_prompt()
@@ -653,6 +654,32 @@ func _combat_line(card: DuelCard) -> String:
 func _paint_prompt() -> void:
 	_prompt_label.text = _prompt
 	_prompt_panel.visible = not _prompt.is_empty()
+
+
+func _style_prompt_buttons() -> void:
+	_style_button(_prompt_confirm, Color(0.15, 0.35, 0.20), Color(0.20, 0.50, 0.28))
+	_style_button(_prompt_cancel, Color(0.35, 0.12, 0.12), Color(0.50, 0.18, 0.18))
+
+
+func _style_button(btn: Button, bg: Color, hover_bg: Color) -> void:
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = bg
+	normal.set_corner_radius_all(6)
+	normal.set_content_margin_all(8)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	hover.bg_color = hover_bg
+	hover.border_color = Color(0.8, 0.85, 1.0, 0.3)
+	hover.set_border_width_all(1)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = bg.darkened(0.2)
+	btn.add_theme_stylebox_override("pressed", pressed)
+
+	btn.add_theme_color_override("font_color", Color(0.9, 0.93, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
 
 
 # ----------------------------------------------------------------------------------------------
