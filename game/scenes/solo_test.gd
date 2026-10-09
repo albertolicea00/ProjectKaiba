@@ -111,6 +111,7 @@ var _last_hint_card: String = ""
 var _last_hint_msg: String = ""
 var _system_strings: Dictionary = {}
 var _victory_strings: Dictionary = {}
+var _counter_strings: Dictionary = {}
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -1665,6 +1666,11 @@ func _decode_desc(desc: int) -> String:
 	return ""
 
 
+func _counter_name(counter_type: int) -> String:
+	if _counter_strings.has(counter_type):
+		return str(_counter_strings[counter_type])
+	return "Counter"
+
 func _system_string(id: int) -> String:
 	if _system_strings.has(id):
 		return str(_system_strings[id])
@@ -1698,6 +1704,13 @@ func _load_system_strings() -> void:
 				var key: String = rest.left(space)
 				var id: int = int(key) if not key.begins_with("0x") else key.hex_to_int()
 				_victory_strings[id] = rest.substr(space + 1)
+		elif line.begins_with("!counter "):
+			var rest: String = line.substr(9)
+			var space: int = rest.find(" ")
+			if space >= 1:
+				var key: String = rest.left(space)
+				var id: int = int(key) if not key.begins_with("0x") else key.hex_to_int()
+				_counter_strings[id] = rest.substr(space + 1)
 
 
 func _log_event(type: int, event: Dictionary) -> void:
@@ -1853,11 +1866,13 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if _audio != null:
 				_audio.play_effect("diceroll")
 		DuelEnums.EV.ADD_COUNTER:
-			_duel_log.append("Counter +%d" % int(event.get("count", 0)))
+			var ct: int = int(event.get("counter_type", 0))
+			_duel_log.append("%s +%d" % [_counter_name(ct), int(event.get("count", 0))])
 			if _audio != null:
 				_audio.play_effect("addcounter")
 		DuelEnums.EV.REMOVE_COUNTER:
-			_duel_log.append("Counter -%d" % int(event.get("count", 0)))
+			var ct: int = int(event.get("counter_type", 0))
+			_duel_log.append("%s -%d" % [_counter_name(ct), int(event.get("count", 0))])
 			if _audio != null:
 				_audio.play_effect("removecounter")
 		DuelEnums.EV.SHUFFLE_DECK:
