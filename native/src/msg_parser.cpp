@@ -742,6 +742,22 @@ Dictionary parse_swap_grave_deck(Cursor& cursor) {
 	return event;
 }
 
+/// MSG_ROCK_PAPER_SCISSORS: u8 player — requests RPS input.
+Dictionary parse_rps(Cursor& cursor) {
+	Dictionary event = make_event(EV::ROCK_PAPER_SCISSORS);
+	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
+	return event;
+}
+
+/// MSG_HAND_RES: u8 packed (hand0 in bits 0-1, hand1 in bits 2-3).
+Dictionary parse_hand_res(Cursor& cursor) {
+	Dictionary event = make_event(EV::HAND_RES);
+	uint8_t packed = cursor.read<uint8_t>();
+	event["hand0"] = static_cast<int32_t>(packed & 0x03);
+	event["hand1"] = static_cast<int32_t>((packed >> 2) & 0x03);
+	return event;
+}
+
 Dictionary parse_confirm_decktop(Cursor& cursor) {
 	Dictionary event = make_event(EV::CONFIRM_DECKTOP);
 	event["player"] = static_cast<int32_t>(cursor.read<uint8_t>());
@@ -952,6 +968,8 @@ godot::Dictionary MsgParser::parse(const core_utils::Packet& packet) {
 		case MSG_SWAP_GRAVE_DECK:   event = parse_swap_grave_deck(cursor); break;
 		case MSG_REVERSE_DECK:      event = parse_empty(EV::REVERSE_DECK); break;
 		case MSG_MATCH_KILL:        event = parse_empty(EV::MATCH_KILL); break;
+		case MSG_ROCK_PAPER_SCISSORS: event = parse_rps(cursor); break;
+		case MSG_HAND_RES:          event = parse_hand_res(cursor); break;
 		// MSG_TAG_SWAP and MSG_RELOAD_FIELD: multiplayer-only, not used in solo mode.
 
 		default:

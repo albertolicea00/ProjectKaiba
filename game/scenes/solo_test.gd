@@ -1670,6 +1670,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append("Extra top: %s" % ", ".join(ext_names))
 		DuelEnums.EV.FIELD_DISABLED:
 			_duel_log.append_system("Field zones updated")
+		DuelEnums.EV.HAND_RES:
+			var rps_names: Array[String] = ["?", "Rock", "Paper", "Scissors"]
+			var h0: int = int(event.get("hand0", 0))
+			var h1: int = int(event.get("hand1", 0))
+			_duel_log.append_system("RPS: P0=%s P1=%s" % [rps_names[clampi(h0, 0, 3)], rps_names[clampi(h1, 0, 3)]])
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:

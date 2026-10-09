@@ -170,6 +170,8 @@ const PASSIVE_EVENTS: Array[int] = [
 	DuelEnums.EV.REVERSE_DECK,
 	DuelEnums.EV.DECK_TOP,
 	DuelEnums.EV.MATCH_KILL,
+	DuelEnums.EV.ROCK_PAPER_SCISSORS,
+	DuelEnums.EV.HAND_RES,
 	DuelEnums.EV.REMOVE_CARDS,
 	DuelEnums.EV.ANNOUNCE_RACE,
 	DuelEnums.EV.ANNOUNCE_ATTRIB,
