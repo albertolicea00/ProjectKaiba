@@ -171,12 +171,20 @@ static var art_source: CardArt = null
 var _front_texture: Texture2D = null
 
 var _stat_label: Label3D = null
+var _indicator: Sprite3D = null
+var _indicator_type: String = ""
 
 const STAT_FONT_SIZE: int = 48
 const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKNESS * 0.5 + 0.001)
 const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
 const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
 const STAT_COLOUR_REDUCED: Color = Color(1.0, 0.3, 0.3)
+
+const INDICATOR_SIZE: float = 0.014
+const INDICATOR_OFFSET: Vector3 = Vector3(
+	CARD_WIDTH * 0.5 - 0.010, CARD_HEIGHT * 0.5 - 0.010, CARD_THICKNESS * 0.5 + 0.002)
+const INDICATOR_PATH_PREFIX: String = "res://../data/base/textures/overlays/"
+static var _indicator_textures: Dictionary = {}
 
 
 func _init() -> void:
@@ -421,6 +429,55 @@ func clear_stats() -> void:
 		_stat_label.visible = false
 
 
+func set_indicator(type: String) -> void:
+	if type == _indicator_type and _indicator != null and _indicator.visible:
+		return
+	_ensure_indicator()
+	var tex: Texture2D = _load_indicator_texture(type)
+	if tex == null:
+		_indicator.visible = false
+		_indicator_type = ""
+		return
+	_indicator.texture = tex
+	_indicator.visible = true
+	_indicator_type = type
+
+
+func clear_indicator() -> void:
+	if _indicator != null:
+		_indicator.visible = false
+	_indicator_type = ""
+
+
+func _ensure_indicator() -> void:
+	if _indicator != null:
+		return
+	_indicator = Sprite3D.new()
+	_indicator.name = "Indicator"
+	_indicator.pixel_size = INDICATOR_SIZE / 128.0
+	_indicator.position = INDICATOR_OFFSET
+	_indicator.shaded = false
+	_indicator.double_sided = false
+	_indicator.no_depth_test = true
+	_indicator.transparent = true
+	_indicator.visible = false
+	add_child(_indicator)
+
+
+static func _load_indicator_texture(type: String) -> Texture2D:
+	if _indicator_textures.has(type):
+		return _indicator_textures[type] as Texture2D
+	var path: String = ProjectSettings.globalize_path(INDICATOR_PATH_PREFIX + type + ".png")
+	if not FileAccess.file_exists(path):
+		return null
+	var image: Image = Image.new()
+	if image.load(path) != OK:
+		return null
+	var tex: ImageTexture = ImageTexture.create_from_image(image)
+	_indicator_textures[type] = tex
+	return tex
+
+
 func _stat_colour(current: int, base: int) -> Color:
 	if current > base:
 		return STAT_COLOUR_BOOSTED
@@ -514,6 +571,7 @@ func _on_visibility_changed() -> void:
 	if not visible:
 		set_opacity(1.0)
 		clear_stats()
+		clear_indicator()
 
 
 ## Layer `PICK_LAYER` while the card is on the board, layer 0 - which no query can match - while

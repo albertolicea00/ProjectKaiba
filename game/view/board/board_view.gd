@@ -459,6 +459,20 @@ func clear_card_highlights() -> void:
 	highlight_cards(PackedInt32Array())
 
 
+func set_card_indicator(handle: int, type: String) -> void:
+	var view: CardView = view_by_handle(handle)
+	if view != null:
+		view.set_indicator(type)
+
+
+func clear_card_indicators() -> void:
+	for key: Variant in _occupants.keys():
+		for entry: Variant in (_occupants[key] as Array):
+			var view: CardView = entry as CardView
+			if view != null:
+				view.clear_indicator()
+
+
 ## Offers the art cache to every card currently on the board.
 ##
 ## Cheap enough to call every frame: `CardView.refresh_art()` compares against the texture it
