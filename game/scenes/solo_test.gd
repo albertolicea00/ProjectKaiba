@@ -597,6 +597,13 @@ func _on_action_chosen(cmd: String, index: int) -> void:
 	if cmd == "_surrender":
 		_do_surrender()
 		return
+	if cmd == "_yesno":
+		if not _selection.is_waiting():
+			return
+		var type: int = _selection.pending_type()
+		_answers_from_intents += 1
+		_answer_pending(type, {"answer": index})
+		return
 	if cmd == "_option" or cmd == "_chain":
 		if not _selection.is_waiting():
 			return
@@ -631,6 +638,9 @@ func _on_action_dismissed() -> void:
 		if not bool(_last_selection.get("forced", false)):
 			_answers_from_intents += 1
 			_answer_pending(type, {"cancel": true})
+	elif type == DuelEnums.EV.SELECT_YESNO or type == DuelEnums.EV.SELECT_EFFECTYN:
+		_answers_from_intents += 1
+		_answer_pending(type, {"answer": 0})
 
 
 ## Long press on the deck offers to surrender and return to the menu.
@@ -743,6 +753,78 @@ func _show_position_dialog(event: Dictionary) -> void:
 		var info: Dictionary = _core.get_card_info(code)
 		card_name = str(info.get("name", card_name))
 	_action_menu.show_actions(card_name, actions)
+
+
+## Common system strings used by SELECT_YESNO. These are stable ocgcore protocol values
+## defined in strings.conf; only the yes/no-relevant subset is kept here.
+const _YESNO_STRINGS: Dictionary = {
+	30: "A replay occurred, continue the attack?",
+	31: "Attack directly?",
+	32: "Conduct another Battle Phase?",
+	90: "Normal Summon without Tribute(s)?",
+	91: "Use your additional Normal Summon?",
+	92: "Use an opponent's monster?",
+	93: "Continue choosing materials?",
+	94: "Activate this card's effect now?",
+	95: "Use the effect of \"%ls\"?",
+	96: "Use the effect of \"%ls\" to avoid destruction?",
+	97: "Place \"%ls\" in the Spell & Trap Zone?",
+	98: "Apply a cost replacing effect?",
+	100: "Go first?",
+	101: "Go second?",
+	200: "Use the effect of \"%ls\"?",
+	210: "Continue selecting cards?",
+	218: "Pay LP with the effect of \"%ls\", instead?",
+	219: "Detach Xyz Material(s) with the effect of \"%ls\", instead?",
+	220: "Remove Counter(s) with the effect of \"%ls\", instead?",
+	221: "Activate the Trigger Effect of \"%ls\"?",
+}
+
+
+## Shows a yes/no dialog for SELECT_YESNO and SELECT_EFFECTYN events.
+##
+## Decodes the `desc` field to show a meaningful question instead of a generic prompt.
+## desc < 256 → system string; desc >= 256 → (card_code << 4) | string_index.
+func _show_yesno_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var desc: int = int(event.get("desc", 0))
+	var card_code: int = int(event.get("card", 0))
+	var title: String = "Activate?"
+
+	if desc != 0 and desc < 256:
+		title = _YESNO_STRINGS.get(desc, "Question #%d" % desc) as String
+		if card_code != 0 and _core != null:
+			var info: Dictionary = _core.get_card_info(card_code)
+			var name: String = str(info.get("name", ""))
+			if not name.is_empty():
+				title = title.replace("%ls", name)
+				if not title.contains(name):
+					title = "%s — %s" % [name, title]
+	elif desc >= 256:
+		var desc_card: int = desc >> 4
+		var string_idx: int = desc & 0xf
+		if desc_card != 0 and _core != null:
+			var info: Dictionary = _core.get_card_info(desc_card)
+			var strings: PackedStringArray = info.get("strings", PackedStringArray()) as PackedStringArray
+			var name: String = str(info.get("name", ""))
+			if string_idx < strings.size() and not strings[string_idx].is_empty():
+				title = strings[string_idx]
+				if not name.is_empty():
+					title = "%s: %s" % [name, title]
+			elif not name.is_empty():
+				title = "Use the effect of %s?" % name
+	elif card_code != 0 and _core != null:
+		var info: Dictionary = _core.get_card_info(card_code)
+		var name: String = str(info.get("name", ""))
+		if not name.is_empty():
+			title = "Use the effect of %s?" % name
+
+	var actions: Array[Dictionary] = [
+		{"key": "_yesno", "label": "Yes", "index": 1},
+		{"key": "_yesno", "label": "No", "index": 0},
+	]
+	_action_menu.show_actions(title, actions)
 
 
 ## Shows phase buttons matching the available phase transitions in the event.
@@ -905,6 +987,8 @@ func _on_selection(event: Dictionary) -> void:
 				_show_chain_dialog(event)
 		elif pending == DuelEnums.EV.SELECT_POSITION:
 			_show_position_dialog(event)
+		elif pending == DuelEnums.EV.SELECT_YESNO or pending == DuelEnums.EV.SELECT_EFFECTYN:
+			_show_yesno_dialog(event)
 
 	print("[solo] %s -> %s (looking from %s)%s" % [
 		DuelEnums.ev_name(_focus.decision_event),
