@@ -662,10 +662,25 @@ func _handle(event: Dictionary) -> void:
 	if type == DuelEnums.EV.HINT:
 		var hint_type: int = int(event.get("hint_type", 0))
 		var hint_data: int = int(event.get("data", 0))
-		if hint_type == 3:
+		if hint_type == 1:
+			var ev_str: String = _system_string(hint_data)
+			if not ev_str.is_empty() and _duel_log != null:
+				_duel_log.append_system(ev_str)
+		elif hint_type == 2:
+			var msg_str: String = _system_string(hint_data)
+			if not msg_str.is_empty() and _duel_log != null:
+				_duel_log.append(msg_str)
+		elif hint_type == 3:
 			_last_hint_msg = _system_string(hint_data)
+		elif hint_type == 4:
+			var op_str: String = _system_string(hint_data)
+			if not op_str.is_empty() and _duel_log != null:
+				_duel_log.append_system("Opponent: %s" % op_str)
 		elif hint_type == 5:
 			_last_hint_card = _card_name(hint_data) if hint_data != 0 else ""
+		elif hint_type == 10:
+			if hint_data != 0 and _duel_log != null:
+				_duel_log.append_system("Declared: %s" % _card_name(hint_data))
 		elif hint_type == 11 and hint_data != 0:
 			_board.flash_zone_mask(hint_data, Color(0.5, 1.0, 0.7, 0.8))
 		return
