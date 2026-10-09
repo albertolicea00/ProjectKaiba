@@ -177,6 +177,7 @@ const ANSWERABLE: Array[int] = [
 	DuelEnums.EV.SELECT_EFFECTYN,
 	DuelEnums.EV.SELECT_CHAIN,
 	DuelEnums.EV.SELECT_POSITION,
+	DuelEnums.EV.SELECT_OPTION,
 ]
 
 
