@@ -1263,6 +1263,13 @@ const _RACE_NAMES: Dictionary = {
 	DuelEnums.RACE.WYRM: "Wyrm",
 	DuelEnums.RACE.CYBERSE: "Cyberse",
 	DuelEnums.RACE.ILLUSION: "Illusion",
+	DuelEnums.RACE.CYBORG: "Cyborg",
+	DuelEnums.RACE.MAGICALKNIGHT: "Magical Knight",
+	DuelEnums.RACE.HIGHDRAGON: "High Dragon",
+	DuelEnums.RACE.OMEGAPSYCHIC: "Omega Psychic",
+	DuelEnums.RACE.CELESTIALWARRIOR: "Celestial Warrior",
+	DuelEnums.RACE.GALAXY: "Galaxy",
+	DuelEnums.RACE.YOKAI: "Yokai",
 }
 
 
