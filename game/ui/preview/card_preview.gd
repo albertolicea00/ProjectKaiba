@@ -265,6 +265,8 @@ func show_card(info: Dictionary, face: Texture2D) -> void:
 	var is_monster: bool = info.has("type") and (type & DuelEnums.TYPE.MONSTER) != 0
 
 	_set_line(_traits, _trait_line(info) if is_monster else "")
+	if is_monster and _traits != null:
+		_traits.add_theme_color_override("font_color", _attribute_colour(int(info.get("attribute", 0))))
 	_set_line(_stats, _stat_line(info) if is_monster else "")
 	_set_line(_markers,
 		_marker_line(int(info.get("link_marker", 0)))
@@ -359,6 +361,25 @@ static func link_marker_names(mask: int) -> PackedStringArray:
 # ----------------------------------------------------------------------------------------------
 # Internals
 # ----------------------------------------------------------------------------------------------
+
+static func _attribute_colour(attribute: int) -> Color:
+	match attribute:
+		DuelEnums.ATTRIBUTE.EARTH:
+			return Color(0.6, 0.5, 0.3)
+		DuelEnums.ATTRIBUTE.WATER:
+			return Color(0.3, 0.55, 0.85)
+		DuelEnums.ATTRIBUTE.FIRE:
+			return Color(0.9, 0.35, 0.25)
+		DuelEnums.ATTRIBUTE.WIND:
+			return Color(0.35, 0.75, 0.4)
+		DuelEnums.ATTRIBUTE.LIGHT:
+			return Color(0.95, 0.9, 0.5)
+		DuelEnums.ATTRIBUTE.DARK:
+			return Color(0.6, 0.35, 0.7)
+		DuelEnums.ATTRIBUTE.DIVINE:
+			return Color(1.0, 0.8, 0.2)
+	return Color(0.8, 0.82, 0.85)
+
 
 static func _name_colour(type: int) -> Color:
 	if type == 0:
