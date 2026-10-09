@@ -522,6 +522,10 @@ func _handle(event: Dictionary) -> void:
 				if chain_num > 0:
 					_board.set_card_chain_number(chain_card.handle, chain_num)
 					_chain_handles[chain_num] = chain_card.handle
+		DuelEnums.EV.CHAIN_SOLVING:
+			var solving_idx: int = int(event.get("chain", 0))
+			if _chain_handles.has(solving_idx):
+				_board.set_card_indicator(int(_chain_handles[solving_idx]), "act")
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
@@ -1347,6 +1351,9 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s pays %d LP" % [seat, int(event.get("amount", 0))])
 		DuelEnums.EV.CHAIN_DISABLED:
 			_duel_log.append("Chain link disabled")
+		DuelEnums.EV.CHAIN_SOLVING:
+			var solving_log: int = int(event.get("chain", 0))
+			_duel_log.append_action("Resolving chain link %d" % solving_log)
 		DuelEnums.EV.ATTACK_DISABLED:
 			_duel_log.append("Attack disabled")
 		DuelEnums.EV.TOSS_COIN:
