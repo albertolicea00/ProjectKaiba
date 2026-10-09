@@ -508,6 +508,9 @@ func _handle(event: Dictionary) -> void:
 			var atk_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if atk_card != null:
 				_board.set_card_indicator(atk_card.handle, "attack")
+			var def_card: DuelCard = _card_at_loc(event.get("to", {}))
+			if def_card != null:
+				_board.set_card_indicator(def_card.handle, "target")
 		DuelEnums.EV.BATTLE:
 			_show_combat(event)
 		DuelEnums.EV.NEW_PHASE:
@@ -528,6 +531,8 @@ func _handle(event: Dictionary) -> void:
 				_board.flash_zone(EventTranslator.anchor_of(summon_at), summon_colour)
 		DuelEnums.EV.SUMMONED, DuelEnums.EV.SPSUMMONED, DuelEnums.EV.FLIPSUMMONED:
 			_board.clear_card_indicators()
+			if _preview != null and not _headless:
+				_preview.hide_card()
 		DuelEnums.EV.CHAINING:
 			var chain_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if chain_card != null:
@@ -557,6 +562,8 @@ func _handle(event: Dictionary) -> void:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
 			_chain_handles.clear()
+			if _preview != null and not _headless:
+				_preview.hide_card()
 		DuelEnums.EV.SHUFFLE_SET_CARD:
 			if _audio != null:
 				_audio.play_effect("shuffle")
