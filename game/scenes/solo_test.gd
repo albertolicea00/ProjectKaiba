@@ -1132,11 +1132,11 @@ func _on_intent(data: Dictionary) -> void:
 
 	var type: int = _selection.pending_type()
 
-	# During idle or battle command, clicking a card opens the action menu
-	# showing what you can do with it (summon, set, activate, attack).
 	if not _headless and kind == InputSource.KIND_SELECT_CARD:
+		var handle: int = int(data.get("handle", 0))
+		if handle != 0:
+			_preview_handle(handle)
 		if type == DuelEnums.EV.SELECT_IDLECMD or type == DuelEnums.EV.SELECT_BATTLECMD:
-			var handle: int = int(data.get("handle", 0))
 			if handle != 0:
 				_show_action_menu(handle)
 				return
