@@ -272,6 +272,29 @@ func set_combat(attacker: DuelCard, defender: DuelCard) -> void:
 
 const LP_POPUP_SECONDS: float = 1.2
 const LP_POPUP_DRIFT: float = 60.0
+const DAMAGE_FLASH_THRESHOLD: int = 1000
+
+var _damage_flash: ColorRect = null
+
+
+func flash_damage() -> void:
+	if not is_node_ready():
+		return
+	if _damage_flash == null:
+		_damage_flash = ColorRect.new()
+		_damage_flash.name = "DamageFlash"
+		_damage_flash.set_anchors_preset(Control.PRESET_FULL_RECT)
+		_damage_flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_damage_flash.color = Color(1.0, 0.0, 0.0, 0.0)
+		var root: Control = get_node_or_null("Root") as Control
+		if root != null:
+			root.add_child(_damage_flash)
+		else:
+			add_child(_damage_flash)
+	_damage_flash.color = Color(1.0, 0.0, 0.0, 0.3)
+	_damage_flash.z_index = 100
+	var tween: Tween = create_tween()
+	tween.tween_property(_damage_flash, "color:a", 0.0, 0.4)
 
 
 func show_lp_change(player: int, amount: int) -> void:

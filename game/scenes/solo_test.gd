@@ -663,8 +663,11 @@ func _handle(event: Dictionary) -> void:
 				var is_local_win: bool = int(event.get("player", -1)) == LOCAL_SEAT
 				_audio.set_music_context("win" if is_local_win else "lose")
 		DuelEnums.EV.DAMAGE:
+			var dmg_amount: int = int(event.get("amount", 0))
 			if _hud != null:
-				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
+				_hud.show_lp_change(int(event.get("player", 0)), -dmg_amount)
+				if dmg_amount >= DuelHud.DAMAGE_FLASH_THRESHOLD:
+					_hud.flash_damage()
 			if _audio != null:
 				_audio.play_effect("damage")
 		DuelEnums.EV.RECOVER:
