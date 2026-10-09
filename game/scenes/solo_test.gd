@@ -555,15 +555,15 @@ func _handle(event: Dictionary) -> void:
 				if not at_info.is_empty():
 					_board.flash_zone(EventTranslator.anchor_of(at_info), Color(0.4, 0.85, 1.0, 1.0))
 		DuelEnums.EV.CHAIN_SOLVING:
-			var solving_idx: int = int(event.get("chain", 0))
+			var solving_idx: int = int(event.get("chain_index", 0))
 			if _chain_handles.has(solving_idx):
 				_board.set_card_indicator(int(_chain_handles[solving_idx]), "act")
 		DuelEnums.EV.CHAINED:
-			var chained_idx: int = int(event.get("chain", 0))
+			var chained_idx: int = int(event.get("chain_index", 0))
 			if _chain_handles.has(chained_idx):
 				_board.set_card_indicator(int(_chain_handles[chained_idx]), "chain")
 		DuelEnums.EV.CHAIN_SOLVED:
-			var solved_idx: int = int(event.get("chain", 0))
+			var solved_idx: int = int(event.get("chain_index", 0))
 			if _chain_handles.has(solved_idx):
 				_board.clear_card_indicator(int(_chain_handles[solved_idx]))
 		DuelEnums.EV.CHAIN_END:
@@ -594,7 +594,7 @@ func _handle(event: Dictionary) -> void:
 				if tgt != null:
 					_board.set_card_indicator(tgt.handle, "target")
 		DuelEnums.EV.CHAIN_NEGATED, DuelEnums.EV.CHAIN_DISABLED:
-			var neg_chain: int = int(event.get("chain", 0))
+			var neg_chain: int = int(event.get("chain_index", 0))
 			if _chain_handles.has(neg_chain):
 				_board.set_card_indicator(int(_chain_handles[neg_chain]), "negated")
 			_board.clear_card_chain_numbers()
@@ -1820,7 +1820,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 		DuelEnums.EV.CHAIN_DISABLED:
 			_duel_log.append("Chain link disabled")
 		DuelEnums.EV.CHAIN_SOLVING:
-			var solving_log: int = int(event.get("chain", 0))
+			var solving_log: int = int(event.get("chain_index", 0))
 			_duel_log.append_action("Resolving chain link %d" % solving_log)
 		DuelEnums.EV.ATTACK_DISABLED:
 			_duel_log.append("Attack disabled")
