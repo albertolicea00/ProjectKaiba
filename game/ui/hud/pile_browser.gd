@@ -167,6 +167,15 @@ func _clear_items() -> void:
 		child.queue_free()
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not is_open():
+		return
+	if event.is_action_pressed("ui_cancel"):
+		get_viewport().set_input_as_handled()
+		hide_browser()
+		closed.emit()
+
+
 func _on_dimmer_input(event: InputEvent) -> void:
 	if not is_open():
 		return
