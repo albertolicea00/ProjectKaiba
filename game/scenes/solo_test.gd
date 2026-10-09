@@ -1027,10 +1027,10 @@ func _show_position_dialog(event: Dictionary) -> void:
 		actions.append({"key": "_position", "label": "Face-up Defense", "index": DuelEnums.POSITION.FACEUP_DEFENSE})
 	if (offered & DuelEnums.POSITION.FACEDOWN_DEFENSE) != 0:
 		actions.append({"key": "_position", "label": "Face-down Defense", "index": DuelEnums.POSITION.FACEDOWN_DEFENSE})
-	var code: int = int(event.get("code", 0))
+	var pos_code: int = int(event.get("card", 0))
 	var card_name: String = "Card"
-	if code != 0 and _core != null:
-		var info: Dictionary = _core.get_card_info(code)
+	if pos_code != 0 and _core != null:
+		var info: Dictionary = _core.get_card_info(pos_code)
 		card_name = str(info.get("name", card_name))
 	_action_menu.show_actions(card_name, actions)
 
@@ -1708,8 +1708,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 	var seat: String = "P%d" % player
 	match type:
 		DuelEnums.EV.NEW_TURN:
-			_duel_log.append_system("=== Turn %d (%s) ===" % [
-				int(event.get("turn", 0)), seat])
+			_duel_log.append_system("=== Turn %d (%s) ===" % [_state.turn_count, seat])
 			if _audio != null:
 				_audio.play_effect("nextturn")
 		DuelEnums.EV.NEW_PHASE:
@@ -1745,20 +1744,25 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_audio.play_effect("destroyed")
 		DuelEnums.EV.ATTACK:
 			var is_direct: bool = bool(event.get("direct", false))
+			var atk_name: String = _card_name(code) if code != 0 else "?"
 			if is_direct:
-				_duel_log.append_action("Direct attack!")
+				_duel_log.append_action("%s attacks directly!" % atk_name)
 			else:
-				_duel_log.append_action("Attack declared")
+				var def_loc: Dictionary = event.get("to", {}) as Dictionary
+				var def_c: DuelCard = _card_at_loc(def_loc)
+				var def_name: String = _card_name(def_c.code) if def_c != null and def_c.code != 0 else "?"
+				_duel_log.append_action("%s attacks %s" % [atk_name, def_name])
 			if _audio != null:
 				_audio.play_effect("attack")
 		DuelEnums.EV.BATTLE:
 			var is_direct: bool = bool(event.get("direct", false))
-			var atk: int = int(event.get("from_atk", 0))
+			var atk_val: int = int(event.get("from_atk", 0))
 			if is_direct:
-				_duel_log.append_action("Battle: %d damage" % atk)
+				_duel_log.append_action("ATK %d DIRECT ATTACK" % atk_val)
 			else:
-				var def_atk: int = int(event.get("to_atk", 0))
-				_duel_log.append_action("Battle: %d vs %d" % [atk, def_atk])
+				var def_val: int = int(event.get("to_atk", 0))
+				var def_dval: int = int(event.get("to_def", 0))
+				_duel_log.append_action("ATK %d vs ATK %d / DEF %d" % [atk_val, def_val, def_dval])
 		DuelEnums.EV.DAMAGE:
 			_duel_log.append("%s takes %d damage" % [seat, int(event.get("amount", 0))])
 			if _audio != null:
