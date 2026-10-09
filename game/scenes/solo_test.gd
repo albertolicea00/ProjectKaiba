@@ -502,6 +502,12 @@ func _handle(event: Dictionary) -> void:
 			if _hud != null:
 				_hud.set_combat(null, null)
 			_record_phase()
+		DuelEnums.EV.CHAINING:
+			var chain_card: DuelCard = _card_at_loc(event.get("at", {}))
+			if chain_card != null:
+				_board.set_card_indicator(chain_card.handle, "chain")
+		DuelEnums.EV.CHAIN_END:
+			_board.clear_card_indicators()
 		DuelEnums.EV.DAMAGE:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
