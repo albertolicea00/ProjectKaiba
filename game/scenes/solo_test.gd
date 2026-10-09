@@ -108,6 +108,7 @@ var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
 var _chain_handles: Dictionary = {}
 var _last_hint_card: String = ""
+var _last_hint_msg: String = ""
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -306,8 +307,11 @@ func _process(_delta: float) -> void:
 	if _hud != null:
 		_hud.refresh()
 		var prompt: String = _selection.pending_prompt() if _selection != null else ""
-		if not prompt.is_empty() and not _last_hint_card.is_empty():
-			prompt = "[%s] %s" % [_last_hint_card, prompt]
+		if not prompt.is_empty():
+			if not _last_hint_msg.is_empty():
+				prompt = "%s — %s" % [_last_hint_msg, prompt]
+			elif not _last_hint_card.is_empty():
+				prompt = "[%s] %s" % [_last_hint_card, prompt]
 		_hud.set_prompt(prompt)
 	if _banner != null:
 		_banner.refresh()
@@ -627,9 +631,11 @@ func _handle(event: Dictionary) -> void:
 
 	if type == DuelEnums.EV.HINT:
 		var hint_type: int = int(event.get("hint_type", 0))
-		if hint_type == 5:
-			var hint_code: int = int(event.get("data", 0))
-			_last_hint_card = _card_name(hint_code) if hint_code != 0 else ""
+		var hint_data: int = int(event.get("data", 0))
+		if hint_type == 3:
+			_last_hint_msg = _system_string(hint_data)
+		elif hint_type == 5:
+			_last_hint_card = _card_name(hint_data) if hint_data != 0 else ""
 		return
 
 	if _headless and _set_trap and _set_zones_audited == 0:
@@ -1002,6 +1008,39 @@ const _YESNO_STRINGS: Dictionary = {
 	219: "Detach Xyz Material(s) with the effect of \"%ls\", instead?",
 	220: "Remove Counter(s) with the effect of \"%ls\", instead?",
 	221: "Activate the Trigger Effect of \"%ls\"?",
+}
+
+const _SELECT_STRINGS: Dictionary = {
+	500: "Select the card(s) to Tribute",
+	501: "Select the card(s) to discard",
+	502: "Select the card(s) to destroy",
+	503: "Select the card(s) to banish",
+	504: "Select the card(s) to send to the GY",
+	505: "Select the card(s) to return to the hand",
+	506: "Select the card(s) to add to your hand",
+	507: "Select the card(s) to return to the Deck",
+	508: "Select the card(s) to Normal Summon",
+	509: "Select the card(s) to Special Summon",
+	510: "Select the card(s) to Set",
+	511: "Select the card(s) to use as Fusion Material",
+	512: "Select the card(s) to use as Synchro Material",
+	513: "Select the card(s) to use as Xyz Material",
+	514: "Select a face-up card(s)",
+	515: "Select a face-down card(s)",
+	516: "Select a monster(s) in Attack Position",
+	517: "Select a monster(s) in Defense Position",
+	518: "Select the card(s) to equip",
+	519: "Select the Xyz Material(s) to detach",
+	520: "Select the monster(s) to change control",
+	521: "Select the card(s) to replace",
+	526: "Select the card(s) to reveal",
+	527: "Select the card(s) to place on the field",
+	528: "Select a monster to change its battle position",
+	529: "Select your card",
+	530: "Select the card(s) to use as Link Material",
+	531: "Select the monster to change its Attribute",
+	532: "Select the card(s) to shuffle into the Deck",
+	533: "Select the card(s) to add to the Extra Deck",
 }
 
 
@@ -1516,6 +1555,7 @@ func _answer_pending(type: int, answer: Dictionary) -> void:
 	_board.clear_highlights()
 	_board.clear_card_highlights()
 	_last_hint_card = ""
+	_last_hint_msg = ""
 	if _hud != null:
 		_hud.set_phase_commands([])
 	_banner.refresh()
@@ -1530,6 +1570,14 @@ func _card_name(code: int) -> String:
 	var info: Dictionary = _core.get_card_info(code)
 	var n: String = str(info.get("name", ""))
 	return n if not n.is_empty() else "#%d" % code
+
+
+func _system_string(id: int) -> String:
+	if _SELECT_STRINGS.has(id):
+		return str(_SELECT_STRINGS[id])
+	if _YESNO_STRINGS.has(id):
+		return str(_YESNO_STRINGS[id])
+	return ""
 
 
 func _log_event(type: int, event: Dictionary) -> void:
@@ -1775,6 +1823,14 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append_system("RPS: P0=%s P1=%s" % [rps_names[clampi(h0, 0, 3)], rps_names[clampi(h1, 0, 3)]])
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
+		DuelEnums.EV.CARD_HINT:
+			var ch_card: DuelCard = _card_at_loc(event.get("at", {}))
+			var ch_type: int = int(event.get("hint_type", 0))
+			if ch_card != null and ch_card.code != 0:
+				if ch_type == 6:
+					_duel_log.append("%s: effect applied" % _card_name(ch_card.code), Color(0.6, 0.8, 1.0))
+				elif ch_type == 7:
+					_duel_log.append("%s: effect removed" % _card_name(ch_card.code), Color(0.7, 0.7, 0.7))
 		DuelEnums.EV.WIN:
 			var winner: int = int(event.get("player", -1))
 			_duel_log.append_system("=== %s wins ===" % ("P%d" % winner))
