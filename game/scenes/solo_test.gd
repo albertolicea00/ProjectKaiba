@@ -1546,20 +1546,32 @@ func _log_event(type: int, event: Dictionary) -> void:
 			for r: int in results:
 				labels.append("Heads" if r == 1 else "Tails")
 			_duel_log.append("Coin: %s" % ", ".join(labels))
+			if _audio != null:
+				_audio.play_effect("coinflip")
 		DuelEnums.EV.TOSS_DICE:
 			var results: Array = event.get("results", [])
 			var labels: PackedStringArray = PackedStringArray()
 			for r: int in results:
 				labels.append(str(r))
 			_duel_log.append("Dice: %s" % ", ".join(labels))
+			if _audio != null:
+				_audio.play_effect("diceroll")
 		DuelEnums.EV.ADD_COUNTER:
 			_duel_log.append("Counter +%d" % int(event.get("count", 0)))
+			if _audio != null:
+				_audio.play_effect("addcounter")
 		DuelEnums.EV.REMOVE_COUNTER:
 			_duel_log.append("Counter -%d" % int(event.get("count", 0)))
+			if _audio != null:
+				_audio.play_effect("removecounter")
 		DuelEnums.EV.SHUFFLE_DECK:
 			_duel_log.append("%s shuffles deck" % seat)
+			if _audio != null:
+				_audio.play_effect("shuffle")
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+			if _audio != null:
+				_audio.play_effect("shuffle")
 		DuelEnums.EV.REMOVE_CARDS:
 			var rem_cards: Array = event.get("cards", [])
 			if not rem_cards.is_empty():
