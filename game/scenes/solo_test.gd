@@ -865,7 +865,9 @@ func _show_combat(event: Dictionary) -> void:
 	if not bool(event.get("direct", false)):
 		defender = _card_at_loc(event.get("to", {}))
 
-	_hud.set_combat(attacker, defender)
+	var atk_name: String = _card_name(attacker.code) if attacker.code != 0 else ""
+	var def_name: String = _card_name(defender.code) if defender != null and defender.code != 0 else ""
+	_hud.set_combat(attacker, defender, atk_name, def_name)
 
 
 func _is_selection_event(type: int) -> bool:

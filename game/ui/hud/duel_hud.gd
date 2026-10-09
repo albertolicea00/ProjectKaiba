@@ -262,7 +262,7 @@ func set_prompt(text: String) -> void:
 ## ARCHITECTURE.md section 10 rule 4 forbids and which has no meaning at all once this layer is
 ## a quad in VR. See the report in `_combat_line()` for what the model would have to expose for
 ## a better answer.
-func set_combat(attacker: DuelCard, defender: DuelCard) -> void:
+func set_combat(attacker: DuelCard, defender: DuelCard, atk_name: String = "", def_name: String = "") -> void:
 	if not is_node_ready():
 		return
 	if attacker == null:
@@ -271,8 +271,17 @@ func set_combat(attacker: DuelCard, defender: DuelCard) -> void:
 		_combat_defender.text = ""
 		return
 	_combat_panel.visible = true
-	_combat_attacker.text = _combat_line(attacker)
-	_combat_defender.text = "DIRECT ATTACK" if defender == null else "vs  %s" % _combat_line(defender)
+	var atk_text: String = _combat_line(attacker)
+	if not atk_name.is_empty():
+		atk_text = "%s  %s" % [atk_name, atk_text]
+	_combat_attacker.text = atk_text
+	if defender == null:
+		_combat_defender.text = "DIRECT ATTACK"
+	else:
+		var def_text: String = _combat_line(defender)
+		if not def_name.is_empty():
+			def_text = "%s  %s" % [def_name, def_text]
+		_combat_defender.text = "vs  %s" % def_text
 
 
 const LP_POPUP_SECONDS: float = 1.2
