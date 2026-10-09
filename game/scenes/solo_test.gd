@@ -1580,13 +1580,16 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if code != 0:
 				var from_d: Dictionary = event.get("from", {}) as Dictionary
 				var to_d: Dictionary = event.get("to", {}) as Dictionary
-				var from_loc: int = int(from_d.get("location", 0))
-				var to_loc: int = int(to_d.get("location", 0))
+				var from_loc: int = int(from_d.get("loc", 0))
+				var to_loc: int = int(to_d.get("loc", 0))
 				if from_loc != 0 and to_loc != 0:
 					_duel_log.append("%s: %s -> %s" % [
 						_card_name(code),
 						DuelEnums.location_name(from_loc),
 						DuelEnums.location_name(to_loc)])
+					if _audio != null and to_loc == DuelEnums.LOCATION.GRAVE \
+							and (from_loc == DuelEnums.LOCATION.MZONE or from_loc == DuelEnums.LOCATION.SZONE):
+						_audio.play_effect("destroyed")
 		DuelEnums.EV.POS_CHANGE:
 			if code != 0:
 				_duel_log.append("%s changes position" % _card_name(code))
