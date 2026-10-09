@@ -607,6 +607,12 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
 			if not _headless:
 				_show_confirm_cards(event, type == DuelEnums.EV.CONFIRM_DECKTOP)
+		DuelEnums.EV.ADD_COUNTER, DuelEnums.EV.REMOVE_COUNTER:
+			var cnt_card: DuelCard = _card_at_loc(event.get("at", {}))
+			if cnt_card != null:
+				_board.flash_zone(EventTranslator.anchor_of(event.get("at", {})),
+					Color(1.0, 0.85, 0.3, 0.8) if type == DuelEnums.EV.ADD_COUNTER else Color(0.7, 0.4, 0.4, 0.8))
+			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:
 			if _hud != null:
 				_hud.show_result(_state.winner)
@@ -1756,6 +1762,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append("Resolved: %s" % solved_name)
 		DuelEnums.EV.DAMAGE_STEP_START:
 			_duel_log.append_system("Damage Step")
+		DuelEnums.EV.DAMAGE_STEP_END:
+			_duel_log.append_system("End Damage Step")
 		DuelEnums.EV.REMOVE_CARDS:
 			var rem_cards: Array = event.get("cards", [])
 			if not rem_cards.is_empty():
@@ -1833,6 +1841,12 @@ func _log_event(type: int, event: Dictionary) -> void:
 					_duel_log.append("%s: effect applied" % _card_name(ch_card.code), Color(0.6, 0.8, 1.0))
 				elif ch_type == 7:
 					_duel_log.append("%s: effect removed" % _card_name(ch_card.code), Color(0.7, 0.7, 0.7))
+		DuelEnums.EV.PLAYER_HINT:
+			var ph_type: int = int(event.get("hint_type", 0))
+			if ph_type == 6:
+				_duel_log.append("%s: restriction applied" % seat, Color(0.6, 0.8, 1.0))
+			elif ph_type == 7:
+				_duel_log.append("%s: restriction removed" % seat, Color(0.7, 0.7, 0.7))
 		DuelEnums.EV.WIN:
 			var winner: int = int(event.get("player", -1))
 			_duel_log.append_system("=== %s wins ===" % ("P%d" % winner))
