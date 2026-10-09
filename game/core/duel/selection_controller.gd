@@ -210,7 +210,11 @@ func pending_prompt() -> String:
 			return "Select cards summing to %d: %d picked, confirm to solve" % [
 				int(_pending.get("acc", 0)), _picks.size()]
 		DuelEnums.EV.SELECT_YESNO, DuelEnums.EV.SELECT_EFFECTYN:
-			return "Yes or no? (confirm = yes, cancel = no)"
+			var desc: int = int(_pending.get("desc", 0))
+			var card: int = int(_pending.get("card", 0))
+			if desc == 0 and card == 0:
+				return "Yes or no? (confirm = yes, cancel = no)"
+			return "Yes or no? card=%d desc=%d (confirm = yes, cancel = no)" % [card, desc]
 		DuelEnums.EV.SELECT_CHAIN:
 			var count: int = _list("chains").size()
 			if bool(_pending.get("forced", false)):
