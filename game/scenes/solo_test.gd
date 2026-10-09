@@ -582,6 +582,8 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.PAY_LPCOST:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
+			if _audio != null:
+				_audio.play_effect("damage")
 		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
 			if not _headless:
 				_show_confirm_cards(event, type == DuelEnums.EV.CONFIRM_DECKTOP)
@@ -1547,6 +1549,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_audio.play_effect("activate")
 		DuelEnums.EV.CHAIN_NEGATED:
 			_duel_log.append("%s negated" % _card_name(code))
+			if _audio != null:
+				_audio.play_effect("destroyed")
 		DuelEnums.EV.ATTACK:
 			var is_direct: bool = bool(event.get("direct", false))
 			if is_direct:
@@ -1587,12 +1591,21 @@ func _log_event(type: int, event: Dictionary) -> void:
 						_card_name(code),
 						DuelEnums.location_name(from_loc),
 						DuelEnums.location_name(to_loc)])
-					if _audio != null and to_loc == DuelEnums.LOCATION.GRAVE \
-							and (from_loc == DuelEnums.LOCATION.MZONE or from_loc == DuelEnums.LOCATION.SZONE):
-						_audio.play_effect("destroyed")
+					if _audio != null:
+						if to_loc == DuelEnums.LOCATION.GRAVE \
+								and (from_loc == DuelEnums.LOCATION.MZONE or from_loc == DuelEnums.LOCATION.SZONE):
+							_audio.play_effect("destroyed")
+						elif to_loc == DuelEnums.LOCATION.REMOVED:
+							_audio.play_effect("destroyed")
 		DuelEnums.EV.POS_CHANGE:
 			if code != 0:
 				_duel_log.append("%s changes position" % _card_name(code))
+				if _audio != null:
+					var new_pos: int = int(event.get("pos", 0))
+					if (new_pos & DuelEnums.POSITION.FACEUP) != 0:
+						_audio.play_effect("flip")
+					else:
+						_audio.play_effect("set")
 		DuelEnums.EV.EQUIP:
 			var equip_from: DuelCard = _card_at_loc(event.get("from", {}))
 			var equip_to: DuelCard = _card_at_loc(event.get("to", {}))
