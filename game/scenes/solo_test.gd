@@ -585,6 +585,8 @@ func _handle(event: Dictionary) -> void:
 				if chain_num > 0:
 					_board.set_card_chain_number(chain_card.handle, chain_num)
 					_chain_handles[chain_num] = chain_card.handle
+					if chain_num >= 2 and _hud != null and not _headless:
+						_hud.flash_screen(Color(0.2, 0.4, 0.8, 0.12 + 0.04 * chain_num))
 				if not _headless:
 					_preview_code(chain_card.code)
 				var at_info: Dictionary = event.get("at", {}) as Dictionary
