@@ -666,25 +666,54 @@ func show_result(winner: int) -> void:
 	var won: bool = winner == local_player
 	var text: String = "YOU WIN" if won else ("YOU LOSE" if winner != DuelEnums.PLAYER.NONE else "DRAW")
 	var colour: Color = Color(1.0, 0.85, 0.2) if won else Color(0.9, 0.3, 0.3)
+	var bg_col: Color = Color(0.08, 0.06, 0.02, 0.85) if won else Color(0.08, 0.02, 0.02, 0.85)
 	if winner == DuelEnums.PLAYER.NONE:
 		colour = Color(0.7, 0.7, 0.8)
+		bg_col = Color(0.05, 0.05, 0.07, 0.85)
 
 	var root: Control = get_node_or_null("Root") as Control
 	if root == null:
 		return
+
+	var dimmer: ColorRect = ColorRect.new()
+	dimmer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dimmer.color = Color(0, 0, 0, 0.5)
+	dimmer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	dimmer.modulate.a = 0.0
+	root.add_child(dimmer)
+
+	var panel: PanelContainer = PanelContainer.new()
+	panel.set_anchors_preset(Control.PRESET_CENTER)
+	panel.offset_left = -180.0
+	panel.offset_right = 180.0
+	panel.offset_top = -60.0
+	panel.offset_bottom = 60.0
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = bg_col
+	style.border_color = colour.darkened(0.3)
+	style.border_color.a = 0.6
+	style.set_border_width_all(3)
+	style.set_corner_radius_all(12)
+	style.set_content_margin_all(20)
+	panel.add_theme_stylebox_override("panel", style)
+	panel.modulate.a = 0.0
+	root.add_child(panel)
+
 	var label: Label = Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.set_anchors_preset(Control.PRESET_CENTER)
-	label.add_theme_font_size_override("font_size", 72)
+	label.add_theme_font_size_override("font_size", 64)
 	label.add_theme_color_override("font_color", colour)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
-	label.add_theme_constant_override("outline_size", 8)
-	label.modulate.a = 0.0
-	root.add_child(label)
+	label.add_theme_constant_override("outline_size", 6)
+	panel.add_child(label)
+
 	var tween: Tween = create_tween()
-	tween.tween_property(label, "modulate:a", 1.0, 0.5)
+	tween.set_parallel(true)
+	tween.tween_property(dimmer, "modulate:a", 1.0, 0.4)
+	tween.tween_property(panel, "modulate:a", 1.0, 0.5)
+	tween.tween_property(panel, "offset_top", -60.0, 0.6).from(-80.0).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 
 
 # ----------------------------------------------------------------------------------------------
