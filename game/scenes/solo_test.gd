@@ -630,6 +630,8 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
 			if not _headless:
 				_show_confirm_cards(event, type == DuelEnums.EV.CONFIRM_DECKTOP)
+			if _audio != null:
+				_audio.play_effect("flip")
 		DuelEnums.EV.ADD_COUNTER, DuelEnums.EV.REMOVE_COUNTER:
 			var cnt_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if cnt_card != null:
