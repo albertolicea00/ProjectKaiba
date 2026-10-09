@@ -233,6 +233,8 @@ const COLOUR_HIGHLIGHT: Color = Color(0.52, 0.90, 1.00)
 
 var _anchors: Node3D = null
 var _table: MeshInstance3D = null
+var _default_field_texture: Texture2D = null
+var _active_field_code: int = 0
 var _pool: CardPool = null
 
 ## Parent of the zone outlines. A separate node from `ZoneAnchors` on purpose: `anchor_names()`
@@ -648,6 +650,33 @@ func sync_from_state(state: DuelState) -> void:
 		_sync_pile(state.deck[player], "DECK_P%d" % player, DECK_VIEW_LIMIT, false)
 		_sync_pile(state.extra_deck[player], "EXTRA_P%d" % player, PILE_VIEW_LIMIT, false)
 
+	_update_field_spell_bg(state)
+
+
+func _update_field_spell_bg(state: DuelState) -> void:
+	if _table == null:
+		return
+	var field_code: int = 0
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		var card: DuelCard = state.field_zone[player] as DuelCard
+		if card != null and card.is_face_up() and card.code != 0:
+			field_code = card.code
+			break
+	if field_code == _active_field_code:
+		return
+	_active_field_code = field_code
+	var mat: StandardMaterial3D = _table.material_override as StandardMaterial3D
+	if mat == null:
+		return
+	if field_code != 0 and CardView.art_source != null:
+		var art_tex: Texture2D = CardView.art_source.texture_for(field_code)
+		if art_tex != null:
+			mat.albedo_texture = art_tex
+			mat.albedo_color = Color(1.0, 1.0, 1.0, 0.6)
+			return
+	mat.albedo_texture = _default_field_texture
+	mat.albedo_color = Color.WHITE if _default_field_texture != null else FELT_COLOUR
+
 
 func _sync_zone(slot: Variant, anchor: String) -> void:
 	var card: DuelCard = slot as DuelCard
@@ -735,9 +764,9 @@ func _ensure_built() -> void:
 	# Sunk so that the playing surface, not the centre of the slab, is the plane y = 0.
 	_table.position = Vector3(0.0, -TABLE_THICKNESS * 0.5, 0.0)
 	var felt: StandardMaterial3D = StandardMaterial3D.new()
-	var field_texture: Texture2D = _load_field_texture()
-	if field_texture != null:
-		felt.albedo_texture = field_texture
+	_default_field_texture = _load_field_texture()
+	if _default_field_texture != null:
+		felt.albedo_texture = _default_field_texture
 		felt.albedo_color = Color.WHITE
 	else:
 		felt.albedo_color = FELT_COLOUR
