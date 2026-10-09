@@ -1075,6 +1075,8 @@ func _show_chain_dialog(event: Dictionary) -> void:
 					if string_idx < strings.size() and not strings[string_idx].is_empty():
 						label_text = "%s: %s" % [name, strings[string_idx]]
 		actions.append({"key": "_chain", "label": label_text, "index": i})
+		if i == 0 and code != 0 and not _headless:
+			_preview_code(code)
 	var title: String = "Activate effect (forced)" if forced else "Activate effect?"
 	_action_menu.show_actions(title, actions)
 
@@ -1098,6 +1100,8 @@ func _show_position_dialog(event: Dictionary) -> void:
 	if pos_code != 0 and _core != null:
 		var info: Dictionary = _core.get_card_info(pos_code)
 		card_name = str(info.get("name", card_name))
+	if pos_code != 0 and not _headless:
+		_preview_code(pos_code)
 	_action_menu.show_actions(card_name, actions)
 
 
