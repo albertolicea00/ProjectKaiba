@@ -1855,11 +1855,14 @@ func _log_event(type: int, event: Dictionary) -> void:
 					_audio.play_effect("summon")
 			_duel_log.append_action("%s: %s %s" % [seat, verb, _card_name(code)])
 		DuelEnums.EV.SET:
-			_duel_log.append("%s Sets a card" % seat)
+			var set_loc: int = int((event.get("at", {}) as Dictionary).get("loc", 0))
+			var set_what: String = "a monster" if set_loc == DuelEnums.LOCATION.MZONE else "a card"
+			_duel_log.append("%s Sets %s" % [seat, set_what])
 			if _audio != null:
 				_audio.play_effect("set")
 		DuelEnums.EV.CHAINING:
-			_duel_log.append_action("%s Chain: %s" % [seat, _card_name(code)])
+			var chain_num_log: int = int(event.get("chain_size", 0))
+			_duel_log.append_action("%s Chain %d: %s" % [seat, chain_num_log, _card_name(code)])
 			if _audio != null:
 				_audio.play_effect("activate")
 		DuelEnums.EV.CHAIN_NEGATED:
