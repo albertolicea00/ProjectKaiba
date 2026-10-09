@@ -216,6 +216,7 @@ const COLOUR_PILE: Color = Color(0.40, 0.48, 0.60)
 ## A zone the pending selection will accept. One colour for every role: once a zone is a legal
 ## target, "which kind of zone is it" has stopped being the question.
 const COLOUR_HIGHLIGHT: Color = Color(0.52, 0.90, 1.00)
+const COLOUR_DISABLED: Color = Color(0.70, 0.15, 0.15)
 
 ## Which seat the camera belongs to. Only affects whether that player's hand is drawn face-up;
 ## the board itself is never rotated to put the viewer at player 0, because player ids stay
@@ -249,6 +250,7 @@ var _marker_roles: Dictionary = {}
 ## is a pointer swap and never allocates.
 var _role_materials: Dictionary = {}
 var _highlight_material: StandardMaterial3D = null
+var _disabled_material: StandardMaterial3D = null
 
 ## anchor -> true for every currently highlighted zone.
 var _highlighted: Dictionary = {}
@@ -493,6 +495,37 @@ func clear_card_chain_numbers() -> void:
 			var view: CardView = entry as CardView
 			if view != null:
 				view.clear_chain_number()
+
+
+## Marks zones as disabled (field-disabled bitmask from ocgcore).
+## The u32 flag: low 16 = player 0, high 16 = player 1.
+## Per player: bits 0-4 = MZ 0-4, bits 5-6 = EMZ 0-1, bits 8-12 = ST 0-4, bit 13 = FZ.
+func set_disabled_zones(flag: int) -> void:
+	_ensure_built()
+	if _disabled_material == null:
+		_disabled_material = _make_marker_material(COLOUR_DISABLED)
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		var bits: int = (flag >> (player * 16)) & 0xFFFF
+		for seq: int in range(DuelEnums.MAIN_MONSTER_ZONES):
+			_set_zone_disabled("MZ_P%d_%d" % [player, seq], (bits & (1 << seq)) != 0)
+		for seq: int in range(DuelEnums.EXTRA_MONSTER_ZONES):
+			_set_zone_disabled("EMZ_P%d_%d" % [player, seq], (bits & (1 << (5 + seq))) != 0)
+		for seq: int in range(DuelEnums.SPELL_TRAP_ZONES):
+			_set_zone_disabled("ST_P%d_%d" % [player, seq], (bits & (1 << (8 + seq))) != 0)
+		_set_zone_disabled("FZ_P%d" % player, (bits & (1 << 13)) != 0)
+
+
+func _set_zone_disabled(anchor: String, disabled: bool) -> void:
+	var marker: Node = _markers.get_node_or_null(NodePath(anchor))
+	if marker is MeshInstance3D:
+		var mi: MeshInstance3D = marker as MeshInstance3D
+		if disabled:
+			mi.material_override = _disabled_material
+			mi.visible = true
+		elif not _highlighted.has(anchor):
+			var role: int = int(_marker_roles.get(anchor, -1))
+			mi.material_override = _role_materials.get(role) as StandardMaterial3D
+			mi.visible = false
 
 
 ## Offers the art cache to every card currently on the board.

@@ -577,6 +577,8 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.CONFIRM_EXTRATOP:
 			if not _headless:
 				_show_confirm_cards(event, false)
+		DuelEnums.EV.FIELD_DISABLED:
+			_board.set_disabled_zones(int(event.get("flag", 0)))
 		DuelEnums.EV.PAY_LPCOST:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
