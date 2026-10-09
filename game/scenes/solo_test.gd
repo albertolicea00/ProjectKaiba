@@ -658,9 +658,13 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.DAMAGE:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
+			if _audio != null:
+				_audio.play_effect("damage")
 		DuelEnums.EV.RECOVER:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), int(event.get("amount", 0)))
+			if _audio != null:
+				_audio.play_effect("gainlp")
 		DuelEnums.EV.RETRY:
 			# ocgcore turned the last answer down. It is well-formed - `respond()` already said
 			# so - but out of range for what was offered, typically a tap on a card the engine
