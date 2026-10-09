@@ -508,6 +508,10 @@ func _handle(event: Dictionary) -> void:
 				_board.set_card_indicator(chain_card.handle, "chain")
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
+		DuelEnums.EV.EQUIP:
+			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
+			if equip_card != null:
+				_board.set_card_indicator(equip_card.handle, "equip")
 		DuelEnums.EV.DAMAGE:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
@@ -1250,6 +1254,12 @@ func _log_event(type: int, event: Dictionary) -> void:
 		DuelEnums.EV.POS_CHANGE:
 			if code != 0:
 				_duel_log.append("%s changes position" % _card_name(code))
+		DuelEnums.EV.EQUIP:
+			var equip_from: DuelCard = _card_at_loc(event.get("from", {}))
+			var equip_to: DuelCard = _card_at_loc(event.get("to", {}))
+			if equip_from != null and equip_to != null:
+				_duel_log.append("%s equipped to %s" % [
+					_card_name(equip_from.code), _card_name(equip_to.code)])
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
