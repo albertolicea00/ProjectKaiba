@@ -258,6 +258,33 @@ func set_combat(attacker: DuelCard, defender: DuelCard) -> void:
 	_combat_defender.text = "DIRECT ATTACK" if defender == null else "vs  %s" % _combat_line(defender)
 
 
+const LP_POPUP_SECONDS: float = 1.2
+const LP_POPUP_DRIFT: float = 60.0
+
+
+func show_lp_change(player: int, amount: int) -> void:
+	if not is_node_ready() or amount == 0:
+		return
+	var anchor: Control = _bottom_panel if player == local_player else _top_panel
+	if anchor == null:
+		return
+	var popup: Label = Label.new()
+	popup.text = "%+d" % amount
+	popup.add_theme_font_size_override("font_size", 28)
+	popup.add_theme_color_override("font_color",
+		Color(0.3, 1.0, 0.3) if amount > 0 else Color(1.0, 0.3, 0.3))
+	popup.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	popup.add_theme_constant_override("outline_size", 4)
+	popup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	popup.position = Vector2(anchor.size.x * 0.5 - 40, anchor.size.y * 0.5)
+	anchor.add_child(popup)
+	var tween: Tween = create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(popup, "position:y", popup.position.y - LP_POPUP_DRIFT, LP_POPUP_SECONDS)
+	tween.tween_property(popup, "modulate:a", 0.0, LP_POPUP_SECONDS).set_delay(0.3)
+	tween.chain().tween_callback(popup.queue_free)
+
+
 ## Finishes any running animation immediately: the life point roll lands on the model's total
 ## and the phase banner stops announcing. For a scene change, and for tests that would otherwise
 ## have to wait one out to read a number.
