@@ -109,6 +109,7 @@ var _extra_for_play: PackedInt32Array = PackedInt32Array()
 var _chain_handles: Dictionary = {}
 var _last_hint_card: String = ""
 var _last_hint_msg: String = ""
+var _system_strings: Dictionary = {}
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -227,6 +228,7 @@ func _ready() -> void:
 	set_process(false)
 	_headless = DisplayServer.get_name() == "headless" or OS.get_cmdline_args().has("--headless")
 
+	_load_system_strings()
 	_selection = SelectionController.new(_state)
 
 	_rest_elevation = _rig.elevation
@@ -1085,7 +1087,8 @@ func _show_yesno_dialog(event: Dictionary) -> void:
 	var title: String = "Activate?"
 
 	if desc != 0 and desc < 256:
-		title = _YESNO_STRINGS.get(desc, "Question #%d" % desc) as String
+		var sys_str: String = _system_string(desc)
+		title = sys_str if not sys_str.is_empty() else ("Question #%d" % desc)
 		if card_code != 0 and _core != null:
 			var info: Dictionary = _core.get_card_info(card_code)
 			var name: String = str(info.get("name", ""))
@@ -1602,11 +1605,35 @@ func _card_name(code: int) -> String:
 
 
 func _system_string(id: int) -> String:
+	if _system_strings.has(id):
+		return str(_system_strings[id])
 	if _SELECT_STRINGS.has(id):
 		return str(_SELECT_STRINGS[id])
 	if _YESNO_STRINGS.has(id):
 		return str(_YESNO_STRINGS[id])
 	return ""
+
+
+func _load_system_strings() -> void:
+	var path: String = "res://../data/base/strings.conf"
+	if not FileAccess.file_exists(path):
+		path = "res://../.workspace/EDOPro/config/strings.conf"
+	if not FileAccess.file_exists(path):
+		return
+	var file: FileAccess = FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+	while not file.eof_reached():
+		var line: String = file.get_line().strip_edges()
+		if not line.begins_with("!system "):
+			continue
+		var rest: String = line.substr(8)
+		var space: int = rest.find(" ")
+		if space < 1:
+			continue
+		var id: int = int(rest.left(space))
+		var text: String = rest.substr(space + 1)
+		_system_strings[id] = text
 
 
 func _log_event(type: int, event: Dictionary) -> void:
