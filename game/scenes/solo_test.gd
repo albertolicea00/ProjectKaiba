@@ -106,6 +106,7 @@ var _duel_log: DuelLog = null
 
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
+var _chain_handles: Dictionary = {}
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -519,9 +520,11 @@ func _handle(event: Dictionary) -> void:
 				var chain_num: int = int(event.get("chain_size", 0))
 				if chain_num > 0:
 					_board.set_card_chain_number(chain_card.handle, chain_num)
+					_chain_handles[chain_num] = chain_card.handle
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
+			_chain_handles.clear()
 		DuelEnums.EV.EQUIP:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
@@ -533,7 +536,9 @@ func _handle(event: Dictionary) -> void:
 				if tgt != null:
 					_board.set_card_indicator(tgt.handle, "target")
 		DuelEnums.EV.CHAIN_NEGATED, DuelEnums.EV.CHAIN_DISABLED:
-			_board.clear_card_indicators()
+			var neg_chain: int = int(event.get("chain", 0))
+			if _chain_handles.has(neg_chain):
+				_board.set_card_indicator(int(_chain_handles[neg_chain]), "negated")
 			_board.clear_card_chain_numbers()
 		DuelEnums.EV.CARD_TARGET:
 			var card_tgt: DuelCard = _card_at_loc(event.get("to", {}))
