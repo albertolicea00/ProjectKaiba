@@ -546,11 +546,15 @@ func _handle(event: Dictionary) -> void:
 					_board.add_target_line(atk_card.handle, def_card.handle, Color(1.0, 0.3, 0.3, 0.9))
 		DuelEnums.EV.BATTLE:
 			_show_combat(event)
+			if _hud != null and not _headless:
+				_hud.flash_screen(Color(1.0, 0.5, 0.2, 0.15))
 			if bool(event.get("direct", false)):
 				var battle_player: int = int(event.get("from_player", int(event.get("player", 0))))
 				var target_player: int = 1 - battle_player
 				if _hud != null:
 					_hud.flash_lp_text(target_player, true)
+			if _audio != null:
+				_audio.play_effect("attack")
 		DuelEnums.EV.NEW_PHASE:
 			if _hud != null:
 				_hud.set_combat(null, null)
@@ -611,6 +615,11 @@ func _handle(event: Dictionary) -> void:
 			_chain_handles.clear()
 			if _preview != null and not _headless:
 				_preview.hide_card()
+		DuelEnums.EV.DAMAGE_STEP_END:
+			if _hud != null:
+				_hud.set_combat(null, null)
+			_board.clear_card_indicators()
+			_board.clear_target_lines()
 		DuelEnums.EV.DRAW:
 			var draw_player: int = int(event.get("player", 0))
 			_board.flash_zone("DECK_P%d" % draw_player, Color(0.5, 0.7, 1.0, 0.7))
