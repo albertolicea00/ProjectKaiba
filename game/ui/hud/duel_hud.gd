@@ -198,6 +198,11 @@ const LP_FRAME_TEX_PATH: String = "res://../data/base/textures/lpf.png"
 var _announced_phase: int = 0
 var _banner_time: float = 0.0
 
+const TURN_BANNER_SECONDS: float = 2.0
+const TURN_BANNER_FADE: float = 0.5
+var _turn_banner: Label = null
+var _turn_banner_time: float = 0.0
+
 
 func _ready() -> void:
 	set_process(false)
@@ -400,7 +405,7 @@ func _is_rolling() -> bool:
 
 
 func _is_animating() -> bool:
-	return _is_rolling() or _banner_time > 0.0
+	return _is_rolling() or _banner_time > 0.0 or _turn_banner_time > 0.0
 
 
 func _refresh_life() -> void:
@@ -587,10 +592,12 @@ func _phase_text(phase: int) -> String:
 
 
 func _advance_banner(delta: float) -> void:
-	if _banner_time <= 0.0:
-		return
-	_banner_time = maxf(0.0, _banner_time - delta)
-	_paint_banner()
+	if _banner_time > 0.0:
+		_banner_time = maxf(0.0, _banner_time - delta)
+		_paint_banner()
+	if _turn_banner_time > 0.0:
+		_turn_banner_time = maxf(0.0, _turn_banner_time - delta)
+		_paint_turn_banner()
 
 
 func _paint_banner() -> void:
@@ -598,6 +605,45 @@ func _paint_banner() -> void:
 	if not _banner_panel.visible:
 		return
 	_banner_panel.modulate.a = minf(1.0, _banner_time / BANNER_FADE_SECONDS)
+
+
+func show_turn_banner(turn_player: int) -> void:
+	if not is_node_ready():
+		return
+	if _turn_banner == null:
+		_build_turn_banner()
+	var is_local: bool = turn_player == local_player
+	_turn_banner.text = "YOUR TURN" if is_local else "OPPONENT'S TURN"
+	var col: Color = Color(0.3, 0.85, 1.0) if is_local else Color(1.0, 0.4, 0.35)
+	_turn_banner.add_theme_color_override("font_color", col)
+	_turn_banner_time = TURN_BANNER_SECONDS
+	set_process(true)
+	_paint_turn_banner()
+
+
+func _build_turn_banner() -> void:
+	_turn_banner = Label.new()
+	_turn_banner.name = "TurnBanner"
+	_turn_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_turn_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_turn_banner.set_anchors_preset(Control.PRESET_CENTER)
+	_turn_banner.offset_top = -80.0
+	_turn_banner.offset_bottom = -30.0
+	_turn_banner.offset_left = -200.0
+	_turn_banner.offset_right = 200.0
+	_turn_banner.add_theme_font_size_override("font_size", 48)
+	_turn_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
+	_turn_banner.add_theme_constant_override("outline_size", 6)
+	_turn_banner.visible = false
+	get_node("Root").add_child(_turn_banner)
+
+
+func _paint_turn_banner() -> void:
+	if _turn_banner == null:
+		return
+	_turn_banner.visible = _turn_banner_time > 0.0
+	if _turn_banner.visible:
+		_turn_banner.modulate.a = minf(1.0, _turn_banner_time / TURN_BANNER_FADE)
 
 
 func _turn_owner_text() -> String:

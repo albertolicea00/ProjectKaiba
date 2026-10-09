@@ -506,6 +506,8 @@ func _handle(event: Dictionary) -> void:
 			_turn_changes += 1
 			if _focus.seat_in_view != _state.turn_player:
 				_seat_lagged_turn += 1
+			if _hud != null and not _headless:
+				_hud.show_turn_banner(_state.turn_player)
 			_stop_if_satisfied()
 			if _stopping:
 				return
