@@ -70,8 +70,55 @@ static func answer(event: Dictionary, _state: DuelState = null) -> Dictionary:
 		DuelEnums.EV.SELECT_SUM:
 			return _solve_sum(event)
 
-		DuelEnums.EV.SORT_CARD:
+		DuelEnums.EV.SORT_CARD, DuelEnums.EV.SORT_CHAIN:
 			return {"cancel": true}
+
+		DuelEnums.EV.SELECT_COUNTER:
+			var counter_cards: Array = event.get("cards", []) as Array
+			if counter_cards.is_empty():
+				return {}
+			var total_needed: int = int(event.get("count", 0))
+			var counters: Array[int] = []
+			counters.resize(counter_cards.size())
+			counters.fill(0)
+			if not counters.is_empty():
+				counters[0] = mini(total_needed, int((counter_cards[0] as Dictionary).get("max", total_needed)))
+				total_needed -= counters[0]
+				for ci: int in range(1, counter_cards.size()):
+					if total_needed <= 0:
+						break
+					var take: int = mini(total_needed, int((counter_cards[ci] as Dictionary).get("max", total_needed)))
+					counters[ci] = take
+					total_needed -= take
+			return {"counters": counters}
+
+		DuelEnums.EV.SELECT_UNSELECT_CARD:
+			if bool(event.get("cancelable", false)):
+				return {"cancel": true}
+			return {"index": 0}
+
+		DuelEnums.EV.ANNOUNCE_RACE:
+			var avail_race: int = int(event.get("available", 0))
+			for bit: int in range(26):
+				if (avail_race & (1 << bit)) != 0:
+					return {"race": 1 << bit}
+			return {}
+
+		DuelEnums.EV.ANNOUNCE_ATTRIB:
+			var avail_attr: int = int(event.get("available", 0))
+			for bit: int in range(8):
+				if (avail_attr & (1 << bit)) != 0:
+					return {"attribute": 1 << bit}
+			return {}
+
+		DuelEnums.EV.ANNOUNCE_CARD:
+			var card_opts: Array = event.get("options", []) as Array
+			if card_opts.is_empty():
+				return {}
+			return {"code": int(card_opts[0])}
+
+		DuelEnums.EV.ANNOUNCE_NUMBER:
+			return {"index": 0}
 
 	return {}
 
