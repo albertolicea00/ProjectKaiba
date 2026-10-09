@@ -1700,6 +1700,31 @@ func _card_name(code: int) -> String:
 	return n if not n.is_empty() else "#%d" % code
 
 
+func _move_verb(from_loc: int, to_loc: int, reason: int) -> String:
+	if (reason & DuelEnums.REASON.DESTROY) != 0:
+		return "was destroyed"
+	if (reason & DuelEnums.REASON.RELEASE) != 0:
+		return "was tributed"
+	if (reason & DuelEnums.REASON.DISCARD) != 0:
+		return "was discarded"
+	if (reason & DuelEnums.REASON.RETURN) != 0:
+		if to_loc == DuelEnums.LOCATION.HAND:
+			return "returned to hand"
+		if to_loc == DuelEnums.LOCATION.DECK:
+			return "returned to deck"
+	if to_loc == DuelEnums.LOCATION.REMOVED:
+		return "was banished"
+	if to_loc == DuelEnums.LOCATION.GRAVE:
+		return "was sent to GY"
+	if to_loc == DuelEnums.LOCATION.HAND:
+		return "was added to hand"
+	if to_loc == DuelEnums.LOCATION.DECK:
+		return "was returned to deck"
+	if to_loc == DuelEnums.LOCATION.EXTRA:
+		return "was returned to Extra Deck"
+	return "%s -> %s" % [DuelEnums.location_name(from_loc), DuelEnums.location_name(to_loc)]
+
+
 func _decode_desc(desc: int) -> String:
 	if desc == 0:
 		return ""
@@ -1856,11 +1881,10 @@ func _log_event(type: int, event: Dictionary) -> void:
 				var to_d: Dictionary = event.get("to", {}) as Dictionary
 				var from_loc: int = int(from_d.get("loc", 0))
 				var to_loc: int = int(to_d.get("loc", 0))
+				var reason: int = int(event.get("reason", 0))
 				if from_loc != 0 and to_loc != 0:
-					_duel_log.append("%s: %s -> %s" % [
-						_card_name(code),
-						DuelEnums.location_name(from_loc),
-						DuelEnums.location_name(to_loc)])
+					var verb: String = _move_verb(from_loc, to_loc, reason)
+					_duel_log.append("%s %s" % [_card_name(code), verb])
 					if _audio != null:
 						if to_loc == DuelEnums.LOCATION.GRAVE \
 								and (from_loc == DuelEnums.LOCATION.MZONE or from_loc == DuelEnums.LOCATION.SZONE):
