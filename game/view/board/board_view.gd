@@ -473,6 +473,20 @@ func clear_card_indicators() -> void:
 				view.clear_indicator()
 
 
+func set_card_chain_number(handle: int, number: int) -> void:
+	var view: CardView = view_by_handle(handle)
+	if view != null:
+		view.set_chain_number(number)
+
+
+func clear_card_chain_numbers() -> void:
+	for key: Variant in _occupants.keys():
+		for entry: Variant in (_occupants[key] as Array):
+			var view: CardView = entry as CardView
+			if view != null:
+				view.clear_chain_number()
+
+
 ## Offers the art cache to every card currently on the board.
 ##
 ## Cheap enough to call every frame: `CardView.refresh_art()` compares against the texture it

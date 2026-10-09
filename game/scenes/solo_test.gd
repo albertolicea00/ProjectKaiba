@@ -506,8 +506,12 @@ func _handle(event: Dictionary) -> void:
 			var chain_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if chain_card != null:
 				_board.set_card_indicator(chain_card.handle, "chain")
+				var chain_num: int = int(event.get("chain_size", 0))
+				if chain_num > 0:
+					_board.set_card_chain_number(chain_card.handle, chain_num)
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
+			_board.clear_card_chain_numbers()
 		DuelEnums.EV.EQUIP:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:

@@ -173,6 +173,7 @@ var _front_texture: Texture2D = null
 var _stat_label: Label3D = null
 var _indicator: Sprite3D = null
 var _indicator_type: String = ""
+var _chain_label: Label3D = null
 
 const STAT_FONT_SIZE: int = 48
 const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKNESS * 0.5 + 0.001)
@@ -478,6 +479,32 @@ static func _load_indicator_texture(type: String) -> Texture2D:
 	return tex
 
 
+func set_chain_number(n: int) -> void:
+	if _chain_label == null:
+		_chain_label = Label3D.new()
+		_chain_label.name = "ChainNumber"
+		_chain_label.pixel_size = 0.001
+		_chain_label.font_size = 64
+		_chain_label.outline_size = 12
+		_chain_label.modulate = Color(1.0, 0.85, 0.2)
+		_chain_label.outline_modulate = Color(0, 0, 0, 0.95)
+		_chain_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_chain_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_chain_label.position = Vector3(0.0, 0.0, CARD_THICKNESS * 0.5 + 0.003)
+		_chain_label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		_chain_label.shaded = false
+		_chain_label.double_sided = false
+		_chain_label.no_depth_test = true
+		add_child(_chain_label)
+	_chain_label.text = str(n)
+	_chain_label.visible = true
+
+
+func clear_chain_number() -> void:
+	if _chain_label != null:
+		_chain_label.visible = false
+
+
 func _stat_colour(current: int, base: int) -> Color:
 	if current > base:
 		return STAT_COLOUR_BOOSTED
@@ -572,6 +599,7 @@ func _on_visibility_changed() -> void:
 		set_opacity(1.0)
 		clear_stats()
 		clear_indicator()
+		clear_chain_number()
 
 
 ## Layer `PICK_LAYER` while the card is on the board, layer 0 - which no query can match - while
