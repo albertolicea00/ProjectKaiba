@@ -653,8 +653,15 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.UPDATE_DATA, DuelEnums.EV.UPDATE_CARD:
 			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:
+			_board.clear_card_indicators()
+			_board.clear_card_chain_numbers()
+			_board.clear_target_lines()
+			_board.clear_highlights()
 			if _hud != null:
 				_hud.show_result(_state.winner)
+			if _audio != null:
+				var is_local_win: bool = int(event.get("player", -1)) == LOCAL_SEAT
+				_audio.set_music_context("win" if is_local_win else "lose")
 		DuelEnums.EV.DAMAGE:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
