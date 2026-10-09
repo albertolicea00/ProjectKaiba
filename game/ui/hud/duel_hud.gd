@@ -690,6 +690,26 @@ func _build_phase_buttons() -> void:
 		btn.text = str(PHASE_BUTTON_LABELS.get(cmd, cmd))
 		btn.custom_minimum_size = PHASE_BUTTON_MIN
 		btn.add_theme_font_size_override("font_size", 18)
+		btn.add_theme_color_override("font_color", Color(0.85, 0.9, 1.0))
+		btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
+		var pnormal: StyleBoxFlat = StyleBoxFlat.new()
+		pnormal.bg_color = Color(0.08, 0.10, 0.18, 0.92)
+		pnormal.border_color = Color(0.30, 0.55, 0.85, 0.5)
+		pnormal.set_border_width_all(1)
+		pnormal.set_corner_radius_all(6)
+		pnormal.set_content_margin_all(6)
+		btn.add_theme_stylebox_override("normal", pnormal)
+
+		var phover: StyleBoxFlat = pnormal.duplicate() as StyleBoxFlat
+		phover.bg_color = Color(0.14, 0.22, 0.38)
+		phover.border_color = Color(0.40, 0.70, 1.0, 0.8)
+		btn.add_theme_stylebox_override("hover", phover)
+
+		var ppressed: StyleBoxFlat = pnormal.duplicate() as StyleBoxFlat
+		ppressed.bg_color = Color(0.10, 0.16, 0.30)
+		btn.add_theme_stylebox_override("pressed", ppressed)
+
 		btn.pressed.connect(_on_phase_button.bind(cmd))
 		_phase_box.add_child(btn)
 		_phase_buttons[cmd] = btn
