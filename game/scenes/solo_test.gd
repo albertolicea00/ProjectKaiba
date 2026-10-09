@@ -1516,20 +1516,35 @@ func _log_event(type: int, event: Dictionary) -> void:
 		DuelEnums.EV.NEW_TURN:
 			_duel_log.append_system("=== Turn %d (%s) ===" % [
 				int(event.get("turn", 0)), seat])
+			if _audio != null:
+				_audio.play_effect("nextturn")
 		DuelEnums.EV.NEW_PHASE:
 			var phase: int = int(event.get("phase", 0))
 			_duel_log.append_system(DuelHud.PHASE_NAMES.get(phase, "Phase 0x%x" % phase) as String)
+			if _audio != null:
+				_audio.play_effect("phase")
 		DuelEnums.EV.SUMMONING, DuelEnums.EV.SPSUMMONING, DuelEnums.EV.FLIPSUMMONING:
 			var verb: String = "Summons"
 			if type == DuelEnums.EV.SPSUMMONING:
 				verb = "Special Summons"
+				if _audio != null:
+					_audio.play_effect("specialsummon")
 			elif type == DuelEnums.EV.FLIPSUMMONING:
 				verb = "Flip Summons"
+				if _audio != null:
+					_audio.play_effect("flip")
+			else:
+				if _audio != null:
+					_audio.play_effect("summon")
 			_duel_log.append_action("%s %s" % [verb, _card_name(code)])
 		DuelEnums.EV.SET:
 			_duel_log.append("%s Sets a card" % seat)
+			if _audio != null:
+				_audio.play_effect("set")
 		DuelEnums.EV.CHAINING:
 			_duel_log.append_action("Chain: %s" % _card_name(code))
+			if _audio != null:
+				_audio.play_effect("activate")
 		DuelEnums.EV.CHAIN_NEGATED:
 			_duel_log.append("%s negated" % _card_name(code))
 		DuelEnums.EV.ATTACK:
@@ -1538,6 +1553,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append_action("Direct attack!")
 			else:
 				_duel_log.append_action("Attack declared")
+			if _audio != null:
+				_audio.play_effect("attack")
 		DuelEnums.EV.BATTLE:
 			var is_direct: bool = bool(event.get("direct", false))
 			var atk: int = int(event.get("from_atk", 0))
@@ -1548,11 +1565,17 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append_action("Battle: %d vs %d" % [atk, def_atk])
 		DuelEnums.EV.DAMAGE:
 			_duel_log.append("%s takes %d damage" % [seat, int(event.get("amount", 0))])
+			if _audio != null:
+				_audio.play_effect("damage")
 		DuelEnums.EV.RECOVER:
 			_duel_log.append("%s recovers %d LP" % [seat, int(event.get("amount", 0))])
+			if _audio != null:
+				_audio.play_effect("gainlp")
 		DuelEnums.EV.DRAW:
 			var count: int = int(event.get("count", 1))
 			_duel_log.append("%s draws %d card(s)" % [seat, count])
+			if _audio != null:
+				_audio.play_effect("draw")
 		DuelEnums.EV.MOVE:
 			if code != 0:
 				var from_d: Dictionary = event.get("from", {}) as Dictionary
@@ -1573,6 +1596,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if equip_from != null and equip_to != null:
 				_duel_log.append("%s equipped to %s" % [
 					_card_name(equip_from.code), _card_name(equip_to.code)])
+			if _audio != null:
+				_audio.play_effect("equip")
 		DuelEnums.EV.BECOME_TARGET:
 			var targets: Array = event.get("cards", [])
 			if not targets.is_empty():
