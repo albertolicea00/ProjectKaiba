@@ -378,8 +378,10 @@ func _start_duel() -> void:
 
 	# Resolved once: both seats play the same list, and asking twice would parse the file twice.
 	var main_deck: PackedInt32Array = _deck_for_play()
+	var opp_deck: PackedInt32Array = main_deck.duplicate()
 	if not _headless:
 		_shuffle_array(main_deck)
+		_shuffle_array(opp_deck)
 	if _art != null:
 		_art.preload_codes(main_deck)
 
@@ -388,7 +390,7 @@ func _start_duel() -> void:
 		"start_hand": START_HAND,
 		"draw_count": DRAW_COUNT,
 		"deck_p0": main_deck,
-		"deck_p1": main_deck,
+		"deck_p1": opp_deck,
 		"extra_p0": _extra_for_play,
 		"extra_p1": _extra_for_play,
 	})
