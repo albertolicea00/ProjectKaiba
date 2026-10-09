@@ -695,6 +695,12 @@ func _handle(event: Dictionary) -> void:
 					elif to_loc == DuelEnums.LOCATION.SZONE:
 						move_colour = Color(0.4, 0.8, 0.5, 0.7)
 					_board.flash_zone(EventTranslator.anchor_of(move_to), move_colour)
+				elif to_loc == DuelEnums.LOCATION.GRAVE:
+					var gy_player: int = int(move_to.get("con", 0))
+					_board.flash_zone("GY_P%d" % gy_player, Color(0.6, 0.4, 0.6, 0.6))
+				elif to_loc == DuelEnums.LOCATION.REMOVED:
+					var ban_player: int = int(move_to.get("con", 0))
+					_board.flash_zone("BANISH_P%d" % ban_player, Color(0.4, 0.3, 0.6, 0.6))
 		DuelEnums.EV.UPDATE_DATA, DuelEnums.EV.UPDATE_CARD:
 			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:
