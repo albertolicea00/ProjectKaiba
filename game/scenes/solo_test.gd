@@ -678,6 +678,20 @@ func _handle(event: Dictionary) -> void:
 				_duel_log.append_system("Opponent: %s" % op_str)
 		elif hint_type == 5:
 			_last_hint_card = _card_name(hint_data) if hint_data != 0 else ""
+		elif hint_type == 6:
+			var race_str: String = _system_string(hint_data)
+			if not race_str.is_empty() and _duel_log != null:
+				_duel_log.append_system("Race: %s" % race_str)
+		elif hint_type == 7:
+			var attr_str: String = _system_string(hint_data)
+			if not attr_str.is_empty() and _duel_log != null:
+				_duel_log.append_system("Attribute: %s" % attr_str)
+		elif hint_type == 8:
+			if hint_data != 0 and _duel_log != null:
+				_duel_log.append_system("Card: %s" % _card_name(hint_data))
+		elif hint_type == 9:
+			if _duel_log != null:
+				_duel_log.append_system("Number: %d" % hint_data)
 		elif hint_type == 10:
 			if hint_data != 0 and _duel_log != null:
 				_duel_log.append_system("Declared: %s" % _card_name(hint_data))
