@@ -516,6 +516,12 @@ func _handle(event: Dictionary) -> void:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
 				_board.set_card_indicator(equip_card.handle, "equip")
+		DuelEnums.EV.BECOME_TARGET:
+			var targets: Array = event.get("cards", [])
+			for loc: Dictionary in targets:
+				var tgt: DuelCard = _card_at_loc(loc)
+				if tgt != null:
+					_board.set_card_indicator(tgt.handle, "target")
 		DuelEnums.EV.WIN:
 			if _hud != null:
 				_hud.show_result(_state.winner)
@@ -1267,6 +1273,16 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if equip_from != null and equip_to != null:
 				_duel_log.append("%s equipped to %s" % [
 					_card_name(equip_from.code), _card_name(equip_to.code)])
+		DuelEnums.EV.BECOME_TARGET:
+			var targets: Array = event.get("cards", [])
+			if not targets.is_empty():
+				var names: PackedStringArray = PackedStringArray()
+				for loc: Dictionary in targets:
+					var tgt: DuelCard = _card_at_loc(loc)
+					if tgt != null:
+						names.append(_card_name(tgt.code))
+				if not names.is_empty():
+					_duel_log.append("Targeted: %s" % ", ".join(names))
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
