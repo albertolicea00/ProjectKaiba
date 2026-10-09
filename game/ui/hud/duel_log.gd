@@ -43,6 +43,14 @@ func append_action(text: String) -> void:
 	append(text, Color(1.0, 0.9, 0.5))
 
 
+func append_damage(text: String) -> void:
+	append(text, Color(1.0, 0.45, 0.4))
+
+
+func append_positive(text: String) -> void:
+	append(text, Color(0.4, 1.0, 0.5))
+
+
 func append_separator(text: String) -> void:
 	if _log == null:
 		return

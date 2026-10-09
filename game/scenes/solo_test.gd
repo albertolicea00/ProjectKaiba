@@ -1967,11 +1967,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 				var def_dval: int = int(event.get("to_def", 0))
 				_duel_log.append_action("ATK %d vs ATK %d / DEF %d" % [atk_val, def_val, def_dval])
 		DuelEnums.EV.DAMAGE:
-			_duel_log.append("%s takes %d damage" % [seat, int(event.get("amount", 0))])
+			_duel_log.append_damage("%s takes %d damage" % [seat, int(event.get("amount", 0))])
 			if _audio != null:
 				_audio.play_effect("damage")
 		DuelEnums.EV.RECOVER:
-			_duel_log.append("%s recovers %d LP" % [seat, int(event.get("amount", 0))])
+			_duel_log.append_positive("%s recovers %d LP" % [seat, int(event.get("amount", 0))])
 			if _audio != null:
 				_audio.play_effect("gainlp")
 		DuelEnums.EV.DRAW:
@@ -2030,7 +2030,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if ct_from != null and ct_to != null:
 				_duel_log.append("%s targets %s" % [_card_name(ct_from.code), _card_name(ct_to.code)])
 		DuelEnums.EV.PAY_LPCOST:
-			_duel_log.append("%s pays %d LP" % [seat, int(event.get("amount", 0))])
+			_duel_log.append_damage("%s pays %d LP" % [seat, int(event.get("amount", 0))])
 		DuelEnums.EV.CHAIN_DISABLED:
 			_duel_log.append("Chain link disabled")
 		DuelEnums.EV.CHAIN_SOLVING:
