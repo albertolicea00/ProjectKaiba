@@ -396,9 +396,19 @@ func _stat_line(info: Dictionary) -> String:
 	else:
 		parts.append("Level %s" % _number_or_unknown(level))
 
-	parts.append("ATK %s" % _number_or_unknown(int(info.get("attack", 0))))
+	var base_atk: int = int(info.get("attack", 0))
+	var live_atk: int = int(info.get("live_attack", base_atk))
+	if live_atk != base_atk and base_atk >= 0:
+		parts.append("ATK %s (%s)" % [_number_or_unknown(live_atk), _number_or_unknown(base_atk)])
+	else:
+		parts.append("ATK %s" % _number_or_unknown(base_atk))
 	if not is_link:
-		parts.append("DEF %s" % _number_or_unknown(int(info.get("defense", 0))))
+		var base_def: int = int(info.get("defense", 0))
+		var live_def: int = int(info.get("live_defense", base_def))
+		if live_def != base_def and base_def >= 0:
+			parts.append("DEF %s (%s)" % [_number_or_unknown(live_def), _number_or_unknown(base_def)])
+		else:
+			parts.append("DEF %s" % _number_or_unknown(base_def))
 	return PART_SEPARATOR.join(parts)
 
 

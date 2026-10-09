@@ -798,8 +798,27 @@ func _preview_handle(handle: int) -> void:
 
 	var info: Dictionary = _core.get_card_info(view.card_id) if _core != null else {}
 	_enrich_setcodes(info)
+	_enrich_live_stats(info, handle)
 	var face: Texture2D = _art.texture_for(view.card_id) if _art != null else null
 	_preview.show_card(info, face)
+
+
+func _enrich_live_stats(info: Dictionary, handle: int) -> void:
+	if handle == 0:
+		return
+	for p: int in range(DuelEnums.PLAYER_COUNT):
+		for zone: Array in [_state.monster_zone[p], _state.extra_monster_zone[p], _state.spell_trap_zone[p]]:
+			for card: Variant in zone:
+				if card is DuelCard and (card as DuelCard).handle == handle:
+					var dc: DuelCard = card as DuelCard
+					if dc.attack >= 0:
+						info["live_attack"] = dc.attack
+					if dc.defense >= 0:
+						info["live_defense"] = dc.defense
+					return
+		var fz: DuelCard = _state.field_zone[p] as DuelCard
+		if fz != null and fz.handle == handle:
+			return
 
 
 func _enrich_setcodes(info: Dictionary) -> void:
