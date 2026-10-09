@@ -771,6 +771,11 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	else:
 		view.clear_pendulum_scales()
 
+	if card.is_face_up() and (card.type & DuelEnums.TYPE.LINK) != 0 and card.link != 0:
+		view.set_link_arrows(card.link)
+	else:
+		view.clear_link_arrows()
+
 	if card.is_face_up() and not card.counters.is_empty():
 		var counter_total: int = 0
 		for key: Variant in card.counters:

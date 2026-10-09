@@ -178,6 +178,8 @@ var _lscale_label: Label3D = null
 var _rscale_label: Label3D = null
 var _overlay_label: Label3D = null
 var _counter_label: Label3D = null
+var _link_arrows: Array[MeshInstance3D] = []
+var _link_marker_mask: int = 0
 
 const STAT_FONT_SIZE: int = 48
 const SCALE_FONT_SIZE: int = 36
@@ -191,6 +193,20 @@ const OVERLAY_COLOUR: Color = Color(1.0, 0.85, 0.2)
 const COUNTER_LABEL_OFFSET: Vector3 = Vector3(-CARD_WIDTH * 0.35, CARD_HEIGHT * 0.38, CARD_THICKNESS * 0.5 + 0.001)
 const COUNTER_FONT_SIZE: int = 32
 const COUNTER_COLOUR: Color = Color(0.4, 1.0, 0.6)
+
+const LINK_ARROW_SIZE: float = 0.008
+const LINK_ARROW_Z: float = CARD_THICKNESS * 0.5 + 0.0015
+const LINK_ARROW_COLOUR: Color = Color(1.0, 0.2, 0.2, 0.9)
+const LINK_MARKER_BITS: Array = [
+	[64, Vector2(-1, 1)],    # Top-Left
+	[128, Vector2(0, 1)],    # Top
+	[256, Vector2(1, 1)],    # Top-Right
+	[8, Vector2(-1, 0)],     # Left
+	[32, Vector2(1, 0)],     # Right
+	[1, Vector2(-1, -1)],    # Bottom-Left
+	[2, Vector2(0, -1)],     # Bottom
+	[4, Vector2(1, -1)],     # Bottom-Right
+]
 const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
 const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
 const STAT_COLOUR_REDUCED: Color = Color(1.0, 0.3, 0.3)
@@ -510,6 +526,55 @@ func _ensure_counter_label() -> void:
 	_counter_label.double_sided = false
 	_counter_label.visible = false
 	add_child(_counter_label)
+
+
+func set_link_arrows(mask: int) -> void:
+	if mask == _link_marker_mask and not _link_arrows.is_empty():
+		return
+	clear_link_arrows()
+	_link_marker_mask = mask
+	if mask == 0:
+		return
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = LINK_ARROW_COLOUR
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	for entry: Array in LINK_MARKER_BITS:
+		var bit: int = int(entry[0])
+		if (mask & bit) == 0:
+			continue
+		var dir: Vector2 = entry[1] as Vector2
+		var arrow: MeshInstance3D = _build_arrow(dir)
+		arrow.material_override = mat
+		add_child(arrow)
+		_link_arrows.append(arrow)
+
+
+func clear_link_arrows() -> void:
+	for arrow: MeshInstance3D in _link_arrows:
+		arrow.queue_free()
+	_link_arrows.clear()
+	_link_marker_mask = 0
+
+
+func _build_arrow(dir: Vector2) -> MeshInstance3D:
+	var cx: float = dir.x * CARD_WIDTH * 0.46
+	var cy: float = dir.y * CARD_HEIGHT * 0.46
+	var s: float = LINK_ARROW_SIZE
+	var mesh: ImmediateMesh = ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var tip: Vector3 = Vector3(cx + dir.x * s, cy + dir.y * s, LINK_ARROW_Z)
+	var perp: Vector2 = Vector2(-dir.y, dir.x).normalized() if dir.length() > 0 else Vector2(1, 0)
+	var base_l: Vector3 = Vector3(cx - perp.x * s * 0.5, cy - perp.y * s * 0.5, LINK_ARROW_Z)
+	var base_r: Vector3 = Vector3(cx + perp.x * s * 0.5, cy + perp.y * s * 0.5, LINK_ARROW_Z)
+	mesh.surface_add_vertex(tip)
+	mesh.surface_add_vertex(base_l)
+	mesh.surface_add_vertex(base_r)
+	mesh.surface_end()
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = mesh
+	return mi
 
 
 func clear_pendulum_scales() -> void:
