@@ -101,6 +101,7 @@ var _opponent_answers: int = 0
 
 var _preview: CardPreview = null
 var _action_menu: ActionMenu = null
+var _pile_browser: PileBrowser = null
 
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
@@ -244,11 +245,17 @@ func _ready() -> void:
 
 	_preview = PREVIEW_SCENE.instantiate() as CardPreview
 	add_child(_preview)
+	_setup_side_preview()
 
 	_action_menu = ActionMenu.new()
 	_action_menu.name = "ActionMenu"
 	add_child(_action_menu)
 	_action_menu.action_chosen.connect(_on_action_chosen)
+	_action_menu.dismissed.connect(_on_action_dismissed)
+
+	_pile_browser = PileBrowser.new()
+	_pile_browser.name = "PileBrowser"
+	add_child(_pile_browser)
 
 	_hud.bind(_state)
 
@@ -590,6 +597,20 @@ func _on_action_chosen(cmd: String, index: int) -> void:
 	if cmd == "_surrender":
 		_do_surrender()
 		return
+	if cmd == "_option" or cmd == "_chain":
+		if not _selection.is_waiting():
+			return
+		var type: int = _selection.pending_type()
+		_answers_from_intents += 1
+		_answer_pending(type, {"index": index})
+		return
+	if cmd == "_position":
+		if not _selection.is_waiting():
+			return
+		var type: int = _selection.pending_type()
+		_answers_from_intents += 1
+		_answer_pending(type, {"position": index})
+		return
 	if not _selection.is_waiting():
 		return
 	var type: int = _selection.pending_type()
@@ -598,6 +619,18 @@ func _on_action_chosen(cmd: String, index: int) -> void:
 		return
 	_answers_from_intents += 1
 	_answer_pending(type, answer)
+
+
+## The action menu was dismissed without picking an action. For chain dialogs this means
+## "pass" — cancel the chain. For everything else (idle command, surrender) it is harmless.
+func _on_action_dismissed() -> void:
+	if not _selection.is_waiting():
+		return
+	var type: int = _selection.pending_type()
+	if type == DuelEnums.EV.SELECT_CHAIN:
+		if not bool(_last_selection.get("forced", false)):
+			_answers_from_intents += 1
+			_answer_pending(type, {"cancel": true})
 
 
 ## Long press on the deck offers to surrender and return to the menu.
@@ -610,6 +643,106 @@ func _offer_surrender() -> void:
 		"index": 0,
 	}]
 	_action_menu.show_actions("Deck", surrender_actions)
+
+
+## Decodes the options in a SELECT_OPTION event and presents them as an action menu.
+##
+## Each option value encodes `(card_code << 4) | string_index`, where `string_index` selects
+## one of the card's sixteen per-effect labels from the database text table.
+func _show_option_dialog(event: Dictionary) -> void:
+	if _action_menu == null or _core == null:
+		return
+	var options: Array = event.get("options", []) as Array
+	var actions: Array[Dictionary] = []
+	for i: int in range(options.size()):
+		var option: int = int(options[i])
+		var code: int = option >> 4
+		var string_idx: int = option & 0xf
+		var label_text: String = "Option %d" % (i + 1)
+		if code != 0:
+			var info: Dictionary = _core.get_card_info(code)
+			var strings: PackedStringArray = info.get("strings", PackedStringArray()) as PackedStringArray
+			if string_idx < strings.size() and not strings[string_idx].is_empty():
+				label_text = strings[string_idx]
+			elif not str(info.get("name", "")).is_empty():
+				label_text = str(info.get("name", ""))
+		actions.append({"key": "_option", "label": label_text, "index": i})
+	_action_menu.show_actions("Choose an effect", actions)
+
+
+## Reconfigures the CardPreview as a non-modal side panel on the left edge, matching EDOPro's
+## always-visible card info panel.
+func _setup_side_preview() -> void:
+	if _preview == null:
+		return
+	var dimmer: Control = _preview.get_node_or_null("Root/Dimmer") as Control
+	if dimmer != null:
+		dimmer.visible = false
+	var root: Control = _preview.get_node_or_null("Root") as Control
+	if root != null:
+		root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var frame: Control = _preview.get_node_or_null("Root/Frame") as Control
+	if frame != null:
+		frame.anchor_left = 0.0
+		frame.anchor_top = 0.0
+		frame.anchor_right = 0.26
+		frame.anchor_bottom = 1.0
+		frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var panel: Control = _preview.get_node_or_null("Root/Frame/Panel") as Control
+	if panel != null:
+		panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## Shows available chain effects in the action menu when the player can respond.
+func _show_chain_dialog(event: Dictionary) -> void:
+	if _action_menu == null or _core == null:
+		return
+	var chains: Array = event.get("chains", []) as Array
+	var forced: bool = bool(event.get("forced", false))
+	var actions: Array[Dictionary] = []
+	for i: int in range(chains.size()):
+		var entry: Dictionary = chains[i] as Dictionary
+		var code: int = int(entry.get("card", 0))
+		var label_text: String = "Effect %d" % (i + 1)
+		if code != 0:
+			var info: Dictionary = _core.get_card_info(code)
+			var name: String = str(info.get("name", ""))
+			if not name.is_empty():
+				label_text = name
+			var desc_code: int = int(entry.get("desc", 0))
+			if desc_code != 0:
+				var string_idx: int = desc_code & 0xf
+				var desc_card: int = desc_code >> 4
+				if desc_card != 0:
+					var desc_info: Dictionary = _core.get_card_info(desc_card)
+					var strings: PackedStringArray = desc_info.get("strings", PackedStringArray()) as PackedStringArray
+					if string_idx < strings.size() and not strings[string_idx].is_empty():
+						label_text = "%s: %s" % [name, strings[string_idx]]
+		actions.append({"key": "_chain", "label": label_text, "index": i})
+	var title: String = "Activate effect (forced)" if forced else "Activate effect?"
+	_action_menu.show_actions(title, actions)
+
+
+## Shows the available battle positions in the action menu.
+func _show_position_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var offered: int = int(event.get("positions", 0))
+	var actions: Array[Dictionary] = []
+	if (offered & DuelEnums.POSITION.FACEUP_ATTACK) != 0:
+		actions.append({"key": "_position", "label": "Face-up Attack", "index": DuelEnums.POSITION.FACEUP_ATTACK})
+	if (offered & DuelEnums.POSITION.FACEDOWN_ATTACK) != 0:
+		actions.append({"key": "_position", "label": "Face-down Attack", "index": DuelEnums.POSITION.FACEDOWN_ATTACK})
+	if (offered & DuelEnums.POSITION.FACEUP_DEFENSE) != 0:
+		actions.append({"key": "_position", "label": "Face-up Defense", "index": DuelEnums.POSITION.FACEUP_DEFENSE})
+	if (offered & DuelEnums.POSITION.FACEDOWN_DEFENSE) != 0:
+		actions.append({"key": "_position", "label": "Face-down Defense", "index": DuelEnums.POSITION.FACEDOWN_DEFENSE})
+	var code: int = int(event.get("code", 0))
+	var card_name: String = "Card"
+	if code != 0 and _core != null:
+		var info: Dictionary = _core.get_card_info(code)
+		card_name = str(info.get("name", card_name))
+	_action_menu.show_actions(card_name, actions)
 
 
 ## Shows phase buttons matching the available phase transitions in the event.
@@ -647,6 +780,47 @@ func _do_surrender() -> void:
 	print("[solo] player surrendered")
 	_stop("surrendered")
 	chose.emit("menu")
+
+
+func _try_browse_pile(anchor: String) -> bool:
+	if _pile_browser == null or _core == null:
+		return false
+	var pile_name: String = ""
+	var player: int = -1
+	var location: int = 0
+	if anchor.begins_with("GY_P"):
+		pile_name = "Graveyard"
+		player = int(anchor.substr(4))
+		location = DuelEnums.LOCATION.GRAVE
+	elif anchor.begins_with("EXTRA_P"):
+		pile_name = "Extra Deck"
+		player = int(anchor.substr(7))
+		location = DuelEnums.LOCATION.EXTRA
+	elif anchor.begins_with("BANISH_P"):
+		pile_name = "Banished"
+		player = int(anchor.substr(8))
+		location = DuelEnums.LOCATION.REMOVED
+	else:
+		return false
+
+	var pile: Array = _state.pile_for(player, location)
+	var cards: Array[Dictionary] = []
+	for entry: Variant in pile:
+		var card: DuelCard = entry as DuelCard
+		if card == null:
+			continue
+		if card.code == 0:
+			cards.append({"code": 0, "name": "Face-down card", "type": 0})
+		else:
+			var info: Dictionary = _core.get_card_info(card.code)
+			cards.append({
+				"code": card.code,
+				"name": str(info.get("name", "Card %d" % card.code)),
+				"type": int(info.get("type", 0)),
+			})
+	var seat_name: String = "Player %d" % (player + 1)
+	_pile_browser.show_pile("%s - %s" % [seat_name, pile_name], cards)
+	return true
 
 
 ## Puts the rejected selection back in front of the player.
@@ -720,6 +894,17 @@ func _on_selection(event: Dictionary) -> void:
 	_highlight_for(event)
 	_banner.refresh()
 	_update_phase_buttons(event)
+
+	if not _headless:
+		var pending: int = _selection.pending_type()
+		if pending == DuelEnums.EV.SELECT_OPTION:
+			_show_option_dialog(event)
+		elif pending == DuelEnums.EV.SELECT_CHAIN:
+			var chains: Array = event.get("chains", []) as Array
+			if not chains.is_empty():
+				_show_chain_dialog(event)
+		elif pending == DuelEnums.EV.SELECT_POSITION:
+			_show_position_dialog(event)
 
 	print("[solo] %s -> %s (looking from %s)%s" % [
 		DuelEnums.ev_name(_focus.decision_event),
@@ -816,6 +1001,10 @@ func _on_intent(data: Dictionary) -> void:
 		_action_menu.hide_menu()
 		return
 
+	if _pile_browser != null and _pile_browser.is_open():
+		_pile_browser.hide_browser()
+		return
+
 	var kind: String = str(data.get("kind", ""))
 
 	# Hover / long press = preview. Always safe, always available.
@@ -823,11 +1012,13 @@ func _on_intent(data: Dictionary) -> void:
 		_preview_handle(int(data.get("handle", 0)))
 		return
 
-	# Click on deck = surrender.
-	if kind == InputSource.KIND_SELECT_CARD:
+	# Click on deck = surrender. Click on GY/Extra/Banished = browse pile.
+	if kind == InputSource.KIND_SELECT_CARD or kind == InputSource.KIND_SELECT_ZONE:
 		var anchor: String = str(data.get("anchor", ""))
 		if anchor.begins_with("DECK_"):
 			_offer_surrender()
+			return
+		if _try_browse_pile(anchor):
 			return
 
 	if not _selection.is_waiting():
