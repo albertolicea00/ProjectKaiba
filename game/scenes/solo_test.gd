@@ -510,9 +510,15 @@ func _handle(event: Dictionary) -> void:
 			var atk_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if atk_card != null:
 				_board.set_card_indicator(atk_card.handle, "attack")
+				var atk_at: Dictionary = event.get("from", {}) as Dictionary
+				if not atk_at.is_empty():
+					_board.flash_zone(EventTranslator.anchor_of(atk_at), Color(1.0, 0.3, 0.3, 0.9))
 			var def_card: DuelCard = _card_at_loc(event.get("to", {}))
 			if def_card != null:
 				_board.set_card_indicator(def_card.handle, "target")
+				var def_at: Dictionary = event.get("to", {}) as Dictionary
+				if not def_at.is_empty():
+					_board.flash_zone(EventTranslator.anchor_of(def_at), Color(1.0, 0.6, 0.2, 0.9))
 		DuelEnums.EV.BATTLE:
 			_show_combat(event)
 		DuelEnums.EV.NEW_PHASE:
@@ -578,6 +584,9 @@ func _handle(event: Dictionary) -> void:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
 				_board.set_card_indicator(equip_card.handle, "equip")
+			var equipped_monster: DuelCard = _card_at_loc(event.get("to", {}))
+			if equipped_monster != null:
+				_board.set_card_indicator(equipped_monster.handle, "equip")
 		DuelEnums.EV.BECOME_TARGET:
 			var targets: Array = event.get("cards", [])
 			for loc: Dictionary in targets:
