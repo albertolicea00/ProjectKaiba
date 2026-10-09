@@ -620,6 +620,9 @@ func _handle(event: Dictionary) -> void:
 				var tgt: DuelCard = _card_at_loc(loc)
 				if tgt != null:
 					_board.set_card_indicator(tgt.handle, "target")
+					var tgt_at: Dictionary = loc as Dictionary
+					if not tgt_at.is_empty():
+						_board.flash_zone(EventTranslator.anchor_of(tgt_at), Color(1.0, 0.3, 0.3, 0.7))
 		DuelEnums.EV.CHAIN_NEGATED, DuelEnums.EV.CHAIN_DISABLED:
 			var neg_chain: int = int(event.get("chain_index", 0))
 			if _chain_handles.has(neg_chain):
@@ -629,6 +632,9 @@ func _handle(event: Dictionary) -> void:
 			var card_tgt: DuelCard = _card_at_loc(event.get("to", {}))
 			if card_tgt != null:
 				_board.set_card_indicator(card_tgt.handle, "target")
+				var ct_at: Dictionary = event.get("to", {}) as Dictionary
+				if not ct_at.is_empty():
+					_board.flash_zone(EventTranslator.anchor_of(ct_at), Color(1.0, 0.4, 0.2, 0.7))
 				var tgt_src: DuelCard = _card_at_loc(event.get("from", {}))
 				if tgt_src != null:
 					_board.add_target_line(tgt_src.handle, card_tgt.handle)
@@ -642,6 +648,8 @@ func _handle(event: Dictionary) -> void:
 				var sel_card: DuelCard = _card_at_loc(sel_loc)
 				if sel_card != null:
 					_board.set_card_indicator(sel_card.handle, "target")
+					if not sel_loc.is_empty():
+						_board.flash_zone(EventTranslator.anchor_of(sel_loc), Color(1.0, 0.5, 0.2, 0.6))
 		DuelEnums.EV.UNEQUIP:
 			var uneq_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if uneq_card != null:
