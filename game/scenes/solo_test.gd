@@ -691,6 +691,64 @@ func _on_action_chosen(cmd: String, index: int) -> void:
 		_answers_from_intents += 1
 		_answer_pending(type, {"position": index})
 		return
+	if cmd == "_sort":
+		if not _selection.is_waiting():
+			return
+		var input: Dictionary = {"kind": "SELECT_CARD", "handle": 0, "anchor": "", "card_id": 0}
+		var cards: Array = _last_selection.get("cards", []) as Array
+		if index >= 0 and index < cards.size():
+			var entry: Dictionary = cards[index] as Dictionary
+			var at: Dictionary = entry.get("at", {}) as Dictionary
+			input["card_id"] = int(entry.get("card", 0))
+			if _state != null:
+				var card: DuelCard = _state.card_at(
+					int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
+				if card != null:
+					input["handle"] = card.handle
+		var answer: Dictionary = _selection.resolve(input)
+		if not answer.is_empty():
+			_answers_from_intents += 1
+			_answer_pending(_selection.pending_type(), answer)
+		return
+	if cmd == "_counter":
+		if not _selection.is_waiting():
+			return
+		var input: Dictionary = {"kind": "SELECT_CARD", "handle": 0, "anchor": "", "card_id": 0}
+		var cards: Array = _last_selection.get("cards", []) as Array
+		if index >= 0 and index < cards.size():
+			var entry: Dictionary = cards[index] as Dictionary
+			var at: Dictionary = entry.get("at", {}) as Dictionary
+			input["card_id"] = int(entry.get("card", 0))
+			if _state != null:
+				var card: DuelCard = _state.card_at(
+					int(at.get("con", 0)), int(at.get("loc", 0)), int(at.get("seq", 0)))
+				if card != null:
+					input["handle"] = card.handle
+		var answer: Dictionary = _selection.resolve(input)
+		if not answer.is_empty():
+			_answers_from_intents += 1
+			_answer_pending(_selection.pending_type(), answer)
+		else:
+			_show_counter_dialog(_last_selection)
+		return
+	if cmd == "_race":
+		if not _selection.is_waiting():
+			return
+		_answers_from_intents += 1
+		_answer_pending(_selection.pending_type(), {"race": index})
+		return
+	if cmd == "_attrib":
+		if not _selection.is_waiting():
+			return
+		_answers_from_intents += 1
+		_answer_pending(_selection.pending_type(), {"attribute": index})
+		return
+	if cmd == "_number":
+		if not _selection.is_waiting():
+			return
+		_answers_from_intents += 1
+		_answer_pending(_selection.pending_type(), {"index": index})
+		return
 	if not _selection.is_waiting():
 		return
 	var type: int = _selection.pending_type()
@@ -714,6 +772,9 @@ func _on_action_dismissed() -> void:
 	elif type == DuelEnums.EV.SELECT_YESNO or type == DuelEnums.EV.SELECT_EFFECTYN:
 		_answers_from_intents += 1
 		_answer_pending(type, {"answer": 0})
+	elif type == DuelEnums.EV.SORT_CARD or type == DuelEnums.EV.SORT_CHAIN:
+		_answers_from_intents += 1
+		_answer_pending(type, {"cancel": true})
 
 
 ## Long press on the deck offers to surrender and return to the menu.
@@ -922,6 +983,119 @@ func _show_yesno_dialog(event: Dictionary) -> void:
 	_action_menu.show_actions(title, actions)
 
 
+const _RACE_NAMES: Dictionary = {
+	DuelEnums.RACE.WARRIOR: "Warrior",
+	DuelEnums.RACE.SPELLCASTER: "Spellcaster",
+	DuelEnums.RACE.FAIRY: "Fairy",
+	DuelEnums.RACE.FIEND: "Fiend",
+	DuelEnums.RACE.ZOMBIE: "Zombie",
+	DuelEnums.RACE.MACHINE: "Machine",
+	DuelEnums.RACE.AQUA: "Aqua",
+	DuelEnums.RACE.PYRO: "Pyro",
+	DuelEnums.RACE.ROCK: "Rock",
+	DuelEnums.RACE.WINGEDBEAST: "Winged Beast",
+	DuelEnums.RACE.PLANT: "Plant",
+	DuelEnums.RACE.INSECT: "Insect",
+	DuelEnums.RACE.THUNDER: "Thunder",
+	DuelEnums.RACE.DRAGON: "Dragon",
+	DuelEnums.RACE.BEAST: "Beast",
+	DuelEnums.RACE.BEASTWARRIOR: "Beast-Warrior",
+	DuelEnums.RACE.DINOSAUR: "Dinosaur",
+	DuelEnums.RACE.FISH: "Fish",
+	DuelEnums.RACE.SEASERPENT: "Sea Serpent",
+	DuelEnums.RACE.REPTILE: "Reptile",
+	DuelEnums.RACE.PSYCHIC: "Psychic",
+	DuelEnums.RACE.DIVINE: "Divine-Beast",
+	DuelEnums.RACE.CREATORGOD: "Creator God",
+	DuelEnums.RACE.WYRM: "Wyrm",
+	DuelEnums.RACE.CYBERSE: "Cyberse",
+	DuelEnums.RACE.ILLUSION: "Illusion",
+}
+
+
+const _ATTRIBUTE_NAMES: Dictionary = {
+	DuelEnums.ATTRIBUTE.EARTH: "EARTH",
+	DuelEnums.ATTRIBUTE.WATER: "WATER",
+	DuelEnums.ATTRIBUTE.FIRE: "FIRE",
+	DuelEnums.ATTRIBUTE.WIND: "WIND",
+	DuelEnums.ATTRIBUTE.LIGHT: "LIGHT",
+	DuelEnums.ATTRIBUTE.DARK: "DARK",
+	DuelEnums.ATTRIBUTE.DIVINE: "DIVINE",
+}
+
+
+func _show_sort_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var cards: Array = event.get("cards", []) as Array
+	var actions: Array[Dictionary] = []
+	for i: int in range(cards.size()):
+		var entry: Dictionary = cards[i] as Dictionary
+		var code: int = int(entry.get("card", 0))
+		var label_text: String = "Card %d" % (i + 1)
+		if code != 0 and _core != null:
+			var info: Dictionary = _core.get_card_info(code)
+			var name: String = str(info.get("name", ""))
+			if not name.is_empty():
+				label_text = name
+		actions.append({"key": "_sort", "label": label_text, "index": i})
+	_action_menu.show_actions("Tap to set order", actions)
+
+
+func _show_counter_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var cards: Array = event.get("cards", []) as Array
+	var needed: int = int(event.get("count", 0))
+	var actions: Array[Dictionary] = []
+	for i: int in range(cards.size()):
+		var entry: Dictionary = cards[i] as Dictionary
+		var code: int = int(entry.get("card", 0))
+		var cap: int = int(entry.get("counter_count", 0))
+		var label_text: String = "Card %d (max %d)" % [i + 1, cap]
+		if code != 0 and _core != null:
+			var info: Dictionary = _core.get_card_info(code)
+			var name: String = str(info.get("name", ""))
+			if not name.is_empty():
+				label_text = "%s (max %d)" % [name, cap]
+		actions.append({"key": "_counter", "label": label_text, "index": i})
+	_action_menu.show_actions("Remove %d counter(s)" % needed, actions)
+
+
+func _show_announce_race_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var available: int = int(event.get("available", 0))
+	var needed: int = int(event.get("count", 1))
+	var actions: Array[Dictionary] = []
+	for race_val: int in _RACE_NAMES:
+		if (available & race_val) != 0:
+			actions.append({"key": "_race", "label": _RACE_NAMES[race_val], "index": race_val})
+	_action_menu.show_actions("Declare %d type(s)" % needed, actions)
+
+
+func _show_announce_attrib_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var available: int = int(event.get("available", 0))
+	var needed: int = int(event.get("count", 1))
+	var actions: Array[Dictionary] = []
+	for attr_val: int in _ATTRIBUTE_NAMES:
+		if (available & attr_val) != 0:
+			actions.append({"key": "_attrib", "label": _ATTRIBUTE_NAMES[attr_val], "index": attr_val})
+	_action_menu.show_actions("Declare %d attribute(s)" % needed, actions)
+
+
+func _show_announce_number_dialog(event: Dictionary) -> void:
+	if _action_menu == null:
+		return
+	var options: Array = event.get("options", []) as Array
+	var actions: Array[Dictionary] = []
+	for i: int in range(options.size()):
+		actions.append({"key": "_number", "label": str(int(options[i])), "index": i})
+	_action_menu.show_actions("Choose a number", actions)
+
+
 ## Shows phase buttons matching the available phase transitions in the event.
 func _update_phase_buttons(event: Dictionary) -> void:
 	if _hud == null:
@@ -1084,6 +1258,16 @@ func _on_selection(event: Dictionary) -> void:
 			_show_position_dialog(event)
 		elif pending == DuelEnums.EV.SELECT_YESNO or pending == DuelEnums.EV.SELECT_EFFECTYN:
 			_show_yesno_dialog(event)
+		elif pending == DuelEnums.EV.SORT_CARD or pending == DuelEnums.EV.SORT_CHAIN:
+			_show_sort_dialog(event)
+		elif pending == DuelEnums.EV.SELECT_COUNTER:
+			_show_counter_dialog(event)
+		elif pending == DuelEnums.EV.ANNOUNCE_RACE:
+			_show_announce_race_dialog(event)
+		elif pending == DuelEnums.EV.ANNOUNCE_ATTRIB:
+			_show_announce_attrib_dialog(event)
+		elif pending == DuelEnums.EV.ANNOUNCE_NUMBER:
+			_show_announce_number_dialog(event)
 
 	print("[solo] %s -> %s (looking from %s)%s" % [
 		DuelEnums.ev_name(_focus.decision_event),
