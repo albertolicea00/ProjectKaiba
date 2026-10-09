@@ -118,6 +118,26 @@ func _add_button(text: String, cmd: String, index: int) -> void:
 	btn.text = text
 	btn.custom_minimum_size.y = BUTTON_MIN_HEIGHT
 	btn.add_theme_font_size_override("font_size", 22)
+
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = Color(0.12, 0.14, 0.20) if not cmd.is_empty() else Color(0.08, 0.08, 0.12)
+	normal.set_corner_radius_all(8)
+	normal.set_content_margin_all(8)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.18, 0.28, 0.48)
+	hover.border_color = Color(0.36, 0.68, 1.0, 0.6)
+	hover.set_border_width_all(1)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed_style: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	pressed_style.bg_color = Color(0.10, 0.20, 0.40)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+
+	btn.add_theme_color_override("font_color", Color(0.9, 0.93, 1.0))
+	btn.add_theme_color_override("font_hover_color", Color(1.0, 1.0, 1.0))
+
 	if cmd.is_empty():
 		btn.pressed.connect(func() -> void:
 			hide_menu()
