@@ -241,6 +241,7 @@ func _ready() -> void:
 	_hud.confirmed.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CONFIRM}))
 	_hud.cancelled.connect(func() -> void: _on_intent({"kind": InputSource.KIND_CANCEL}))
 	_hud.phase_pressed.connect(_on_phase_pressed)
+	_hud.menu_pressed.connect(_offer_surrender)
 
 	# Solo watches one half all duel; hot seat turns the board on every turn change.
 	_focus.follow_turn = hot_seat
