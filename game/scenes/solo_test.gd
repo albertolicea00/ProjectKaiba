@@ -522,6 +522,8 @@ func _handle(event: Dictionary) -> void:
 				var def_at: Dictionary = event.get("to", {}) as Dictionary
 				if not def_at.is_empty():
 					_board.flash_zone(EventTranslator.anchor_of(def_at), Color(1.0, 0.6, 0.2, 0.9))
+				if atk_card != null:
+					_board.add_target_line(atk_card.handle, def_card.handle, Color(1.0, 0.3, 0.3, 0.9))
 		DuelEnums.EV.BATTLE:
 			_show_combat(event)
 		DuelEnums.EV.NEW_PHASE:
@@ -529,6 +531,7 @@ func _handle(event: Dictionary) -> void:
 				_hud.set_combat(null, null)
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
+			_board.clear_target_lines()
 			_record_phase()
 		DuelEnums.EV.SUMMONING, DuelEnums.EV.SPSUMMONING, DuelEnums.EV.FLIPSUMMONING:
 			var summon_card: DuelCard = _card_at_loc(event.get("at", {}))
@@ -542,6 +545,7 @@ func _handle(event: Dictionary) -> void:
 				_board.flash_zone(EventTranslator.anchor_of(summon_at), summon_colour)
 		DuelEnums.EV.SUMMONED, DuelEnums.EV.SPSUMMONED, DuelEnums.EV.FLIPSUMMONED:
 			_board.clear_card_indicators()
+			_board.clear_target_lines()
 			if _preview != null and not _headless:
 				_preview.hide_card()
 		DuelEnums.EV.CHAINING:
@@ -572,6 +576,7 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.CHAIN_END:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
+			_board.clear_target_lines()
 			_chain_handles.clear()
 			if _preview != null and not _headless:
 				_preview.hide_card()
@@ -590,6 +595,8 @@ func _handle(event: Dictionary) -> void:
 			var equipped_monster: DuelCard = _card_at_loc(event.get("to", {}))
 			if equipped_monster != null:
 				_board.set_card_indicator(equipped_monster.handle, "equip")
+			if equip_card != null and equipped_monster != null:
+				_board.add_target_line(equip_card.handle, equipped_monster.handle, Color(0.3, 0.8, 1.0, 0.7))
 		DuelEnums.EV.BECOME_TARGET:
 			var targets: Array = event.get("cards", [])
 			for loc: Dictionary in targets:
@@ -605,6 +612,9 @@ func _handle(event: Dictionary) -> void:
 			var card_tgt: DuelCard = _card_at_loc(event.get("to", {}))
 			if card_tgt != null:
 				_board.set_card_indicator(card_tgt.handle, "target")
+				var tgt_src: DuelCard = _card_at_loc(event.get("from", {}))
+				if tgt_src != null:
+					_board.add_target_line(tgt_src.handle, card_tgt.handle)
 		DuelEnums.EV.CANCEL_TARGET:
 			var cancel_tgt: DuelCard = _card_at_loc(event.get("to", {}))
 			if cancel_tgt != null:

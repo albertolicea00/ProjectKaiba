@@ -252,6 +252,7 @@ var _role_materials: Dictionary = {}
 var _highlight_material: StandardMaterial3D = null
 var _disabled_material: StandardMaterial3D = null
 var _fx_layer: FxLayer = null
+var _target_lines: Array[MeshInstance3D] = []
 
 ## anchor -> true for every currently highlighted zone.
 var _highlighted: Dictionary = {}
@@ -551,6 +552,47 @@ func flash_zone_mask(flag: int, colour: Color = Color(0.5, 1.0, 0.7, 0.8)) -> vo
 				flash_zone("ST_P%d_%d" % [player, seq], colour)
 		if (bits & (1 << 13)) != 0:
 			flash_zone("FZ_P%d" % player, colour)
+
+
+func add_target_line(from_handle: int, to_handle: int, colour: Color = Color(1.0, 0.4, 0.1, 0.8)) -> void:
+	var from_view: CardView = view_by_handle(from_handle)
+	var to_view: CardView = view_by_handle(to_handle)
+	if from_view == null or to_view == null:
+		return
+	var from_pos: Vector3 = from_view.global_position + Vector3.UP * 0.005
+	var to_pos: Vector3 = to_view.global_position + Vector3.UP * 0.005
+	var mesh: ImmediateMesh = ImmediateMesh.new()
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	var dir: Vector3 = (to_pos - from_pos).normalized()
+	var right: Vector3 = dir.cross(Vector3.UP).normalized() * 0.003
+	mesh.surface_add_vertex(from_pos - right)
+	mesh.surface_add_vertex(from_pos + right)
+	mesh.surface_add_vertex(to_pos - right)
+	mesh.surface_add_vertex(to_pos - right)
+	mesh.surface_add_vertex(from_pos + right)
+	mesh.surface_add_vertex(to_pos + right)
+	var arrow_side: Vector3 = right * 2.5
+	var arrow_tip: Vector3 = to_pos + dir * 0.008
+	mesh.surface_add_vertex(to_pos - arrow_side)
+	mesh.surface_add_vertex(to_pos + arrow_side)
+	mesh.surface_add_vertex(arrow_tip)
+	mesh.surface_end()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = colour
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	var mi: MeshInstance3D = MeshInstance3D.new()
+	mi.mesh = mesh
+	mi.material_override = mat
+	add_child(mi)
+	_target_lines.append(mi)
+
+
+func clear_target_lines() -> void:
+	for line: MeshInstance3D in _target_lines:
+		line.queue_free()
+	_target_lines.clear()
 
 
 func _ensure_fx_layer() -> FxLayer:
