@@ -493,15 +493,25 @@ func _handle(event: Dictionary) -> void:
 			_stop_if_satisfied()
 			if _stopping:
 				return
-		DuelEnums.EV.ATTACK, DuelEnums.EV.BATTLE:
+		DuelEnums.EV.ATTACK:
+			_show_combat(event)
+			var atk_card: DuelCard = _card_at_loc(event.get("from", {}))
+			if atk_card != null:
+				_board.set_card_indicator(atk_card.handle, "attack")
+		DuelEnums.EV.BATTLE:
 			_show_combat(event)
 		DuelEnums.EV.NEW_PHASE:
-			# A phase change is the end of any battle that was resolving, and it is the only
-			# event guaranteed to arrive after one. Without this the numbers from the first
-			# attack of the duel would sit on screen for the rest of it.
 			if _hud != null:
 				_hud.set_combat(null, null)
+			_board.clear_card_indicators()
+			_board.clear_card_chain_numbers()
 			_record_phase()
+		DuelEnums.EV.SUMMONING, DuelEnums.EV.SPSUMMONING, DuelEnums.EV.FLIPSUMMONING:
+			var summon_card: DuelCard = _card_at_loc(event.get("at", {}))
+			if summon_card != null:
+				_board.set_card_indicator(summon_card.handle, "act")
+		DuelEnums.EV.SUMMONED, DuelEnums.EV.SPSUMMONED, DuelEnums.EV.FLIPSUMMONED:
+			_board.clear_card_indicators()
 		DuelEnums.EV.CHAINING:
 			var chain_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if chain_card != null:
