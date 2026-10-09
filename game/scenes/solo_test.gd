@@ -1729,13 +1729,13 @@ func _log_event(type: int, event: Dictionary) -> void:
 			else:
 				if _audio != null:
 					_audio.play_effect("summon")
-			_duel_log.append_action("%s %s" % [verb, _card_name(code)])
+			_duel_log.append_action("%s: %s %s" % [seat, verb, _card_name(code)])
 		DuelEnums.EV.SET:
 			_duel_log.append("%s Sets a card" % seat)
 			if _audio != null:
 				_audio.play_effect("set")
 		DuelEnums.EV.CHAINING:
-			_duel_log.append_action("Chain: %s" % _card_name(code))
+			_duel_log.append_action("%s Chain: %s" % [seat, _card_name(code)])
 			if _audio != null:
 				_audio.play_effect("activate")
 		DuelEnums.EV.CHAIN_NEGATED:
@@ -1746,12 +1746,12 @@ func _log_event(type: int, event: Dictionary) -> void:
 			var is_direct: bool = bool(event.get("direct", false))
 			var atk_name: String = _card_name(code) if code != 0 else "?"
 			if is_direct:
-				_duel_log.append_action("%s attacks directly!" % atk_name)
+				_duel_log.append_action("%s: %s attacks directly!" % [seat, atk_name])
 			else:
 				var def_loc: Dictionary = event.get("to", {}) as Dictionary
 				var def_c: DuelCard = _card_at_loc(def_loc)
 				var def_name: String = _card_name(def_c.code) if def_c != null and def_c.code != 0 else "?"
-				_duel_log.append_action("%s attacks %s" % [atk_name, def_name])
+				_duel_log.append_action("%s: %s attacks %s" % [seat, atk_name, def_name])
 			if _audio != null:
 				_audio.play_effect("attack")
 		DuelEnums.EV.BATTLE:
