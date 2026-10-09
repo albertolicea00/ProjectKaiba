@@ -46,9 +46,8 @@ extends CanvasLayer
 ##               effect is being selected ("Draw 2 cards", "Destroy 1 card"); printed as a block
 ##               under a card's text they read as duplicated effect text. They belong on the
 ##               selection prompt, not here.
-##   `setcodes`  numeric archetype ids. There is no id -> archetype name table anywhere in the
-##               project, so these can only be rendered as integers, which tells a player
-##               nothing. Add the table and this becomes a one-line change.
+##   `setcodes`  numeric archetype ids. Resolved to names via `setcode_names` key when the
+##               caller enriches the info dict from a setname string table.
 ##   `alias`     the passcode this card is an alternate artwork of. A player cares about the
 ##               card, not which printing it is.
 ##   `ot`        OCG / TCG availability. A format badge, and there is no format selector yet.
@@ -241,7 +240,11 @@ func show_card(info: Dictionary, face: Texture2D) -> void:
 	var known: bool = not info.is_empty()
 
 	_name.text = _name_of(info)
-	_type.text = type_line(int(info.get("type", 0))) if info.has("type") else EMPTY
+	var type_text: String = type_line(int(info.get("type", 0))) if info.has("type") else EMPTY
+	var setcode_names: PackedStringArray = info.get("setcode_names", PackedStringArray()) as PackedStringArray
+	if not setcode_names.is_empty():
+		type_text += "\n" + " / ".join(setcode_names)
+	_type.text = type_text
 	# A dictionary with no text row at all is as text-less as an empty one, so both land on
 	# the same sentence rather than on an empty paragraph.
 	var desc: String = str(info.get("desc", "")).strip_edges()

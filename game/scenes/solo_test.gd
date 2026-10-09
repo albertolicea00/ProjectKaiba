@@ -112,6 +112,7 @@ var _last_hint_msg: String = ""
 var _system_strings: Dictionary = {}
 var _victory_strings: Dictionary = {}
 var _counter_strings: Dictionary = {}
+var _setname_strings: Dictionary = {}
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -767,6 +768,7 @@ func _preview_code(card_code: int) -> void:
 	if _preview == null or card_code == 0:
 		return
 	var info: Dictionary = _core.get_card_info(card_code) if _core != null else {}
+	_enrich_setcodes(info)
 	var face: Texture2D = _art.texture_for(card_code) if _art != null else null
 	_preview.show_card(info, face)
 
@@ -777,13 +779,25 @@ func _preview_handle(handle: int) -> void:
 
 	var view: CardView = _board.view_by_handle(handle)
 	if view == null or view.card_id == 0:
-		# Nothing there, or a card showing its back. Either way there is nothing to read.
 		_preview.hide_card()
 		return
 
 	var info: Dictionary = _core.get_card_info(view.card_id) if _core != null else {}
+	_enrich_setcodes(info)
 	var face: Texture2D = _art.texture_for(view.card_id) if _art != null else null
 	_preview.show_card(info, face)
+
+
+func _enrich_setcodes(info: Dictionary) -> void:
+	var codes: PackedInt32Array = info.get("setcodes", PackedInt32Array()) as PackedInt32Array
+	if codes.is_empty():
+		return
+	var names: PackedStringArray = PackedStringArray()
+	for sc: int in codes:
+		if sc != 0 and _setname_strings.has(sc):
+			names.append(str(_setname_strings[sc]))
+	if not names.is_empty():
+		info["setcode_names"] = names
 
 
 ## Opens the action menu for a card during an idle or battle command selection.
@@ -1711,6 +1725,13 @@ func _load_system_strings() -> void:
 				var key: String = rest.left(space)
 				var id: int = int(key) if not key.begins_with("0x") else key.hex_to_int()
 				_counter_strings[id] = rest.substr(space + 1)
+		elif line.begins_with("!setname "):
+			var rest: String = line.substr(9)
+			var space: int = rest.find(" ")
+			if space >= 1:
+				var key: String = rest.left(space)
+				var id: int = int(key) if not key.begins_with("0x") else key.hex_to_int()
+				_setname_strings[id] = rest.substr(space + 1)
 
 
 func _log_event(type: int, event: Dictionary) -> void:
