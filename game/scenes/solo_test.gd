@@ -585,6 +585,18 @@ func _handle(event: Dictionary) -> void:
 			_chain_handles.clear()
 			if _preview != null and not _headless:
 				_preview.hide_card()
+		DuelEnums.EV.DRAW:
+			var draw_player: int = int(event.get("player", 0))
+			_board.flash_zone("DECK_P%d" % draw_player, Color(0.5, 0.7, 1.0, 0.7))
+		DuelEnums.EV.SHUFFLE_DECK:
+			var shuf_player: int = int(event.get("player", 0))
+			_board.flash_zone("DECK_P%d" % shuf_player, Color(0.6, 0.5, 0.8, 0.6))
+		DuelEnums.EV.SHUFFLE_HAND:
+			var shuf_h_player: int = int(event.get("player", 0))
+			_board.flash_zone("HAND_P%d" % shuf_h_player, Color(0.6, 0.5, 0.8, 0.6))
+		DuelEnums.EV.TOSS_COIN, DuelEnums.EV.TOSS_DICE:
+			var toss_player: int = int(event.get("player", 0))
+			_board.flash_zone("DECK_P%d" % toss_player, Color(1.0, 0.85, 0.3, 0.8))
 		DuelEnums.EV.SHUFFLE_SET_CARD:
 			if _audio != null:
 				_audio.play_effect("shuffle")
