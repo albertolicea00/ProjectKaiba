@@ -113,14 +113,31 @@ func _build() -> void:
 	outer.add_child(_column)
 
 
+const ACTION_COLOURS: Dictionary = {
+	"summon": Color(0.12, 0.18, 0.35),
+	"spsummon": Color(0.20, 0.12, 0.30),
+	"mset": Color(0.25, 0.22, 0.10),
+	"sset": Color(0.25, 0.22, 0.10),
+	"activate": Color(0.10, 0.22, 0.15),
+	"attack": Color(0.30, 0.10, 0.10),
+	"repos": Color(0.18, 0.18, 0.12),
+	"_yesno": Color(0.12, 0.20, 0.15),
+	"_chain": Color(0.10, 0.22, 0.15),
+	"_surrender": Color(0.35, 0.08, 0.08),
+}
+
+
 func _add_button(text: String, cmd: String, index: int) -> void:
 	var btn: Button = Button.new()
 	btn.text = text
 	btn.custom_minimum_size.y = BUTTON_MIN_HEIGHT
 	btn.add_theme_font_size_override("font_size", 22)
 
+	var bg: Color = Color(0.08, 0.08, 0.12)
+	if not cmd.is_empty():
+		bg = ACTION_COLOURS.get(cmd, Color(0.12, 0.14, 0.20)) as Color
 	var normal: StyleBoxFlat = StyleBoxFlat.new()
-	normal.bg_color = Color(0.12, 0.14, 0.20) if not cmd.is_empty() else Color(0.08, 0.08, 0.12)
+	normal.bg_color = bg
 	normal.set_corner_radius_all(8)
 	normal.set_content_margin_all(8)
 	btn.add_theme_stylebox_override("normal", normal)
