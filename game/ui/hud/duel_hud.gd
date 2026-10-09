@@ -192,6 +192,7 @@ var _banner_time: float = 0.0
 
 func _ready() -> void:
 	set_process(false)
+	_build_dynamic_badges()
 	refresh()
 	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
 	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
@@ -489,7 +490,11 @@ const PILE_BADGES: Array[Dictionary] = [
 	{"loc": DuelEnums.LOCATION.DECK, "prefix": "DECK"},
 	{"loc": DuelEnums.LOCATION.EXTRA, "prefix": "EX"},
 	{"loc": DuelEnums.LOCATION.GRAVE, "prefix": "GY"},
+	{"loc": DuelEnums.LOCATION.REMOVED, "prefix": "BAN"},
+	{"loc": DuelEnums.LOCATION.HAND, "prefix": "HAND"},
 ]
+
+var _dynamic_labels: Dictionary = {}
 
 
 func _refresh_piles() -> void:
@@ -520,8 +525,43 @@ func _pile_label(player: int, location: int) -> Label:
 		DuelEnums.LOCATION.GRAVE:
 			slot = "Grave"
 		_:
-			return null
+			var key: String = "%s_%d" % [row, location]
+			return _dynamic_labels.get(key, null) as Label
 	return get_node_or_null("Root/%s/%s/Count" % [row, slot]) as Label
+
+
+func _build_dynamic_badges() -> void:
+	for row_name: String in ["TopPiles", "BottomPiles"]:
+		var container: HBoxContainer = get_node_or_null("Root/%s" % row_name) as HBoxContainer
+		if container == null:
+			continue
+		for badge: Dictionary in [
+			{"loc": DuelEnums.LOCATION.REMOVED, "prefix": "BAN"},
+			{"loc": DuelEnums.LOCATION.HAND, "prefix": "HAND"},
+		]:
+			var location: int = int(badge["loc"])
+			var panel: PanelContainer = PanelContainer.new()
+			panel.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			var style: StyleBoxFlat = StyleBoxFlat.new()
+			style.content_margin_left = 10.0
+			style.content_margin_top = 3.0
+			style.content_margin_right = 10.0
+			style.content_margin_bottom = 3.0
+			style.bg_color = Color(0.035, 0.047, 0.067, 0.82)
+			style.set_border_width_all(1)
+			style.border_color = Color(0.353, 0.847, 1.0, 0.55)
+			style.set_corner_radius_all(6)
+			panel.add_theme_stylebox_override("panel", style)
+			var label: Label = Label.new()
+			label.name = "Count"
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			label.add_theme_color_override("font_color", Color(0.784, 0.859, 0.922))
+			label.add_theme_font_size_override("font_size", 15)
+			label.text = "%s %s" % [str(badge["prefix"]), EMPTY]
+			panel.add_child(label)
+			container.add_child(panel)
+			_dynamic_labels["%s_%d" % [row_name, location]] = label
 
 
 # ----------------------------------------------------------------------------------------------
