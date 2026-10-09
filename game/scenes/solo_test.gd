@@ -1021,6 +1021,8 @@ func _show_option_dialog(event: Dictionary) -> void:
 			elif not str(info.get("name", "")).is_empty():
 				label_text = str(info.get("name", ""))
 		actions.append({"key": "_option", "label": label_text, "index": i})
+		if i == 0 and code != 0 and not _headless:
+			_preview_code(code)
 	_action_menu.show_actions("Choose an effect", actions)
 
 
@@ -1219,6 +1221,9 @@ func _show_yesno_dialog(event: Dictionary) -> void:
 		var name: String = str(info.get("name", ""))
 		if not name.is_empty():
 			title = "Use the effect of %s?" % name
+
+	if card_code != 0 and not _headless:
+		_preview_code(card_code)
 
 	var actions: Array[Dictionary] = [
 		{"key": "_yesno", "label": "Yes", "index": 1},
