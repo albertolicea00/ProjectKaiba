@@ -537,6 +537,22 @@ func flash_zone(anchor: String, colour: Color = Color(0.72, 0.84, 1.0, 1.0)) -> 
 	fx.flash(seat, 0.065, colour, 0.3)
 
 
+func flash_zone_mask(flag: int, colour: Color = Color(0.5, 1.0, 0.7, 0.8)) -> void:
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		var bits: int = (flag >> (player * 16)) & 0xFFFF
+		for seq: int in range(DuelEnums.MAIN_MONSTER_ZONES):
+			if (bits & (1 << seq)) != 0:
+				flash_zone("MZ_P%d_%d" % [player, seq], colour)
+		for seq: int in range(DuelEnums.EXTRA_MONSTER_ZONES):
+			if (bits & (1 << (5 + seq))) != 0:
+				flash_zone("EMZ_P%d_%d" % [player, seq], colour)
+		for seq: int in range(DuelEnums.SPELL_TRAP_ZONES):
+			if (bits & (1 << (8 + seq))) != 0:
+				flash_zone("ST_P%d_%d" % [player, seq], colour)
+		if (bits & (1 << 13)) != 0:
+			flash_zone("FZ_P%d" % player, colour)
+
+
 func _ensure_fx_layer() -> FxLayer:
 	if _fx_layer != null and is_instance_valid(_fx_layer):
 		return _fx_layer

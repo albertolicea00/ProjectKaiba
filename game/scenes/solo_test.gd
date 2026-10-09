@@ -636,6 +636,8 @@ func _handle(event: Dictionary) -> void:
 			_last_hint_msg = _system_string(hint_data)
 		elif hint_type == 5:
 			_last_hint_card = _card_name(hint_data) if hint_data != 0 else ""
+		elif hint_type == 11 and hint_data != 0:
+			_board.flash_zone_mask(hint_data, Color(0.5, 1.0, 0.7, 0.8))
 		return
 
 	if _headless and _set_trap and _set_zones_audited == 0:
