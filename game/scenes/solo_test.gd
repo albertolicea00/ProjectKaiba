@@ -2045,6 +2045,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if equip_from != null and equip_to != null:
 				_duel_log.append("%s equipped to %s" % [
 					_card_name(equip_from.code), _card_name(equip_to.code)])
+				_board.add_target_line(equip_from.handle, equip_to.handle, Color(0.3, 0.9, 0.5, 0.7))
 			if _audio != null:
 				_audio.play_effect("equip")
 		DuelEnums.EV.BECOME_TARGET:
@@ -2136,6 +2137,14 @@ func _log_event(type: int, event: Dictionary) -> void:
 			var swap_code2: int = int(event.get("card2", 0))
 			if swap_code1 != 0 and swap_code2 != 0:
 				_duel_log.append("%s swapped with %s" % [_card_name(swap_code1), _card_name(swap_code2)])
+			var swap_from: DuelCard = _card_at_loc(event.get("from", {}))
+			var swap_to: DuelCard = _card_at_loc(event.get("to", {}))
+			if swap_from != null:
+				_board.set_card_indicator(swap_from.handle, "act")
+			if swap_to != null:
+				_board.set_card_indicator(swap_to.handle, "act")
+			if swap_from != null and swap_to != null:
+				_board.add_target_line(swap_from.handle, swap_to.handle, Color(0.9, 0.7, 0.2, 0.7))
 		DuelEnums.EV.RANDOM_SELECTED:
 			var rand_cards: Array = event.get("cards", [])
 			for loc: Dictionary in rand_cards:
@@ -2164,6 +2173,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append("%s missed timing" % _card_name(code), Color(0.7, 0.5, 0.5))
 		DuelEnums.EV.UNEQUIP:
 			_duel_log.append("Unequipped: %s" % _card_name(code))
+			if _audio != null:
+				_audio.play_effect("equip")
 		DuelEnums.EV.SWAP_GRAVE_DECK:
 			_duel_log.append("%s swaps GY and Deck" % seat)
 		DuelEnums.EV.REVERSE_DECK:
