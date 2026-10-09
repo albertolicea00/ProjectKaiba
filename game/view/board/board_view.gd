@@ -465,6 +465,12 @@ func set_card_indicator(handle: int, type: String) -> void:
 		view.set_indicator(type)
 
 
+func clear_card_indicator(handle: int) -> void:
+	var view: CardView = view_by_handle(handle)
+	if view != null:
+		view.clear_indicator()
+
+
 func clear_card_indicators() -> void:
 	for key: Variant in _occupants.keys():
 		for entry: Variant in (_occupants[key] as Array):

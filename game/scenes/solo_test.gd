@@ -525,6 +525,14 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.CHAIN_NEGATED, DuelEnums.EV.CHAIN_DISABLED:
 			_board.clear_card_indicators()
 			_board.clear_card_chain_numbers()
+		DuelEnums.EV.CARD_TARGET:
+			var card_tgt: DuelCard = _card_at_loc(event.get("to", {}))
+			if card_tgt != null:
+				_board.set_card_indicator(card_tgt.handle, "target")
+		DuelEnums.EV.CANCEL_TARGET:
+			var cancel_tgt: DuelCard = _card_at_loc(event.get("to", {}))
+			if cancel_tgt != null:
+				_board.clear_card_indicator(cancel_tgt.handle)
 		DuelEnums.EV.PAY_LPCOST:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
@@ -1289,6 +1297,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 						names.append(_card_name(tgt.code))
 				if not names.is_empty():
 					_duel_log.append("Targeted: %s" % ", ".join(names))
+		DuelEnums.EV.CARD_TARGET:
+			var ct_from: DuelCard = _card_at_loc(event.get("from", {}))
+			var ct_to: DuelCard = _card_at_loc(event.get("to", {}))
+			if ct_from != null and ct_to != null:
+				_duel_log.append("%s targets %s" % [_card_name(ct_from.code), _card_name(ct_to.code)])
 		DuelEnums.EV.PAY_LPCOST:
 			_duel_log.append("%s pays %d LP" % [seat, int(event.get("amount", 0))])
 		DuelEnums.EV.CHAIN_NEGATED:
