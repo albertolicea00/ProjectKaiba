@@ -177,6 +177,7 @@ var _chain_label: Label3D = null
 var _lscale_label: Label3D = null
 var _rscale_label: Label3D = null
 var _overlay_label: Label3D = null
+var _counter_label: Label3D = null
 
 const STAT_FONT_SIZE: int = 48
 const SCALE_FONT_SIZE: int = 36
@@ -187,6 +188,9 @@ const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKN
 const OVERLAY_LABEL_OFFSET: Vector3 = Vector3(CARD_WIDTH * 0.35, CARD_HEIGHT * 0.38, CARD_THICKNESS * 0.5 + 0.001)
 const OVERLAY_FONT_SIZE: int = 32
 const OVERLAY_COLOUR: Color = Color(1.0, 0.85, 0.2)
+const COUNTER_LABEL_OFFSET: Vector3 = Vector3(-CARD_WIDTH * 0.35, CARD_HEIGHT * 0.38, CARD_THICKNESS * 0.5 + 0.001)
+const COUNTER_FONT_SIZE: int = 32
+const COUNTER_COLOUR: Color = Color(0.4, 1.0, 0.6)
 const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
 const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
 const STAT_COLOUR_REDUCED: Color = Color(1.0, 0.3, 0.3)
@@ -476,6 +480,36 @@ func _ensure_overlay_label() -> void:
 	_overlay_label.double_sided = false
 	_overlay_label.visible = false
 	add_child(_overlay_label)
+
+
+func set_counter_count(total: int) -> void:
+	if total <= 0:
+		clear_counter_count()
+		return
+	_ensure_counter_label()
+	_counter_label.text = "C:%d" % total
+	_counter_label.visible = true
+
+
+func clear_counter_count() -> void:
+	if _counter_label != null:
+		_counter_label.visible = false
+
+
+func _ensure_counter_label() -> void:
+	if _counter_label != null:
+		return
+	_counter_label = Label3D.new()
+	_counter_label.name = "CounterCount"
+	_counter_label.font_size = COUNTER_FONT_SIZE
+	_counter_label.modulate = COUNTER_COLOUR
+	_counter_label.outline_modulate = Color(0, 0, 0, 1)
+	_counter_label.outline_size = 8
+	_counter_label.position = COUNTER_LABEL_OFFSET
+	_counter_label.no_depth_test = true
+	_counter_label.double_sided = false
+	_counter_label.visible = false
+	add_child(_counter_label)
 
 
 func clear_pendulum_scales() -> void:

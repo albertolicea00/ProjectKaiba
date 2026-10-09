@@ -735,6 +735,14 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	else:
 		view.clear_pendulum_scales()
 
+	if card.is_face_up() and not card.counters.is_empty():
+		var counter_total: int = 0
+		for key: Variant in card.counters:
+			counter_total += int(card.counters[key])
+		view.set_counter_count(counter_total)
+	else:
+		view.clear_counter_count()
+
 	if card.overlay_codes.size() > 0:
 		view.set_overlay_count(card.overlay_codes.size())
 	else:
