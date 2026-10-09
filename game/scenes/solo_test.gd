@@ -265,6 +265,7 @@ func _ready() -> void:
 
 	_pile_browser = PileBrowser.new()
 	_pile_browser.name = "PileBrowser"
+	_pile_browser.card_selected.connect(_on_pile_card_selected)
 	add_child(_pile_browser)
 
 	if not _headless:
@@ -847,6 +848,12 @@ func _card_at_loc(info: Variant) -> DuelCard:
 ## player it is hidden from. Judging visibility again here - from the model and a seat - would
 ## be a second chance to get that wrong, and the cost of getting it wrong is showing someone
 ## their opponent's set trap.
+func _on_pile_card_selected(card: Dictionary) -> void:
+	var code: int = int(card.get("code", 0))
+	if code != 0:
+		_preview_code(code)
+
+
 func _preview_code(card_code: int) -> void:
 	if _preview == null or card_code == 0:
 		return

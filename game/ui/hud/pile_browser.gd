@@ -10,6 +10,7 @@ extends CanvasLayer
 ## background, centred panel, click-to-dismiss.
 
 signal closed
+signal card_selected(card: Dictionary)
 
 const LAYER: int = 11
 const PANEL_WIDTH: int = 360
@@ -119,28 +120,46 @@ func _build() -> void:
 
 
 func _add_item(card: Dictionary) -> void:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.custom_minimum_size.y = ITEM_HEIGHT
-	row.add_theme_constant_override("separation", 10)
-
-	var name_label: Label = Label.new()
-	name_label.text = str(card.get("name", "???"))
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.add_theme_color_override("font_color", Color(0.92, 0.94, 0.98))
-	name_label.add_theme_font_size_override("font_size", 18)
-	name_label.clip_text = true
-	row.add_child(name_label)
+	var btn: Button = Button.new()
+	btn.custom_minimum_size.y = ITEM_HEIGHT
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 	var card_type: int = int(card.get("type", 0))
-	if card_type != 0:
-		var type_label: Label = Label.new()
-		type_label.text = CardPreview.type_line(card_type)
-		type_label.add_theme_color_override("font_color", Color(0.55, 0.6, 0.7))
-		type_label.add_theme_font_size_override("font_size", 14)
-		type_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		row.add_child(type_label)
+	var card_name: String = str(card.get("name", "???"))
+	var stat_text: String = ""
+	if (card_type & DuelEnums.TYPE.MONSTER) != 0:
+		var atk: int = int(card.get("attack", 0))
+		var def_val: int = int(card.get("defense", 0))
+		if (card_type & DuelEnums.TYPE.LINK) != 0:
+			stat_text = "  ATK %d / LINK-%d" % [atk, int(card.get("link", 0))]
+		else:
+			stat_text = "  ATK %d / DEF %d" % [atk, def_val]
+	btn.text = card_name + stat_text
 
-	_list.add_child(row)
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = Color(0.06, 0.07, 0.10, 0.0)
+	normal.set_corner_radius_all(4)
+	normal.set_content_margin_all(6)
+	btn.add_theme_stylebox_override("normal", normal)
+
+	var hover: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.15, 0.22, 0.35, 0.6)
+	btn.add_theme_stylebox_override("hover", hover)
+
+	var pressed_style: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	pressed_style.bg_color = Color(0.10, 0.18, 0.30, 0.8)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
+
+	btn.add_theme_color_override("font_color", CardPreview._name_colour(card_type))
+	btn.add_theme_color_override("font_hover_color", CardPreview._name_colour(card_type).lightened(0.2))
+	btn.add_theme_font_size_override("font_size", 17)
+
+	btn.pressed.connect(_on_card_pressed.bind(card))
+	_list.add_child(btn)
+
+
+func _on_card_pressed(card: Dictionary) -> void:
+	card_selected.emit(card)
 
 
 func _clear_items() -> void:
