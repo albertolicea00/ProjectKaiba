@@ -588,6 +588,7 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.DRAW:
 			var draw_player: int = int(event.get("player", 0))
 			_board.flash_zone("DECK_P%d" % draw_player, Color(0.5, 0.7, 1.0, 0.7))
+			_board.flash_zone("HAND_P%d" % draw_player, Color(0.4, 0.65, 0.9, 0.5))
 		DuelEnums.EV.SHUFFLE_DECK:
 			var shuf_player: int = int(event.get("player", 0))
 			_board.flash_zone("DECK_P%d" % shuf_player, Color(0.6, 0.5, 0.8, 0.6))
@@ -701,6 +702,9 @@ func _handle(event: Dictionary) -> void:
 				elif to_loc == DuelEnums.LOCATION.REMOVED:
 					var ban_player: int = int(move_to.get("con", 0))
 					_board.flash_zone("BANISH_P%d" % ban_player, Color(0.4, 0.3, 0.6, 0.6))
+				elif to_loc == DuelEnums.LOCATION.HAND:
+					var hand_player: int = int(move_to.get("con", 0))
+					_board.flash_zone("HAND_P%d" % hand_player, Color(0.4, 0.65, 0.9, 0.5))
 		DuelEnums.EV.UPDATE_DATA, DuelEnums.EV.UPDATE_CARD:
 			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:
