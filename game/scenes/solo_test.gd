@@ -110,6 +110,7 @@ var _chain_handles: Dictionary = {}
 var _last_hint_card: String = ""
 var _last_hint_msg: String = ""
 var _system_strings: Dictionary = {}
+var _victory_strings: Dictionary = {}
 
 const START_LP: int = 8000
 const START_HAND: int = 5
@@ -1683,15 +1684,18 @@ func _load_system_strings() -> void:
 		return
 	while not file.eof_reached():
 		var line: String = file.get_line().strip_edges()
-		if not line.begins_with("!system "):
-			continue
-		var rest: String = line.substr(8)
-		var space: int = rest.find(" ")
-		if space < 1:
-			continue
-		var id: int = int(rest.left(space))
-		var text: String = rest.substr(space + 1)
-		_system_strings[id] = text
+		if line.begins_with("!system "):
+			var rest: String = line.substr(8)
+			var space: int = rest.find(" ")
+			if space >= 1:
+				_system_strings[int(rest.left(space))] = rest.substr(space + 1)
+		elif line.begins_with("!victory "):
+			var rest: String = line.substr(9)
+			var space: int = rest.find(" ")
+			if space >= 1:
+				var key: String = rest.left(space)
+				var id: int = int(key) if not key.begins_with("0x") else key.hex_to_int()
+				_victory_strings[id] = rest.substr(space + 1)
 
 
 func _log_event(type: int, event: Dictionary) -> void:
@@ -1968,7 +1972,12 @@ func _log_event(type: int, event: Dictionary) -> void:
 					_duel_log.append("%s: %s" % [seat, label], colour)
 		DuelEnums.EV.WIN:
 			var winner: int = int(event.get("player", -1))
-			_duel_log.append_system("=== %s wins ===" % ("P%d" % winner))
+			var reason: int = int(event.get("reason", 0))
+			var reason_text: String = str(_victory_strings.get(reason, "")) if _victory_strings.has(reason) else ""
+			if not reason_text.is_empty():
+				_duel_log.append_system("=== P%d wins — %s ===" % [winner, reason_text])
+			else:
+				_duel_log.append_system("=== P%d wins ===" % winner)
 
 
 ## A full turn cycle is turn 1 for the first player, turn 2 for the other - which is the flip -
