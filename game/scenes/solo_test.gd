@@ -520,6 +520,8 @@ func _handle(event: Dictionary) -> void:
 			var summon_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if summon_card != null:
 				_board.set_card_indicator(summon_card.handle, "act")
+				if not _headless:
+					_preview_code(summon_card.code)
 			var summon_at: Dictionary = event.get("at", {}) as Dictionary
 			if not summon_at.is_empty():
 				var summon_colour: Color = Color(1.0, 0.55, 0.85, 1.0) if type == DuelEnums.EV.SPSUMMONING else Color(0.72, 0.84, 1.0, 1.0)
@@ -534,6 +536,8 @@ func _handle(event: Dictionary) -> void:
 				if chain_num > 0:
 					_board.set_card_chain_number(chain_card.handle, chain_num)
 					_chain_handles[chain_num] = chain_card.handle
+				if not _headless:
+					_preview_code(chain_card.code)
 				var at_info: Dictionary = event.get("at", {}) as Dictionary
 				if not at_info.is_empty():
 					_board.flash_zone(EventTranslator.anchor_of(at_info), Color(0.4, 0.85, 1.0, 1.0))
@@ -612,6 +616,8 @@ func _handle(event: Dictionary) -> void:
 			if cnt_card != null:
 				_board.flash_zone(EventTranslator.anchor_of(event.get("at", {})),
 					Color(1.0, 0.85, 0.3, 0.8) if type == DuelEnums.EV.ADD_COUNTER else Color(0.7, 0.4, 0.4, 0.8))
+			_board.sync_from_state(_state)
+		DuelEnums.EV.UPDATE_DATA, DuelEnums.EV.UPDATE_CARD:
 			_board.sync_from_state(_state)
 		DuelEnums.EV.WIN:
 			if _hud != null:
@@ -706,6 +712,14 @@ func _card_at_loc(info: Variant) -> DuelCard:
 ## player it is hidden from. Judging visibility again here - from the model and a seat - would
 ## be a second chance to get that wrong, and the cost of getting it wrong is showing someone
 ## their opponent's set trap.
+func _preview_code(card_code: int) -> void:
+	if _preview == null or card_code == 0:
+		return
+	var info: Dictionary = _core.get_card_info(card_code) if _core != null else {}
+	var face: Texture2D = _art.texture_for(card_code) if _art != null else null
+	_preview.show_card(info, face)
+
+
 func _preview_handle(handle: int) -> void:
 	if _preview == null:
 		return
