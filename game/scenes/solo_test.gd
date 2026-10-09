@@ -552,6 +552,9 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.PAY_LPCOST:
 			if _hud != null:
 				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
+		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
+			if not _headless:
+				_show_confirm_cards(event, type == DuelEnums.EV.CONFIRM_DECKTOP)
 		DuelEnums.EV.WIN:
 			if _hud != null:
 				_hud.show_result(_state.winner)
@@ -819,6 +822,28 @@ func _show_position_dialog(event: Dictionary) -> void:
 		var info: Dictionary = _core.get_card_info(code)
 		card_name = str(info.get("name", card_name))
 	_action_menu.show_actions(card_name, actions)
+
+
+func _show_confirm_cards(event: Dictionary, is_deck_top: bool) -> void:
+	if _pile_browser == null or _core == null:
+		return
+	var card_list: Array = event.get("cards", [])
+	if card_list.is_empty():
+		return
+	var cards: Array[Dictionary] = []
+	for entry: Variant in card_list:
+		var d: Dictionary = entry as Dictionary
+		if d == null:
+			continue
+		var code: int = int(d.get("card", 0))
+		if code == 0:
+			continue
+		var info: Dictionary = _core.get_card_info(code)
+		cards.append(info)
+	if cards.is_empty():
+		return
+	var title: String = "Top of Deck" if is_deck_top else "Revealed Cards"
+	_pile_browser.show_pile(title, cards)
 
 
 ## Common system strings used by SELECT_YESNO. These are stable ocgcore protocol values
@@ -1344,6 +1369,15 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles deck" % seat)
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
+			var revealed: Array = event.get("cards", [])
+			if not revealed.is_empty():
+				var names: PackedStringArray = PackedStringArray()
+				for entry: Variant in revealed:
+					var d: Dictionary = entry as Dictionary
+					if d != null:
+						names.append(_card_name(int(d.get("card", 0))))
+				_duel_log.append("Revealed: %s" % ", ".join(names))
 		DuelEnums.EV.MISSED_EFFECT:
 			if code != 0:
 				_duel_log.append("%s missed timing" % _card_name(code), Color(0.7, 0.5, 0.5))
