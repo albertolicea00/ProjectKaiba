@@ -43,6 +43,18 @@ func append_action(text: String) -> void:
 	append(text, Color(1.0, 0.9, 0.5))
 
 
+func append_separator(text: String) -> void:
+	if _log == null:
+		return
+	_log.push_color(Color(0.4, 0.55, 0.8))
+	_log.add_text("━━━ %s ━━━" % text)
+	_log.pop()
+	_log.newline()
+	while _log.get_line_count() > MAX_LINES:
+		_log.remove_paragraph(0)
+	_scroll.call_deferred("set_v_scroll", _scroll.get_v_scroll_bar().max_value as int)
+
+
 func clear_log() -> void:
 	if _log != null:
 		_log.clear()

@@ -1756,7 +1756,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 	var seat: String = "P%d" % player
 	match type:
 		DuelEnums.EV.NEW_TURN:
-			_duel_log.append_system("=== Turn %d (%s) ===" % [_state.turn_count, seat])
+			_duel_log.append_separator("Turn %d — %s" % [_state.turn_count, seat])
 			if _audio != null:
 				_audio.play_effect("nextturn")
 		DuelEnums.EV.NEW_PHASE:
