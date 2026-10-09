@@ -1869,9 +1869,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 							_audio.play_effect("destroyed")
 		DuelEnums.EV.POS_CHANGE:
 			if code != 0:
-				_duel_log.append("%s changes position" % _card_name(code))
+				var new_pos: int = int(event.get("pos", 0))
+				var pos_name: String = "ATK" if (new_pos & DuelEnums.POSITION.ATTACK) != 0 else "DEF"
+				var face_name: String = "face-up" if (new_pos & DuelEnums.POSITION.FACEUP) != 0 else "face-down"
+				_duel_log.append("%s -> %s %s" % [_card_name(code), face_name, pos_name])
 				if _audio != null:
-					var new_pos: int = int(event.get("pos", 0))
 					if (new_pos & DuelEnums.POSITION.FACEUP) != 0:
 						_audio.play_effect("flip")
 					else:
