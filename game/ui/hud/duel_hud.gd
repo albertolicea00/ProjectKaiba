@@ -183,6 +183,12 @@ var _speed: Array[float] = [0.0, 0.0]
 ## zero because the HUD was attached a frame late.
 var _snap: bool = true
 
+var _lp_bars: Array[ColorRect] = []
+const LP_BAR_HEIGHT: float = 4.0
+const LP_BAR_COLOUR_HIGH: Color = Color(0.2, 0.85, 0.3)
+const LP_BAR_COLOUR_LOW: Color = Color(0.95, 0.2, 0.2)
+const LP_BAR_MAX: int = 8000
+
 ## The phase the banner last announced, and how long the announcement has left to live. The
 ## phase is tracked rather than compared against the chip's text because two phase bits share
 ## the name "Battle phase" and a banner must not fire for a change the player cannot see.
@@ -193,6 +199,7 @@ var _banner_time: float = 0.0
 func _ready() -> void:
 	set_process(false)
 	_build_dynamic_badges()
+	_build_lp_bars()
 	refresh()
 	_prompt_confirm.pressed.connect(func() -> void: confirmed.emit())
 	_prompt_cancel.pressed.connect(func() -> void: cancelled.emit())
@@ -398,6 +405,36 @@ func _paint_life() -> void:
 		return
 	_top_life.text = str(roundi(_shown[_opponent()]))
 	_bottom_life.text = str(roundi(_shown[local_player]))
+	_paint_lp_bars()
+
+
+func _build_lp_bars() -> void:
+	_lp_bars.resize(DuelEnums.PLAYER_COUNT)
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		var life_label: Label = _bottom_life if player == local_player else _top_life
+		var box: Control = life_label.get_parent() as Control
+		if box == null:
+			continue
+		var bar: ColorRect = ColorRect.new()
+		bar.color = LP_BAR_COLOUR_HIGH
+		bar.custom_minimum_size = Vector2(0, LP_BAR_HEIGHT)
+		bar.size_flags_horizontal = Control.SIZE_FILL
+		bar.size_flags_vertical = Control.SIZE_SHRINK_END
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(bar)
+		_lp_bars[player] = bar
+
+
+func _paint_lp_bars() -> void:
+	for player: int in range(DuelEnums.PLAYER_COUNT):
+		if player >= _lp_bars.size() or _lp_bars[player] == null:
+			continue
+		var bar: ColorRect = _lp_bars[player]
+		var ratio: float = clampf(_shown[player] / float(LP_BAR_MAX), 0.0, 1.0)
+		var parent: Control = bar.get_parent() as Control
+		if parent != null:
+			bar.size.x = parent.size.x * ratio
+		bar.color = LP_BAR_COLOUR_HIGH.lerp(LP_BAR_COLOUR_LOW, 1.0 - ratio)
 
 
 # ----------------------------------------------------------------------------------------------
