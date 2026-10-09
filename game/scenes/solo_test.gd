@@ -102,6 +102,7 @@ var _opponent_answers: int = 0
 var _preview: CardPreview = null
 var _action_menu: ActionMenu = null
 var _pile_browser: PileBrowser = null
+var _duel_log: DuelLog = null
 
 var _deck_name: String = ""
 var _extra_for_play: PackedInt32Array = PackedInt32Array()
@@ -256,6 +257,11 @@ func _ready() -> void:
 	_pile_browser = PileBrowser.new()
 	_pile_browser.name = "PileBrowser"
 	add_child(_pile_browser)
+
+	if not _headless:
+		_duel_log = DuelLog.new()
+		_duel_log.name = "DuelLog"
+		add_child(_duel_log)
 
 	_hud.bind(_state)
 
@@ -467,6 +473,7 @@ func _handle(event: Dictionary) -> void:
 	# L3 first - the model is authoritative and updates instantly. Then Level 2, which is lossy
 	# and never stored (V9), and only after `apply()` so handles resolve at the destination.
 	_state.apply(event)
+	_log_event(type, event)
 	var intents: Array[Dictionary] = _translator.translate(event, _state)
 	if not intents.is_empty():
 		_director.enqueue(intents)
@@ -1160,6 +1167,82 @@ func _answer_pending(type: int, answer: Dictionary) -> void:
 	_idle_frames = 0
 
 	_stop_if_satisfied()
+
+
+func _card_name(code: int) -> String:
+	if code == 0 or _core == null:
+		return "?"
+	var info: Dictionary = _core.get_card_info(code)
+	var n: String = str(info.get("name", ""))
+	return n if not n.is_empty() else "#%d" % code
+
+
+func _log_event(type: int, event: Dictionary) -> void:
+	if _duel_log == null:
+		return
+	var code: int = int(event.get("card", 0))
+	var player: int = int(event.get("player", 0))
+	var seat: String = "P%d" % player
+	match type:
+		DuelEnums.EV.NEW_TURN:
+			_duel_log.append_system("=== Turn %d (%s) ===" % [
+				int(event.get("turn", 0)), seat])
+		DuelEnums.EV.NEW_PHASE:
+			var phase: int = int(event.get("phase", 0))
+			_duel_log.append_system(DuelHud.PHASE_NAMES.get(phase, "Phase 0x%x" % phase) as String)
+		DuelEnums.EV.SUMMONING, DuelEnums.EV.SPSUMMONING, DuelEnums.EV.FLIPSUMMONING:
+			var verb: String = "Summons"
+			if type == DuelEnums.EV.SPSUMMONING:
+				verb = "Special Summons"
+			elif type == DuelEnums.EV.FLIPSUMMONING:
+				verb = "Flip Summons"
+			_duel_log.append_action("%s %s" % [verb, _card_name(code)])
+		DuelEnums.EV.SET:
+			_duel_log.append("%s Sets a card" % seat)
+		DuelEnums.EV.CHAINING:
+			_duel_log.append_action("Chain: %s" % _card_name(code))
+		DuelEnums.EV.CHAIN_NEGATED:
+			_duel_log.append("%s negated" % _card_name(code))
+		DuelEnums.EV.ATTACK:
+			var is_direct: bool = bool(event.get("direct", false))
+			if is_direct:
+				_duel_log.append_action("Direct attack!")
+			else:
+				_duel_log.append_action("Attack declared")
+		DuelEnums.EV.BATTLE:
+			var is_direct: bool = bool(event.get("direct", false))
+			var atk: int = int(event.get("from_atk", 0))
+			if is_direct:
+				_duel_log.append_action("Battle: %d damage" % atk)
+			else:
+				var def_atk: int = int(event.get("to_atk", 0))
+				_duel_log.append_action("Battle: %d vs %d" % [atk, def_atk])
+		DuelEnums.EV.DAMAGE:
+			_duel_log.append("%s takes %d damage" % [seat, int(event.get("amount", 0))])
+		DuelEnums.EV.RECOVER:
+			_duel_log.append("%s recovers %d LP" % [seat, int(event.get("amount", 0))])
+		DuelEnums.EV.DRAW:
+			var count: int = int(event.get("count", 1))
+			_duel_log.append("%s draws %d card(s)" % [seat, count])
+		DuelEnums.EV.MOVE:
+			if code != 0:
+				var from_d: Dictionary = event.get("from", {}) as Dictionary
+				var to_d: Dictionary = event.get("to", {}) as Dictionary
+				var from_loc: int = int(from_d.get("location", 0))
+				var to_loc: int = int(to_d.get("location", 0))
+				if from_loc != 0 and to_loc != 0:
+					_duel_log.append("%s: %s -> %s" % [
+						_card_name(code),
+						DuelEnums.location_name(from_loc),
+						DuelEnums.location_name(to_loc)])
+		DuelEnums.EV.POS_CHANGE:
+			if code != 0:
+				_duel_log.append("%s changes position" % _card_name(code))
+		DuelEnums.EV.LPUPDATE:
+			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
+		DuelEnums.EV.WIN:
+			var winner: int = int(event.get("player", -1))
+			_duel_log.append_system("=== %s wins ===" % ("P%d" % winner))
 
 
 ## A full turn cycle is turn 1 for the first player, turn 2 for the other - which is the flip -
