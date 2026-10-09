@@ -552,6 +552,11 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.SHUFFLE_SET_CARD:
 			if _audio != null:
 				_audio.play_effect("shuffle")
+			var ssc_to: Array = event.get("to", []) as Array
+			for loc: Dictionary in ssc_to:
+				if not loc.is_empty():
+					_board.flash_zone(EventTranslator.anchor_of(loc), Color(0.8, 0.7, 1.0, 0.7))
+			_board.sync_from_state(_state)
 		DuelEnums.EV.EQUIP:
 			var equip_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if equip_card != null:
