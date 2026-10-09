@@ -201,11 +201,17 @@ const MARKER_DASH_RATIO: float = 0.55
 ## this has to stay below 0.5.
 const MARKER_CORNER_RATIO: float = 0.30
 
-## Role colours. Warm for monsters, cool-green for spell & trap, neutral slate for the piles -
-## which are storage rather than play space and should recede.
-const COLOUR_MONSTER: Color = Color(0.88, 0.57, 0.20)
-const COLOUR_SPELL_TRAP: Color = Color(0.22, 0.72, 0.62)
-const COLOUR_PILE: Color = Color(0.44, 0.52, 0.66)
+## The playing surface. Dark navy-green like EDOPro's field.
+const FELT_COLOUR: Color = Color(0.05, 0.09, 0.08)
+
+## Where a user-supplied field background lives, outside res://.
+const FIELD_TEXTURE_PATH: String = "res://../data/base/textures/field_bg.png"
+
+## Role colours. EDOPro-style: warm amber for monsters, teal for spell & trap, muted slate
+## for piles.
+const COLOUR_MONSTER: Color = Color(0.85, 0.60, 0.18)
+const COLOUR_SPELL_TRAP: Color = Color(0.18, 0.65, 0.58)
+const COLOUR_PILE: Color = Color(0.40, 0.48, 0.60)
 
 ## A zone the pending selection will accept. One colour for every role: once a zone is a legal
 ## target, "which kind of zone is it" has stopped being the question.
@@ -690,8 +696,13 @@ func _ensure_built() -> void:
 	# Sunk so that the playing surface, not the centre of the slab, is the plane y = 0.
 	_table.position = Vector3(0.0, -TABLE_THICKNESS * 0.5, 0.0)
 	var felt: StandardMaterial3D = StandardMaterial3D.new()
-	felt.albedo_color = Color(0.09, 0.13, 0.11)
-	felt.roughness = 1.0
+	var field_texture: Texture2D = _load_field_texture()
+	if field_texture != null:
+		felt.albedo_texture = field_texture
+		felt.albedo_color = Color.WHITE
+	else:
+		felt.albedo_color = FELT_COLOUR
+	felt.roughness = 0.92
 	_table.material_override = felt
 
 	_anchors = Node3D.new()
@@ -711,6 +722,16 @@ func _ensure_built() -> void:
 		_pool = CardPool.new()
 		_pool.name = "CardPool"
 		add_child(_pool)
+
+
+func _load_field_texture() -> Texture2D:
+	var path: String = ProjectSettings.globalize_path(FIELD_TEXTURE_PATH)
+	if not FileAccess.file_exists(path):
+		return null
+	var image: Image = Image.new()
+	if image.load(path) != OK:
+		return null
+	return ImageTexture.create_from_image(image)
 
 
 func _build_anchors() -> void:
