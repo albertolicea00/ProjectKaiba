@@ -1810,6 +1810,8 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append_action("Resolving chain link %d" % solving_log)
 		DuelEnums.EV.ATTACK_DISABLED:
 			_duel_log.append("Attack disabled")
+			if _audio != null:
+				_audio.play_effect("destroyed")
 		DuelEnums.EV.TOSS_COIN:
 			var results: Array = event.get("results", [])
 			var labels: PackedStringArray = PackedStringArray()
