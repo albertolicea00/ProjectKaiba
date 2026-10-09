@@ -251,6 +251,7 @@ var _marker_roles: Dictionary = {}
 var _role_materials: Dictionary = {}
 var _highlight_material: StandardMaterial3D = null
 var _disabled_material: StandardMaterial3D = null
+var _fx_layer: FxLayer = null
 
 ## anchor -> true for every currently highlighted zone.
 var _highlighted: Dictionary = {}
@@ -526,6 +527,25 @@ func _set_zone_disabled(anchor: String, disabled: bool) -> void:
 			var role: int = int(_marker_roles.get(anchor, -1))
 			mi.material_override = _role_materials.get(role) as StandardMaterial3D
 			mi.visible = false
+
+
+func flash_zone(anchor: String, colour: Color = Color(0.72, 0.84, 1.0, 1.0)) -> void:
+	var fx: FxLayer = _ensure_fx_layer()
+	if fx == null:
+		return
+	var seat: Transform3D = anchor_transform(anchor)
+	fx.flash(seat, 0.065, colour, 0.3)
+
+
+func _ensure_fx_layer() -> FxLayer:
+	if _fx_layer != null and is_instance_valid(_fx_layer):
+		return _fx_layer
+	if not is_inside_tree():
+		return null
+	_fx_layer = FxLayer.new()
+	_fx_layer.name = "BoardFx"
+	add_child(_fx_layer)
+	return _fx_layer
 
 
 ## Offers the art cache to every card currently on the board.

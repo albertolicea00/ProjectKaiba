@@ -516,6 +516,10 @@ func _handle(event: Dictionary) -> void:
 			var summon_card: DuelCard = _card_at_loc(event.get("at", {}))
 			if summon_card != null:
 				_board.set_card_indicator(summon_card.handle, "act")
+			var summon_at: Dictionary = event.get("at", {}) as Dictionary
+			if not summon_at.is_empty():
+				var summon_colour: Color = Color(1.0, 0.55, 0.85, 1.0) if type == DuelEnums.EV.SPSUMMONING else Color(0.72, 0.84, 1.0, 1.0)
+				_board.flash_zone(EventTranslator.anchor_of(summon_at), summon_colour)
 		DuelEnums.EV.SUMMONED, DuelEnums.EV.SPSUMMONED, DuelEnums.EV.FLIPSUMMONED:
 			_board.clear_card_indicators()
 		DuelEnums.EV.CHAINING:
@@ -526,6 +530,9 @@ func _handle(event: Dictionary) -> void:
 				if chain_num > 0:
 					_board.set_card_chain_number(chain_card.handle, chain_num)
 					_chain_handles[chain_num] = chain_card.handle
+				var at_info: Dictionary = event.get("at", {}) as Dictionary
+				if not at_info.is_empty():
+					_board.flash_zone(EventTranslator.anchor_of(at_info), Color(0.4, 0.85, 1.0, 1.0))
 		DuelEnums.EV.CHAIN_SOLVING:
 			var solving_idx: int = int(event.get("chain", 0))
 			if _chain_handles.has(solving_idx):
