@@ -1369,6 +1369,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles deck" % seat)
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+		DuelEnums.EV.SWAP:
+			var swap_code1: int = int(event.get("card", 0))
+			var swap_code2: int = int(event.get("card2", 0))
+			if swap_code1 != 0 and swap_code2 != 0:
+				_duel_log.append("%s swapped with %s" % [_card_name(swap_code1), _card_name(swap_code2)])
 		DuelEnums.EV.RANDOM_SELECTED:
 			var rand_cards: Array = event.get("cards", [])
 			for loc: Dictionary in rand_cards:
