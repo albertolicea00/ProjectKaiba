@@ -436,6 +436,19 @@ func _paint_life() -> void:
 	_paint_lp_bars()
 
 
+func flash_lp_text(player: int, is_damage: bool) -> void:
+	if not is_node_ready():
+		return
+	var label: Label = _bottom_life if player == local_player else _top_life
+	if label == null:
+		return
+	var flash_col: Color = Color(1.0, 0.2, 0.2) if is_damage else Color(0.2, 1.0, 0.3)
+	label.add_theme_color_override("font_color", flash_col)
+	var tw: Tween = create_tween()
+	tw.tween_interval(0.35)
+	tw.tween_callback(label.remove_theme_color_override.bind("font_color"))
+
+
 func _build_lp_bars() -> void:
 	_lp_bars.resize(DuelEnums.PLAYER_COUNT)
 	_lp_frames.resize(DuelEnums.PLAYER_COUNT)

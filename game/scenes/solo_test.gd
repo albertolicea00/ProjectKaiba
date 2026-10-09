@@ -526,6 +526,11 @@ func _handle(event: Dictionary) -> void:
 					_board.add_target_line(atk_card.handle, def_card.handle, Color(1.0, 0.3, 0.3, 0.9))
 		DuelEnums.EV.BATTLE:
 			_show_combat(event)
+			if bool(event.get("direct", false)):
+				var battle_player: int = int(event.get("from_player", int(event.get("player", 0))))
+				var target_player: int = 1 - battle_player
+				if _hud != null:
+					_hud.flash_lp_text(target_player, true)
 		DuelEnums.EV.NEW_PHASE:
 			if _hud != null:
 				_hud.set_combat(null, null)
@@ -635,8 +640,10 @@ func _handle(event: Dictionary) -> void:
 		DuelEnums.EV.FIELD_DISABLED:
 			_board.set_disabled_zones(int(event.get("flag", 0)))
 		DuelEnums.EV.PAY_LPCOST:
+			var pay_player: int = int(event.get("player", 0))
 			if _hud != null:
-				_hud.show_lp_change(int(event.get("player", 0)), -int(event.get("amount", 0)))
+				_hud.show_lp_change(pay_player, -int(event.get("amount", 0)))
+				_hud.flash_lp_text(pay_player, true)
 			if _audio != null:
 				_audio.play_effect("damage")
 		DuelEnums.EV.CONFIRM_CARDS, DuelEnums.EV.CONFIRM_DECKTOP:
@@ -676,15 +683,19 @@ func _handle(event: Dictionary) -> void:
 				_audio.set_music_context("win" if is_local_win else "lose")
 		DuelEnums.EV.DAMAGE:
 			var dmg_amount: int = int(event.get("amount", 0))
+			var dmg_player: int = int(event.get("player", 0))
 			if _hud != null:
-				_hud.show_lp_change(int(event.get("player", 0)), -dmg_amount)
+				_hud.show_lp_change(dmg_player, -dmg_amount)
+				_hud.flash_lp_text(dmg_player, true)
 				if dmg_amount >= DuelHud.DAMAGE_FLASH_THRESHOLD:
 					_hud.flash_damage()
 			if _audio != null:
 				_audio.play_effect("damage")
 		DuelEnums.EV.RECOVER:
+			var rec_player: int = int(event.get("player", 0))
 			if _hud != null:
-				_hud.show_lp_change(int(event.get("player", 0)), int(event.get("amount", 0)))
+				_hud.show_lp_change(rec_player, int(event.get("amount", 0)))
+				_hud.flash_lp_text(rec_player, false)
 			if _audio != null:
 				_audio.play_effect("gainlp")
 		DuelEnums.EV.RETRY:
