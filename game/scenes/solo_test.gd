@@ -1343,6 +1343,11 @@ func _log_event(type: int, event: Dictionary) -> void:
 			_duel_log.append("%s shuffles deck" % seat)
 		DuelEnums.EV.SHUFFLE_HAND:
 			_duel_log.append("%s shuffles hand" % seat)
+		DuelEnums.EV.MISSED_EFFECT:
+			if code != 0:
+				_duel_log.append("%s missed timing" % _card_name(code), Color(0.7, 0.5, 0.5))
+		DuelEnums.EV.DAMAGE_STEP_START:
+			_duel_log.append_system("Damage Step")
 		DuelEnums.EV.LPUPDATE:
 			_duel_log.append_system("%s LP: %d" % [seat, int(event.get("lp", 0))])
 		DuelEnums.EV.WIN:
