@@ -160,6 +160,18 @@ const PASSIVE_EVENTS: Array[int] = [
 	DuelEnums.EV.SHOW_HINT,
 	DuelEnums.EV.TOSS_COIN,
 	DuelEnums.EV.TOSS_DICE,
+	DuelEnums.EV.EQUIP,
+	DuelEnums.EV.CARD_TARGET,
+	DuelEnums.EV.CANCEL_TARGET,
+	DuelEnums.EV.PAY_LPCOST,
+	DuelEnums.EV.ADD_COUNTER,
+	DuelEnums.EV.REMOVE_COUNTER,
+	DuelEnums.EV.SWAP,
+	DuelEnums.EV.REMOVE_CARDS,
+	DuelEnums.EV.ANNOUNCE_RACE,
+	DuelEnums.EV.ANNOUNCE_ATTRIB,
+	DuelEnums.EV.ANNOUNCE_CARD,
+	DuelEnums.EV.ANNOUNCE_NUMBER,
 ]
 
 ## Event types already warned about, so the warning fires once per type and a repeating
