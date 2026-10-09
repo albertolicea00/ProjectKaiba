@@ -678,11 +678,17 @@ func _handle(event: Dictionary) -> void:
 					Color(1.0, 0.85, 0.3, 0.8) if type == DuelEnums.EV.ADD_COUNTER else Color(0.7, 0.4, 0.4, 0.8))
 			_board.sync_from_state(_state)
 		DuelEnums.EV.MOVE:
+			var move_from: Dictionary = event.get("from", {}) as Dictionary
 			var move_to: Dictionary = event.get("to", {}) as Dictionary
+			var move_reason: int = int(event.get("reason", 0))
+			if not move_from.is_empty():
+				var from_loc: int = int(move_from.get("loc", 0))
+				if (from_loc == DuelEnums.LOCATION.MZONE or from_loc == DuelEnums.LOCATION.SZONE) \
+						and (move_reason & DuelEnums.REASON.DESTROY) != 0:
+					_board.flash_zone(EventTranslator.anchor_of(move_from), Color(1.0, 0.15, 0.15, 0.9))
 			if not move_to.is_empty():
 				var to_loc: int = int(move_to.get("loc", 0))
 				if to_loc == DuelEnums.LOCATION.MZONE or to_loc == DuelEnums.LOCATION.SZONE:
-					var move_reason: int = int(event.get("reason", 0))
 					var move_colour: Color = Color(0.8, 0.4, 0.4, 0.7)
 					if (move_reason & DuelEnums.REASON.DESTROY) != 0:
 						move_colour = Color(1.0, 0.2, 0.2, 0.9)
@@ -1942,7 +1948,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 			if _audio != null:
 				_audio.play_effect("activate")
 		DuelEnums.EV.CHAIN_NEGATED:
-			_duel_log.append("%s negated" % _card_name(code))
+			_duel_log.append_damage("%s negated" % _card_name(code))
 			if _audio != null:
 				_audio.play_effect("destroyed")
 		DuelEnums.EV.ATTACK:
