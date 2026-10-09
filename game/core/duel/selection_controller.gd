@@ -45,11 +45,12 @@ extends RefCounted
 ## -------------------------------------------------------------------------------------------
 ## What it cannot answer yet
 ## -------------------------------------------------------------------------------------------
-## `MSG_SELECT_OPTION` needs an intent that names an option, and `MSG_SORT_CARD` needs one that
-## names an order. The six-verb vocabulary has no way to express either, so both are answered
-## with their least-destructive default (first option, decline the sort) and flagged by
-## `can_answer()`. `MSG_SELECT_COUNTER`, `MSG_SELECT_UNSELECT_CARD` and the `MSG_ANNOUNCE_*`
-## family are not answered at all - `MsgParser` does not even parse them yet.
+## `MSG_SELECT_OPTION` answers with the first option (no intent can name one).
+## `MSG_SORT_CARD` / `MSG_SORT_CHAIN` accept tap-to-order or cancel (engine default).
+## `MSG_SELECT_COUNTER` distributes via tap-to-increment; `MSG_SELECT_UNSELECT_CARD` picks
+## one card per tap. `MSG_ANNOUNCE_RACE` / `MSG_ANNOUNCE_ATTRIB` auto-answer when only one
+## combination fits; `MSG_ANNOUNCE_CARD` / `MSG_ANNOUNCE_NUMBER` default to the first option.
+## All need real UI dialogs for full player control.
 
 # ----------------------------------------------------------------------------------------------
 # InputIntent vocabulary. Mirrors `platform/input/input_source.gd`; duplicated as plain strings
@@ -178,6 +179,14 @@ const ANSWERABLE: Array[int] = [
 	DuelEnums.EV.SELECT_CHAIN,
 	DuelEnums.EV.SELECT_POSITION,
 	DuelEnums.EV.SELECT_OPTION,
+	DuelEnums.EV.SELECT_COUNTER,
+	DuelEnums.EV.SELECT_UNSELECT_CARD,
+	DuelEnums.EV.SORT_CARD,
+	DuelEnums.EV.SORT_CHAIN,
+	DuelEnums.EV.ANNOUNCE_RACE,
+	DuelEnums.EV.ANNOUNCE_ATTRIB,
+	DuelEnums.EV.ANNOUNCE_CARD,
+	DuelEnums.EV.ANNOUNCE_NUMBER,
 ]
 
 
@@ -226,7 +235,23 @@ func pending_prompt() -> String:
 		DuelEnums.EV.SELECT_OPTION:
 			return "Choose an option: %d offered, confirm takes the first" % _list("options").size()
 		DuelEnums.EV.SORT_CARD, DuelEnums.EV.SORT_CHAIN:
-			return "Sort %d cards (not expressible yet; confirm declines)" % _list("cards").size()
+			return "Sort %d cards: tap to order, confirm to accept" % _list("cards").size()
+		DuelEnums.EV.SELECT_COUNTER:
+			return "Distribute %d counters among %d cards" % [
+				int(_pending.get("count", 0)), _list("cards").size()]
+		DuelEnums.EV.SELECT_UNSELECT_CARD:
+			var fin: bool = bool(_pending.get("finishable", false))
+			return "Select cards%s: %d available" % [
+				" (confirm to finish)" if fin else "",
+				_list("select_cards").size()]
+		DuelEnums.EV.ANNOUNCE_RACE:
+			return "Announce %d monster type(s)" % int(_pending.get("count", 1))
+		DuelEnums.EV.ANNOUNCE_ATTRIB:
+			return "Announce %d attribute(s)" % int(_pending.get("count", 1))
+		DuelEnums.EV.ANNOUNCE_CARD:
+			return "Declare a card name"
+		DuelEnums.EV.ANNOUNCE_NUMBER:
+			return "Choose a number: %d options" % _list("options").size()
 
 	return "Waiting on %s" % DuelEnums.ev_name(_type)
 
@@ -295,7 +320,7 @@ func actionable_handles(state: DuelState) -> PackedInt32Array:
 ## list added to `MsgParser` and forgotten here goes dark rather than wrong, which is harder to
 ## notice than a crash.
 const OFFER_LISTS: Array[String] = [
-	"chains", "cards", "must",
+	"chains", "cards", "must", "select_cards",
 	"summon", "spsummon", "mset", "sset", "repos", "activate", "attack",
 ]
 
@@ -403,8 +428,19 @@ func resolve(input: Dictionary) -> Dictionary:
 			# No intent names an option, so the only honest answer is the first one.
 			return {"index": 0} if kind == KIND_CONFIRM else {}
 		DuelEnums.EV.SORT_CARD, DuelEnums.EV.SORT_CHAIN:
-			# Likewise: no intent expresses an order, and declining keeps the engine's own.
-			return {"cancel": true} if kind == KIND_CONFIRM or kind == KIND_CANCEL else {}
+			return _resolve_sort(input, kind)
+		DuelEnums.EV.SELECT_COUNTER:
+			return _resolve_counter(input, kind)
+		DuelEnums.EV.SELECT_UNSELECT_CARD:
+			return _resolve_unselect_card(input, kind)
+		DuelEnums.EV.ANNOUNCE_RACE:
+			return _resolve_announce_race(kind)
+		DuelEnums.EV.ANNOUNCE_ATTRIB:
+			return _resolve_announce_attrib(kind)
+		DuelEnums.EV.ANNOUNCE_CARD:
+			return _resolve_announce_card(kind)
+		DuelEnums.EV.ANNOUNCE_NUMBER:
+			return _resolve_announce_number(kind)
 
 	return {}
 
@@ -962,6 +998,167 @@ func _dfs_sum(cards: Array, i: int, remaining: int, chosen: Array[int], min_n: i
 	if must_keep.has(i):
 		return false
 	return _dfs_sum(cards, i + 1, remaining, chosen, min_n, max_n, must_keep)
+
+
+## MSG_SORT_CARD / MSG_SORT_CHAIN. Tap cards to set their order; confirm accepts, cancel
+## declines the sort (ocgcore uses engine-default order). Response: {"order": [0,2,1,...]}
+## or {"cancel": true}.
+func _resolve_sort(input: Dictionary, kind: String) -> Dictionary:
+	if kind == KIND_CANCEL:
+		if not _picks.is_empty():
+			_picks = []
+			return {}
+		return {"cancel": true}
+
+	if kind == KIND_CONFIRM:
+		var cards: Array = _list("cards")
+		if _picks.size() == cards.size():
+			return {"order": _picks.duplicate()}
+		if _picks.is_empty():
+			return {"cancel": true}
+		return {}
+
+	if kind != KIND_SELECT_CARD:
+		return {}
+
+	var index: int = _index_in_list("cards", _locate(input))
+	if index < 0:
+		return {}
+	if _picks.has(index):
+		return {}
+	_picks.append(index)
+
+	var cards: Array = _list("cards")
+	if _picks.size() == cards.size():
+		return {"order": _picks.duplicate()}
+	return {}
+
+
+## MSG_SELECT_COUNTER. Distribute `count` counters among offered cards. Each card has a
+## `counter_count` maximum. Tap a card to assign one counter to it; confirm submits when
+## the total equals `count`. Response: {"counters": [n_per_card, ...]}.
+func _resolve_counter(input: Dictionary, kind: String) -> Dictionary:
+	var cards: Array = _list("cards")
+	var needed: int = int(_pending.get("count", 0))
+
+	# Lazy-init _picks to zeros matching card count.
+	if _picks.size() != cards.size():
+		_picks.resize(cards.size())
+		for i: int in range(cards.size()):
+			_picks[i] = 0
+
+	if kind == KIND_CANCEL:
+		for i: int in range(_picks.size()):
+			_picks[i] = 0
+		return {}
+
+	if kind == KIND_CONFIRM:
+		var total: int = 0
+		for v: int in _picks:
+			total += v
+		if total == needed:
+			return {"counters": _picks.duplicate()}
+		return {}
+
+	if kind != KIND_SELECT_CARD:
+		return {}
+
+	var index: int = _index_in_list("cards", _locate(input))
+	if index < 0:
+		return {}
+
+	var total: int = 0
+	for v: int in _picks:
+		total += v
+	if total >= needed:
+		return {}
+
+	var cap: int = int((cards[index] as Dictionary).get("counter_count", 0))
+	if _picks[index] >= cap:
+		return {}
+	_picks[index] += 1
+
+	total += 1
+	if total == needed:
+		return {"counters": _picks.duplicate()}
+	return {}
+
+
+## MSG_SELECT_UNSELECT_CARD. Pick one card at a time from `select_cards`; confirm finishes
+## if `finishable`, cancel cancels if `cancelable`. Response: {"index": N} or {"cancel": true}.
+func _resolve_unselect_card(input: Dictionary, kind: String) -> Dictionary:
+	if kind == KIND_CANCEL:
+		if bool(_pending.get("cancelable", false)):
+			return {"cancel": true}
+		return {}
+
+	if kind == KIND_CONFIRM:
+		if bool(_pending.get("finishable", false)):
+			return {"cancel": true}
+		return {}
+
+	if kind != KIND_SELECT_CARD:
+		return {}
+
+	var index: int = _index_in_list("select_cards", _locate(input))
+	if index >= 0:
+		return {"index": index}
+	return {}
+
+
+## MSG_ANNOUNCE_RACE. Tap-to-toggle race bits; confirm submits when popcount == count.
+## Auto-selects if only one valid combination exists.
+func _resolve_announce_race(kind: String) -> Dictionary:
+	var available: int = int(_pending.get("available", 0))
+	var needed: int = int(_pending.get("count", 1))
+
+	if kind == KIND_CONFIRM:
+		# Auto-pick: if exactly `needed` bits set in available, that's the only answer.
+		var bits: int = _popcount64(available)
+		if bits == needed:
+			return {"race": available}
+		return {}
+	return {}
+
+
+## MSG_ANNOUNCE_ATTRIB. Same logic as race but 32-bit.
+func _resolve_announce_attrib(kind: String) -> Dictionary:
+	var available: int = int(_pending.get("available", 0))
+	var needed: int = int(_pending.get("count", 1))
+
+	if kind == KIND_CONFIRM:
+		var bits: int = _popcount64(available)
+		if bits == needed:
+			return {"attribute": available}
+		return {}
+	return {}
+
+
+## MSG_ANNOUNCE_CARD. Confirm picks first option code. Needs a real UI for card name entry.
+func _resolve_announce_card(kind: String) -> Dictionary:
+	if kind == KIND_CONFIRM:
+		var options: Array = _list("options")
+		if not options.is_empty():
+			return {"code": int(options[0])}
+	return {}
+
+
+## MSG_ANNOUNCE_NUMBER. Confirm picks first option. Needs a real UI for number picker.
+func _resolve_announce_number(kind: String) -> Dictionary:
+	if kind == KIND_CONFIRM:
+		var options: Array = _list("options")
+		if not options.is_empty():
+			return {"index": 0}
+	return {}
+
+
+static func _popcount64(v: int) -> int:
+	var count: int = 0
+	var x: int = v
+	while x != 0:
+		x &= x - 1
+		count += 1
+	return count
 
 
 func _list(key: String) -> Array:

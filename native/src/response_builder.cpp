@@ -69,6 +69,14 @@ void put_u8(Bytes &bytes, uint8_t value) {
 	BufferIO::insert_value<uint8_t>(bytes, value);
 }
 
+void put_u16(Bytes &bytes, uint16_t value) {
+	BufferIO::insert_value<uint16_t>(bytes, value);
+}
+
+void put_u64(Bytes &bytes, uint64_t value) {
+	BufferIO::insert_value<uint64_t>(bytes, value);
+}
+
 // ---------------------------------------------------------------------------------------
 // Intent reading
 // ---------------------------------------------------------------------------------------
@@ -711,6 +719,103 @@ bool encode_sort(const Dictionary &intent, const String &what, Bytes &bytes, Str
 }
 
 // ---------------------------------------------------------------------------------------
+// MSG_SELECT_COUNTER
+// ---------------------------------------------------------------------------------------
+//
+// One int16_t per card: how many counters to remove from that card. The sum must equal the
+// requested count. Intent: {"counters": [int, ...]}
+
+bool encode_select_counter(const Dictionary &intent, Bytes &bytes, String *error) {
+	const String what = "MSG_SELECT_COUNTER";
+	std::vector<int64_t> counters;
+	if (!read_int_list(intent, { "counters" }, what, counters, error)) {
+		return false;
+	}
+	for (std::size_t i = 0; i < counters.size(); ++i) {
+		put_u16(bytes, static_cast<uint16_t>(counters[i]));
+	}
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// MSG_SELECT_UNSELECT_CARD
+// ---------------------------------------------------------------------------------------
+//
+// Response: int32_t[0] = -1 (cancel) or 1, int32_t[1] = index into combined list.
+// Intent: {"cancel": true} or {"index": int}
+
+bool encode_select_unselect_card(const Dictionary &intent, Bytes &bytes, String *error) {
+	const String what = "MSG_SELECT_UNSELECT_CARD";
+	if (wants_cancel(intent)) {
+		put_u32(bytes, 0xffffffffu); // int32_t -1
+		return true;
+	}
+	if (!intent.has("index")) {
+		set_error(error, prefix(what) + "needs \"index\" or {\"cancel\": true}");
+		return false;
+	}
+	put_u32(bytes, 1u); // flag: not cancelling
+	put_u32(bytes, static_cast<uint32_t>(static_cast<int64_t>(intent["index"])));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// MSG_ANNOUNCE_RACE
+// ---------------------------------------------------------------------------------------
+// Response: uint64_t bitmask. Intent: {"race": int}
+
+bool encode_announce_race(const Dictionary &intent, Bytes &bytes, String *error) {
+	if (!intent.has("race")) {
+		set_error(error, prefix("MSG_ANNOUNCE_RACE") + "needs \"race\" bitmask");
+		return false;
+	}
+	put_u64(bytes, static_cast<uint64_t>(static_cast<int64_t>(intent["race"])));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// MSG_ANNOUNCE_ATTRIB
+// ---------------------------------------------------------------------------------------
+// Response: uint32_t bitmask. Intent: {"attribute": int}
+
+bool encode_announce_attrib(const Dictionary &intent, Bytes &bytes, String *error) {
+	if (!intent.has("attribute")) {
+		set_error(error, prefix("MSG_ANNOUNCE_ATTRIB") + "needs \"attribute\" bitmask");
+		return false;
+	}
+	put_u32(bytes, static_cast<uint32_t>(static_cast<int64_t>(intent["attribute"])));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// MSG_ANNOUNCE_CARD
+// ---------------------------------------------------------------------------------------
+// Response: int32_t card code. Intent: {"code": int}
+
+bool encode_announce_card(const Dictionary &intent, Bytes &bytes, String *error) {
+	if (!intent.has("code")) {
+		set_error(error, prefix("MSG_ANNOUNCE_CARD") + "needs \"code\" (card passcode)");
+		return false;
+	}
+	put_u32(bytes, static_cast<uint32_t>(static_cast<int64_t>(intent["code"])));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
+// MSG_ANNOUNCE_NUMBER
+// ---------------------------------------------------------------------------------------
+// Response: int32_t index into the offered options. Intent: {"index": int}
+
+bool encode_announce_number(const Dictionary &intent, Bytes &bytes, String *error) {
+	if (!intent.has("index")) {
+		set_error(error, prefix("MSG_ANNOUNCE_NUMBER") + "needs \"index\"");
+		return false;
+	}
+	put_u32(bytes, static_cast<uint32_t>(static_cast<int64_t>(intent["index"])));
+	return true;
+}
+
+// ---------------------------------------------------------------------------------------
 // Dispatch
 // ---------------------------------------------------------------------------------------
 
@@ -787,6 +892,18 @@ bool encode(int32_t event_type, const Dictionary &intent, Bytes &bytes, String *
 			return encode_sort(intent, "MSG_SORT_CARD", bytes, error);
 		case MSG_SORT_CHAIN:
 			return encode_sort(intent, "MSG_SORT_CHAIN", bytes, error);
+		case MSG_SELECT_COUNTER:
+			return encode_select_counter(intent, bytes, error);
+		case MSG_SELECT_UNSELECT_CARD:
+			return encode_select_unselect_card(intent, bytes, error);
+		case MSG_ANNOUNCE_RACE:
+			return encode_announce_race(intent, bytes, error);
+		case MSG_ANNOUNCE_ATTRIB:
+			return encode_announce_attrib(intent, bytes, error);
+		case MSG_ANNOUNCE_CARD:
+			return encode_announce_card(intent, bytes, error);
+		case MSG_ANNOUNCE_NUMBER:
+			return encode_announce_number(intent, bytes, error);
 
 		default: {
 			String message = "ResponseBuilder: ";
