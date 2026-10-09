@@ -695,6 +695,12 @@ func _sync_zone(slot: Variant, anchor: String) -> void:
 	else:
 		view.clear_stats()
 
+	if card.is_face_up() and (card.type & DuelEnums.TYPE.PENDULUM) != 0 \
+			and card.lscale > 0:
+		view.set_pendulum_scales(card.lscale, card.rscale)
+	else:
+		view.clear_pendulum_scales()
+
 	var materials: int = mini(card.overlay_codes.size(), OVERLAY_VIEW_LIMIT)
 	for index: int in range(materials):
 		var material_view: CardView = _pool.acquire()

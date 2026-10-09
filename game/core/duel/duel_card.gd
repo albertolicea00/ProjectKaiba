@@ -52,6 +52,8 @@ var base_defense: int = 0
 var level: int = 0
 var rank: int = 0
 var link: int = 0
+var lscale: int = 0
+var rscale: int = 0
 
 var attribute: int = 0
 
@@ -96,6 +98,8 @@ func apply_query(data: Dictionary) -> void:
 	level = _int_or(data, "level", level)
 	rank = _int_or(data, "rank", rank)
 	link = _int_or(data, "link", link)
+	lscale = _int_or(data, "lscale", lscale)
+	rscale = _int_or(data, "rscale", rscale)
 	attribute = _int_or(data, "attribute", attribute)
 	race = _int_or(data, "race", race)
 	type = _int_or(data, "type", type)
@@ -147,6 +151,8 @@ func clone() -> DuelCard:
 	copy.level = level
 	copy.rank = rank
 	copy.link = link
+	copy.lscale = lscale
+	copy.rscale = rscale
 	copy.attribute = attribute
 	copy.race = race
 	copy.type = type

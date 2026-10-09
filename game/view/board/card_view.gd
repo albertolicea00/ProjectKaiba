@@ -174,8 +174,14 @@ var _stat_label: Label3D = null
 var _indicator: Sprite3D = null
 var _indicator_type: String = ""
 var _chain_label: Label3D = null
+var _lscale_label: Label3D = null
+var _rscale_label: Label3D = null
 
 const STAT_FONT_SIZE: int = 48
+const SCALE_FONT_SIZE: int = 36
+const SCALE_COLOUR: Color = Color(0.2, 0.6, 1.0)
+const LSCALE_OFFSET: Vector3 = Vector3(-CARD_WIDTH * 0.38, -CARD_HEIGHT * 0.32, CARD_THICKNESS * 0.5 + 0.001)
+const RSCALE_OFFSET: Vector3 = Vector3(CARD_WIDTH * 0.38, -CARD_HEIGHT * 0.32, CARD_THICKNESS * 0.5 + 0.001)
 const STAT_LABEL_OFFSET: Vector3 = Vector3(0.0, -CARD_HEIGHT * 0.42, CARD_THICKNESS * 0.5 + 0.001)
 const STAT_COLOUR_NORMAL: Color = Color(1.0, 1.0, 1.0)
 const STAT_COLOUR_BOOSTED: Color = Color(0.3, 1.0, 0.3)
@@ -430,6 +436,21 @@ func clear_stats() -> void:
 		_stat_label.visible = false
 
 
+func set_pendulum_scales(left: int, right: int) -> void:
+	_ensure_scale_labels()
+	_lscale_label.text = str(left)
+	_rscale_label.text = str(right)
+	_lscale_label.visible = true
+	_rscale_label.visible = true
+
+
+func clear_pendulum_scales() -> void:
+	if _lscale_label != null:
+		_lscale_label.visible = false
+	if _rscale_label != null:
+		_rscale_label.visible = false
+
+
 func set_indicator(type: String) -> void:
 	if type == _indicator_type and _indicator != null and _indicator.visible:
 		return
@@ -532,6 +553,32 @@ func _ensure_stat_label() -> void:
 	_stat_label.no_depth_test = true
 	_stat_label.visible = false
 	add_child(_stat_label)
+
+
+func _ensure_scale_labels() -> void:
+	if _lscale_label != null:
+		return
+	for pair: Array in [["LScale", LSCALE_OFFSET], ["RScale", RSCALE_OFFSET]]:
+		var label: Label3D = Label3D.new()
+		label.name = pair[0]
+		label.pixel_size = 0.001
+		label.font_size = SCALE_FONT_SIZE
+		label.outline_size = 6
+		label.modulate = SCALE_COLOUR
+		label.outline_modulate = Color(0, 0, 0, 0.9)
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		label.position = pair[1]
+		label.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		label.shaded = false
+		label.double_sided = false
+		label.no_depth_test = true
+		label.visible = false
+		add_child(label)
+		if pair[0] == "LScale":
+			_lscale_label = label
+		else:
+			_rscale_label = label
 
 
 func _ensure_highlight() -> void:
