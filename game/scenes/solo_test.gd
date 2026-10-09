@@ -1604,6 +1604,26 @@ func _card_name(code: int) -> String:
 	return n if not n.is_empty() else "#%d" % code
 
 
+func _decode_desc(desc: int) -> String:
+	if desc == 0:
+		return ""
+	if desc < 256:
+		return _system_string(desc)
+	var desc_card: int = desc >> 4
+	var string_idx: int = desc & 0xf
+	if desc_card != 0 and _core != null:
+		var info: Dictionary = _core.get_card_info(desc_card)
+		var strings: PackedStringArray = info.get("strings", PackedStringArray()) as PackedStringArray
+		var name: String = str(info.get("name", ""))
+		if string_idx < strings.size() and not strings[string_idx].is_empty():
+			if not name.is_empty():
+				return "%s: %s" % [name, strings[string_idx]]
+			return strings[string_idx]
+		if not name.is_empty():
+			return name
+	return ""
+
+
 func _system_string(id: int) -> String:
 	if _system_strings.has(id):
 		return str(_system_strings[id])
@@ -1884,17 +1904,28 @@ func _log_event(type: int, event: Dictionary) -> void:
 		DuelEnums.EV.CARD_HINT:
 			var ch_card: DuelCard = _card_at_loc(event.get("at", {}))
 			var ch_type: int = int(event.get("hint_type", 0))
+			var ch_data: int = int(event.get("data", 0))
 			if ch_card != null and ch_card.code != 0:
-				if ch_type == 6:
-					_duel_log.append("%s: effect applied" % _card_name(ch_card.code), Color(0.6, 0.8, 1.0))
-				elif ch_type == 7:
-					_duel_log.append("%s: effect removed" % _card_name(ch_card.code), Color(0.7, 0.7, 0.7))
+				if ch_type == 6 or ch_type == 7:
+					var desc_text: String = _decode_desc(ch_data)
+					var action: String = "+" if ch_type == 6 else "-"
+					var colour: Color = Color(0.6, 0.8, 1.0) if ch_type == 6 else Color(0.7, 0.7, 0.7)
+					if not desc_text.is_empty():
+						_duel_log.append("%s %s: %s" % [action, _card_name(ch_card.code), desc_text], colour)
+					else:
+						var label: String = "effect applied" if ch_type == 6 else "effect removed"
+						_duel_log.append("%s %s: %s" % [action, _card_name(ch_card.code), label], colour)
 		DuelEnums.EV.PLAYER_HINT:
 			var ph_type: int = int(event.get("hint_type", 0))
-			if ph_type == 6:
-				_duel_log.append("%s: restriction applied" % seat, Color(0.6, 0.8, 1.0))
-			elif ph_type == 7:
-				_duel_log.append("%s: restriction removed" % seat, Color(0.7, 0.7, 0.7))
+			var ph_data: int = int(event.get("data", 0))
+			if ph_type == 6 or ph_type == 7:
+				var desc_text: String = _decode_desc(ph_data)
+				var colour: Color = Color(0.6, 0.8, 1.0) if ph_type == 6 else Color(0.7, 0.7, 0.7)
+				var label: String = "restriction applied" if ph_type == 6 else "restriction removed"
+				if not desc_text.is_empty():
+					_duel_log.append("%s: %s" % [seat, desc_text], colour)
+				else:
+					_duel_log.append("%s: %s" % [seat, label], colour)
 		DuelEnums.EV.WIN:
 			var winner: int = int(event.get("player", -1))
 			_duel_log.append_system("=== %s wins ===" % ("P%d" % winner))
