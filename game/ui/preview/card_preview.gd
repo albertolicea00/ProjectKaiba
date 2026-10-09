@@ -240,7 +240,9 @@ func show_card(info: Dictionary, face: Texture2D) -> void:
 	var known: bool = not info.is_empty()
 
 	_name.text = _name_of(info)
-	var type_text: String = type_line(int(info.get("type", 0))) if info.has("type") else EMPTY
+	var card_type: int = int(info.get("type", 0))
+	_name.add_theme_color_override("font_color", _name_colour(card_type))
+	var type_text: String = type_line(card_type) if info.has("type") else EMPTY
 	var setcode_names: PackedStringArray = info.get("setcode_names", PackedStringArray()) as PackedStringArray
 	if not setcode_names.is_empty():
 		type_text += "\n" + " / ".join(setcode_names)
@@ -357,6 +359,32 @@ static func link_marker_names(mask: int) -> PackedStringArray:
 # ----------------------------------------------------------------------------------------------
 # Internals
 # ----------------------------------------------------------------------------------------------
+
+static func _name_colour(type: int) -> Color:
+	if type == 0:
+		return Color(0.9, 0.92, 0.95)
+	if (type & DuelEnums.TYPE.MONSTER) != 0:
+		if (type & DuelEnums.TYPE.FUSION) != 0:
+			return Color(0.6, 0.35, 0.8)
+		if (type & DuelEnums.TYPE.SYNCHRO) != 0:
+			return Color(0.9, 0.9, 0.95)
+		if (type & DuelEnums.TYPE.XYZ) != 0:
+			return Color(0.75, 0.7, 0.55)
+		if (type & DuelEnums.TYPE.LINK) != 0:
+			return Color(0.2, 0.4, 0.85)
+		if (type & DuelEnums.TYPE.RITUAL) != 0:
+			return Color(0.3, 0.45, 0.85)
+		if (type & DuelEnums.TYPE.NORMAL) != 0:
+			return Color(0.85, 0.75, 0.4)
+		if (type & DuelEnums.TYPE.TOKEN) != 0:
+			return Color(0.6, 0.6, 0.65)
+		return Color(0.85, 0.6, 0.3)
+	if (type & DuelEnums.TYPE.SPELL) != 0:
+		return Color(0.3, 0.75, 0.45)
+	if (type & DuelEnums.TYPE.TRAP) != 0:
+		return Color(0.85, 0.35, 0.55)
+	return Color(0.9, 0.92, 0.95)
+
 
 ## A card with data but no text row still deserves a title. `get_card_info()` fills the two
 ## halves independently, so this is a reachable state rather than a defensive flourish.
