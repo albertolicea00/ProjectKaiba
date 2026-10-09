@@ -667,7 +667,7 @@ func _handle(event: Dictionary) -> void:
 			var cancel_tgt: DuelCard = _card_at_loc(event.get("to", {}))
 			if cancel_tgt != null:
 				_board.clear_card_indicator(cancel_tgt.handle)
-		DuelEnums.EV.CARD_SELECTED, DuelEnums.EV.BE_CHAIN_TARGET:
+		DuelEnums.EV.CARD_SELECTED:
 			var sel_cards: Array = event.get("cards", [])
 			for sel_loc: Dictionary in sel_cards:
 				var sel_card: DuelCard = _card_at_loc(sel_loc)
@@ -675,6 +675,14 @@ func _handle(event: Dictionary) -> void:
 					_board.set_card_indicator(sel_card.handle, "target")
 					if not sel_loc.is_empty():
 						_board.flash_zone(EventTranslator.anchor_of(sel_loc), Color(1.0, 0.5, 0.2, 0.6))
+		DuelEnums.EV.BE_CHAIN_TARGET:
+			var bct_cards: Array = event.get("cards", [])
+			for bct_loc: Dictionary in bct_cards:
+				var bct_card: DuelCard = _card_at_loc(bct_loc)
+				if bct_card != null:
+					_board.set_card_indicator(bct_card.handle, "chaintarget")
+					if not bct_loc.is_empty():
+						_board.flash_zone(EventTranslator.anchor_of(bct_loc), Color(1.0, 0.3, 0.3, 0.7))
 		DuelEnums.EV.UNEQUIP:
 			var uneq_card: DuelCard = _card_at_loc(event.get("from", {}))
 			if uneq_card != null:
@@ -2063,6 +2071,7 @@ func _log_event(type: int, event: Dictionary) -> void:
 				_duel_log.append("%s equipped to %s" % [
 					_card_name(equip_from.code), _card_name(equip_to.code)])
 				_board.add_target_line(equip_from.handle, equip_to.handle, Color(0.3, 0.9, 0.5, 0.7))
+				_board.set_card_indicator(equip_from.handle, "equip")
 			if _audio != null:
 				_audio.play_effect("equip")
 		DuelEnums.EV.BECOME_TARGET:
