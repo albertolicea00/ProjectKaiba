@@ -3,16 +3,15 @@
 > **It's Time to D-D-D-D-D-D-Duel!**
 
 <div>
-  <img src="https://img.shields.io/badge/Unofficial-Project-blueviolet" alt="Unofficial Project">
-  <img src="https://img.shields.io/badge/Fanmade-Project-orange" alt="Fanmade">
-  <img src="https://img.shields.io/badge/Purpose-Learning-green" alt="Purpose">
-  <img src="https://img.shields.io/badge/Distribution-Prohibited-red" alt="Not for Distribution">
+  <img src="https://img.shields.io/badge/Unofficial-Fan%20Client-blueviolet" alt="Unofficial Fan Client">
+  <img src="https://img.shields.io/badge/Non--Commercial-Educational-green" alt="Non-Commercial Educational">
+  <img src="https://img.shields.io/badge/Zero%20Game%20Assets-Included-lightgrey" alt="Zero Assets Included">
 </div>
 
-**Project Kaiba** is a personal, fan-made mobile Yu-Gi-Oh! project created for my own use and to play duels with friends.
+**Project Kaiba** is an unofficial, open fan-made Yu-Gi-Oh! game client built with Godot 4 and `ocgcore`, created for educational study, experimentation, and offline duels with friends.
 
-*This project is not intended for public distribution, commercial use, or release.*
-<!-- Not affiliated with Konami. Not for distribution or monetization. -->
+*This repository contains client code only. No copyrighted card databases, card artwork, or proprietary assets are distributed or hosted in this repository.*
+<!-- Not affiliated with Konami. Non-commercial and unmonetized. -->
 ---
 
 ## 🎯 Goals
@@ -73,11 +72,11 @@ These projects are listed as references for their existing duel engine, rules im
 
 ---
 
-## 🔒 Personal Project
+## 🔒 Non-Commercial & Educational Scope
 
-Project Kaiba is **not a commercial product** and is **not intended to be distributed publicly**.
+Project Kaiba is **strictly non-commercial and unmonetized**.
 
-It is a personal development project created for experimentation, learning, and playing Yu-Gi-Oh! duels with friends.
+It is a client architecture study and fan project created for experimentation, learning Godot 4 / GDExtension mechanics, and playing duels with friends locally or over LAN.
 
 ---
 
@@ -88,12 +87,12 @@ Project Kaiba is an unofficial fan-made project and is **not affiliated with, sp
 > [!WARNING]
 > **Yu-Gi-Oh!** and all rights to the original game — including characters, story, images, audio, cards, artwork, trademarks, and assets — belong to Konami and their respective owners.
 > 
-> This repository is strictly for personal use, learning, and playing with friends. It is not intended for public distribution. Do not publish or distribute this repository, as it may contain copyrighted assets.
+> This repository provides client code only and distributes **zero copyrighted game data, cards, or artwork**. All required card databases, card arts, and scripts must be supplied locally by the user.
 > 
-> For more details, please read the full [Disclaimer & Copyright Notice](disclaimer.md).
+> For full details, please read the [Disclaimer & Copyright Notice](DISCLAIMER.md).
 
 ---
 
 <p align="center">
-  <i>For personal use and playing with friends.</i>
+  <i>Fan-made educational client. Support the official Yu-Gi-Oh! releases.</i>
 </p>
