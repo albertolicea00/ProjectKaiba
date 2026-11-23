@@ -232,7 +232,7 @@ TEMPLATE_URL   := https://github.com/godotengine/godot/releases/download/4.6.3-s
 # The version is `application/config/version` in game/project.godot and the version code is
 # VERSION_CODE below, both versioned. export_presets.cfg is gitignored, so `export-preset` copies
 # both into its `version/name` and `version/code` on every run. Bump them together.
-VERSION_CODE   := 1
+VERSION_CODE   := 2
 PRESET         := $(GAME_DIR)/export_presets.cfg
 VERSION_NAME   := $(shell sed -n 's/^config\/version="\(..*\)"$$/\1/p' $(GAME_DIR)/project.godot 2>/dev/null | head -1)
 ifeq ($(VERSION_NAME),)
