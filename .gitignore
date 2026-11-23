@@ -96,6 +96,28 @@ Thumbs.db
 *.userprefs
 
 # ---------------------------------------------------------------------------
+# Signing & secrets
+# ---------------------------------------------------------------------------
+*.keystore
+*.jks
+*.p12
+*.mobileprovision
+.env
+.env.*
+secrets.properties
+*.secret
+keys/google-services.json
+keys/release.properties
+keys/ios.properties
+*.jks
+*.keystore
+keystore.properties
+signing.properties
+*.p12
+*.mobileprovision
+*.p8
+
+# ---------------------------------------------------------------------------
 # Custom
 # ---------------------------------------------------------------------------
 .workspace/*

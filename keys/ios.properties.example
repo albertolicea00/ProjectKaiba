@@ -1,0 +1,3 @@
+# Copy to keys/ios.properties (git-ignored) to install on your own iPhone.
+# Team id from Xcode → Settings → Accounts, or from `make install ios` without it.
+DEVELOPMENT_TEAM=
