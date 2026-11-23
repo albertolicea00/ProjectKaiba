@@ -37,8 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   files carry resource UIDs and regenerating them breaks `uid://` references.
 
 - APKs are named `build/project-kaiba-v<version>-<versionCode>-<debug|release>.apk`, with the
-  version read from the Android preset's `version/name` and `version/code` (Godot's fallbacks
-  when unset). `make apk-name` prints the name; the preset generator now writes both keys.
+  version from `config/version` in `game/project.godot` (now `0.1.0`) and the version code from
+  `VERSION_CODE` in the `Makefile`; `make apk` copies both into the gitignored preset and stops
+  when the version is missing. `make apk-name` prints the name. Android export also needed
+  `textures/vram_compression/import_etc2_astc=true`.
   Only debug exports exist; `docs/BUILD.md` documents packaging and what release signing lacks.
 
 ### Pinned dependencies

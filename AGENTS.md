@@ -131,8 +131,8 @@ make apk         # debug APK -> build/project-kaiba-v<version>-<versionCode>-deb
 make install-apk # debug APK onto the attached device, then launch it
 ```
 
-APK names come from the Android preset's `version/name` and `version/code` in the gitignored
-`game/export_presets.cfg` (fallbacks: `project.godot` `config/version`, else `1.0`; code `1`).
+The version is `config/version` in `game/project.godot` and the version code is `VERSION_CODE`
+in the `Makefile`; `make apk` copies both into the gitignored preset and fails without a version.
 Only debug exports exist; release export and signing are not wired. Never read or commit
 `keys/`, keystores or the preset's keystore fields. Details: `docs/BUILD.md` "Packaging an APK".
 

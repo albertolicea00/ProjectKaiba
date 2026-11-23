@@ -90,27 +90,30 @@ The APK lands in `build/` as:
 
 ```
 build/project-kaiba-v<version>-<versionCode>-<debug|release>.apk
-e.g. build/project-kaiba-v1.0-1-debug.apk
+e.g. build/project-kaiba-v0.1.0-1-debug.apk
 ```
 
-`<version>` and `<versionCode>` are the values Godot writes into the Android manifest, so the
-single source of truth is the Android preset in `game/export_presets.cfg`:
+`<version>` and `<versionCode>` are the values Godot writes into the Android manifest. Both are
+versioned in the repository:
 
-| field | name part | when empty or missing |
-|---|---|---|
-| `version/name` | `<version>` | `application/config/version` in `project.godot`, else `1.0` |
-| `version/code` | `<versionCode>` | `1` |
+| value | where |
+|---|---|
+| version | `config/version` under `[application]` in `game/project.godot` |
+| version code | `VERSION_CODE` in the `Makefile` |
 
-The project sets neither today, so builds are named `v1.0-1`. To version a build, set those two
-keys in the preset (editor: Project → Export → Android → Version, or edit the file) and run
-`make apk-name` to confirm the name. The Makefile reads only these two keys from the preset.
-`version/code` must increase for Android to install an update over an older build.
+There is no fallback: without `config/version`, `make` stops with an error. To release a new
+build, bump both together (`version code` must increase for Android to install an update over an
+older build) and run `make apk-name` to confirm the name.
 
 `export_presets.cfg` is gitignored because it can hold a keystore path and password, so it is
-generated, never committed. The generator writes `version/code=1`, `version/name=""` and an
-`export_path` with the versioned name; an existing file is never overwritten, so a preset written
-before this naming scheme keeps its old `export_path`. That field only matters for exports started
-from the editor; `make apk` always passes the path explicitly.
+generated, never committed. `make export-preset` (run by `make apk`) writes it when missing and
+always resets its `version/name` and `version/code` to the values above; no other line is touched.
+An existing file is never otherwise overwritten, so a preset written before this naming scheme
+keeps its old `export_path`. That field only matters for exports started from the editor;
+`make apk` always passes the path explicitly.
+
+The project also needs `textures/vram_compression/import_etc2_astc=true` (in `project.godot`):
+without it Godot refuses the Android export with an empty "configuration errors" message.
 
 Debug signing uses the debug keystore configured in Godot's editor settings
 (`export/android/debug_keystore`), not anything in this repo.
