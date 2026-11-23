@@ -65,6 +65,7 @@ help:
 	@echo "  make android    Build all three Android ABIs"
 	@echo "  make apk        Package a debug APK as build/project-kaiba-v<version>-<code>-debug.apk"
 	@echo "  make install-apk  Build the debug APK, install it on the attached device and launch it"
+	@echo "  make apk-release  Build the release APK signed with keys/release.properties"
 	@echo "  make apk-name   Print the debug APK path without building"
 	@echo "  make selftest   Build and run the headless ocgcore probe"
 	@echo "  make run        Launch the Godot project"
@@ -239,8 +240,11 @@ $(error No version: set config/version="X.Y.Z" under [application] in $(GAME_DIR
 endif
 APK_STEM       := build/project-kaiba-v$(VERSION_NAME)-$(VERSION_CODE)
 APK_DEBUG      := $(APK_STEM)-debug.apk
+APK_RELEASE    := $(APK_STEM)-release.apk
+APK_UNSIGNED   := $(APK_STEM)-release-unsigned.apk
+PYTHON         ?= python3
 
-.PHONY: android-templates export-preset apk install-apk apk-name
+.PHONY: android-templates export-preset apk apk-release install-apk apk-name
 
 android-templates:
 	@if [ -d "$(TEMPLATE_DIR)" ]; then \
@@ -257,8 +261,9 @@ android-templates:
 
 # export_presets.cfg is gitignored because it can hold a keystore path and password, so it is
 # generated locally rather than versioned. Editing it by hand or in the editor is fine; this
-# only writes it when it is missing, then always resets version/name and version/code to the
-# versioned values above (no other line is touched).
+# only writes it when it is missing, adds the unsigned "Android Release" preset when that is
+# missing, then always resets version/name and version/code in every preset to the versioned
+# values above (no other line is touched).
 export-preset:
 	@if [ -f $(GAME_DIR)/export_presets.cfg ]; then \
 		echo "export_presets.cfg already exists; leaving it alone"; \
@@ -299,7 +304,45 @@ export-preset:
 		  > $(GAME_DIR)/export_presets.cfg; \
 		echo "wrote $(GAME_DIR)/export_presets.cfg (arm64 only, debug signing)"; \
 	fi
-	@perl -0pi -e 's/^version\/(code|name)=.*\n//mg; s/^(\[preset\.0\.options\]\n)/$$1version\/code=$(VERSION_CODE)\nversion\/name="$(VERSION_NAME)"\n/m' $(PRESET)
+	@if ! grep -q '^name="Android Release"$$' $(PRESET); then \
+		n=$$(grep -c '^\[preset\.[0-9][0-9]*\]$$' $(PRESET)); \
+		printf '%s\n' '' \
+		  "[preset.$$n]" '' \
+		  'name="Android Release"' \
+		  'platform="Android"' \
+		  'runnable=false' \
+		  'advanced_options=false' \
+		  'dedicated_server=false' \
+		  'custom_features=""' \
+		  'export_filter="all_resources"' \
+		  'include_filter=""' \
+		  'exclude_filter=""' \
+		  'export_path="../$(APK_RELEASE)"' \
+		  'encryption_include_filters=""' \
+		  'encryption_exclude_filters=""' \
+		  'seed=0' \
+		  'encrypt_pck=false' \
+		  'encrypt_directory=false' \
+		  'script_export_mode=2' \
+		  '' "[preset.$$n.options]" '' \
+		  'gradle_build/use_gradle_build=false' \
+		  'architectures/armeabi-v7a=false' \
+		  'architectures/arm64-v8a=true' \
+		  'architectures/x86=false' \
+		  'architectures/x86_64=false' \
+		  'package/unique_name="com.example.projectkaiba"' \
+		  'package/name="Project Kaiba"' \
+		  'package/signed=false' \
+		  'screen/immersive_mode=true' \
+		  'screen/orientation=0' \
+		  'screen/support_small=true' \
+		  'screen/support_normal=true' \
+		  'screen/support_large=true' \
+		  'screen/support_xlarge=true' \
+		  >> $(PRESET); \
+		echo "added the unsigned \"Android Release\" preset to $(PRESET)"; \
+	fi
+	@perl -0pi -e 's/^version\/(code|name)=.*\n//mg; s/^(\[preset\.\d+\.options\]\n)/$$1version\/code=$(VERSION_CODE)\nversion\/name="$(VERSION_NAME)"\n/mg' $(PRESET)
 	@echo "preset version: $(VERSION_NAME) ($(VERSION_CODE))"
 
 # Builds the native library for arm64 and packages a debug APK.
@@ -309,6 +352,19 @@ apk: android-arm64 export-preset
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	$(GODOT) --headless --path $(GAME_DIR) --export-debug "Android" ../$(APK_DEBUG)
 	@ls -lh $(APK_DEBUG)
+
+# Builds the optimised arm64 library and packages a release APK signed with
+# keys/release.properties. Godot cannot sign with passwords that contain shell characters, so it
+# exports the unsigned "Android Release" preset and tools/sign_apk.py signs it.
+apk-release: export-preset
+	@test -d "$(TEMPLATE_DIR)" || (echo "export templates missing - run: make android-templates"; exit 1)
+	$(MAKE) android-arm64 TARGET=template_release
+	@mkdir -p build
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	$(GODOT) --headless --path $(GAME_DIR) --export-release "Android Release" ../$(APK_UNSIGNED)
+	$(PYTHON) tools/sign_apk.py $(APK_UNSIGNED) $(APK_RELEASE) keys/release.properties
+	@rm -f $(APK_UNSIGNED)
+	@ls -lh $(APK_RELEASE)
 
 # Prints the debug APK path `make apk` would write, without building anything.
 apk-name:
