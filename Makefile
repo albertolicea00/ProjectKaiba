@@ -435,8 +435,8 @@ ipa: export-preset
 	GODOT_BIN="$(GODOT)" tools/export_ipa.sh $(GAME_DIR) project-kaiba build/ios
 
 # Builds the optimised macOS library for arm64 and x86_64 and writes a universal, ad-hoc signed
-# build/macos/project-kaiba-v<version>-<code>-release.dmg (no Developer ID: another Mac opens it
-# the first time with right-click → Open).
+# build/macos/project-kaiba-v<version>-<code>-release.dmg (no Developer ID,
+# not notarized; see the docs for opening it on another Mac (Gatekeeper)).
 DMG := build/macos/project-kaiba-v$(VERSION_NAME)-$(VERSION_CODE)-release.dmg
 dmg: export-preset
 	@test -d "$(TEMPLATE_DIR)" || (echo "export templates missing - run: make android-templates"; exit 1)

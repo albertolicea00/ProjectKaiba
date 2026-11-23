@@ -168,7 +168,15 @@ APK in its global cache and fail with "Could not unzip temporary unaligned APK".
 
 ## macOS
 
-`make dmg` builds `libkaiba_core` in release for arm64 and x86_64 and writes a universal, ad-hoc signed `build/macos/project-kaiba-v<version>-<code>-release.dmg`. `make export-preset` adds the `macOS` preset when missing and writes the version and code into it. There is no Developer ID or notarization, so another Mac opens the app the first time with right-click → Open. Windows and Linux builds need `libkaiba_core` cross-compiled (mingw-w64 / a Linux toolchain) and are not set up yet.
+`make dmg` builds `libkaiba_core` in release for arm64 and x86_64 and writes a universal, ad-hoc signed `build/macos/project-kaiba-v<version>-<code>-release.dmg`. `make export-preset` adds the `macOS` preset when missing and writes the version and code into it. Windows and Linux builds need `libkaiba_core` cross-compiled (mingw-w64 / a Linux toolchain) and are not set up yet.
+
+**First launch on another Mac (Gatekeeper).** The app is ad-hoc signed but not notarized, so macOS blocks a copy that was downloaded (web, AirDrop, chat apps) with "cannot verify the developer". To open it:
+
+- **macOS 15 Sequoia or later:** try to open it once, then System Settings → Privacy & Security → **Open Anyway**. Right-click → Open no longer bypasses the check.
+- **macOS 14 or earlier:** right-click the app → **Open**, then confirm.
+- **Any version, from Terminal:** `xattr -dr com.apple.quarantine "/Applications/Project Kaiba.app"`
+
+The Mac that built it opens it directly. Only a Developer ID certificate plus Apple notarization (paid Apple Developer Program) removes the warning. The disk image has no Applications shortcut: drag the app to Applications, or run it from the image.
 
 ## The standalone probe
 
