@@ -128,12 +128,13 @@ make host        # build for this machine (editor)
 make android     # build all 3 Android ABIs
 make selftest    # run the Phase 0 core selftest headless
 make apk         # debug APK -> build/project-kaiba-v<version>-<versionCode>-debug.apk
+make apk-release # release APK signed with keys/release.properties (tools/sign_apk.py)
 make install-apk # debug APK onto the attached device, then launch it
 ```
 
 The version is `config/version` in `game/project.godot` and the version code is `VERSION_CODE`
 in the `Makefile`; `make apk` copies both into the gitignored preset and fails without a version.
-Only debug exports exist; release export and signing are not wired. Never read or commit
+Release APKs are exported unsigned and signed by `tools/sign_apk.py`. Never read or commit
 `keys/`, keystores or the preset's keystore fields. Details: `docs/BUILD.md` "Packaging an APK".
 
 **The ten gates.** There is no CI; these are the suite. Run all of them after a pull, before any

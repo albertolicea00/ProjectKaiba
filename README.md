@@ -47,6 +47,7 @@ Where the project stands and what is next: **[ROADMAP.md](ROADMAP.md)**.
 ```bash
 make android-templates   # one time: Godot 4.6.3 export templates (~1.2 GB)
 make apk                 # debug APK in build/project-kaiba-v<version>-<versionCode>-debug.apk
+make apk-release         # release APK signed with keys/release.properties
 make install-apk         # build, install on the attached device and launch
 ```
 

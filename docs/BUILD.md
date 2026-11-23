@@ -120,18 +120,36 @@ Debug signing uses the debug keystore configured in Godot's editor settings
 
 ### Release APK
 
-Not wired. There is no `make` target that runs `--export-release`, and nothing in the Makefile
-reads `keys/` or any properties file to put a keystore into the preset. `keys/release.properties`
-is listed in `.gitignore` but no script consumes it.
+```sh
+make apk-release   # release APK -> build/project-kaiba-v<version>-<versionCode>-release.apk
+```
 
-What a release export would need, from Godot's side: the Android preset's
-`keystore/release`, `keystore/release_user` and `keystore/release_password` options (or the
-`GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `_USER` and `_PASSWORD` environment variables, which Godot
-reads at export time), native libraries built with `TARGET=template_release`, and a
-`godot --headless --export-release "Android" ../build/project-kaiba-v<version>-<versionCode>-release.apk`
-call. If you put those values in `export_presets.cfg` by hand, remember it is a Godot
-`ConfigFile`: string values are double-quoted and a backslash or quote inside them is written
-`\\` or `\"`. On macOS and Linux keystore paths normally contain neither.
+It builds the arm64 library with `TARGET=template_release`, exports the unsigned
+`Android Release` preset (arm64 only) and then runs `tools/sign_apk.py`, which aligns the APK with
+`zipalign` (16 KB pages on build-tools 35+) and signs it with `apksigner` using
+`keys/release.properties` (git-ignored; copy `keys/release.properties.example`):
+
+```properties
+storeFile=release.jks
+storePassword=...
+keyAlias=key0
+keyPassword=...
+```
+
+- `storeFile` is relative to `keys/`.
+- The file follows Java Properties rules: a literal backslash is written `\\`; other characters
+  (`= : # ! $`, quotes) go as they are, without quotes.
+- The passwords reach `apksigner` through environment variables and are never printed.
+
+`make export-preset` adds the `Android Release` preset (`package/signed=false`) to an existing
+`export_presets.cfg` when it is missing, and keeps its version in step with the debug preset.
+Godot is not left to sign the release itself because it passes the keystore password through a
+shell: a password with shell characters (such as `$`, `!`, `|`, `\`, `"`, `` ` ``, `&`, `<`, `>`)
+makes its export fail. The script needs Python 3 and the Android SDK build-tools (found through
+`ANDROID_HOME`, `ANDROID_SDK_ROOT` or `~/Library/Android/sdk`).
+
+Run one Godot export at a time, also across projects: parallel exports share Godot's temporary
+APK in its global cache and fail with "Could not unzip temporary unaligned APK".
 
 ---
 
