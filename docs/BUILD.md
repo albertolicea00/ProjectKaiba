@@ -64,6 +64,72 @@ Release builds:
 make android TARGET=template_release
 ```
 
+### Packaging an APK
+
+Only a **debug** APK can be built today. There is no release export target and no release
+signing wired into this repo (see "Release APK" below).
+
+Prerequisites, all checked by `make doctor`:
+
+- The Android NDK above (`ANDROID_HOME`, or `ANDROID_NDK_HOME`), for the native library.
+- Godot's export templates for the exact engine version, 4.6.3.stable: `make android-templates`
+  (~1.2 GB, one time).
+- A first import of the project; `make apk` runs `make bootstrap-import` itself if needed.
+
+```bash
+make apk           # builds libkaiba_core for arm64, then exports the debug APK
+make install-apk   # the same, then installs it on the one attached device and launches it
+make apk-name      # prints the path the debug APK will get, without building anything
+```
+
+`make apk` builds the native library with `make android-arm64` (default `TARGET=template_debug`),
+writes `game/export_presets.cfg` if it does not exist yet (`make export-preset`), and runs
+`godot --headless --export-debug "Android"`. Only arm64 is exported.
+
+The APK lands in `build/` as:
+
+```
+build/project-kaiba-v<version>-<versionCode>-<debug|release>.apk
+e.g. build/project-kaiba-v1.0-1-debug.apk
+```
+
+`<version>` and `<versionCode>` are the values Godot writes into the Android manifest, so the
+single source of truth is the Android preset in `game/export_presets.cfg`:
+
+| field | name part | when empty or missing |
+|---|---|---|
+| `version/name` | `<version>` | `application/config/version` in `project.godot`, else `1.0` |
+| `version/code` | `<versionCode>` | `1` |
+
+The project sets neither today, so builds are named `v1.0-1`. To version a build, set those two
+keys in the preset (editor: Project → Export → Android → Version, or edit the file) and run
+`make apk-name` to confirm the name. The Makefile reads only these two keys from the preset.
+`version/code` must increase for Android to install an update over an older build.
+
+`export_presets.cfg` is gitignored because it can hold a keystore path and password, so it is
+generated, never committed. The generator writes `version/code=1`, `version/name=""` and an
+`export_path` with the versioned name; an existing file is never overwritten, so a preset written
+before this naming scheme keeps its old `export_path`. That field only matters for exports started
+from the editor; `make apk` always passes the path explicitly.
+
+Debug signing uses the debug keystore configured in Godot's editor settings
+(`export/android/debug_keystore`), not anything in this repo.
+
+### Release APK
+
+Not wired. There is no `make` target that runs `--export-release`, and nothing in the Makefile
+reads `keys/` or any properties file to put a keystore into the preset. `keys/release.properties`
+is listed in `.gitignore` but no script consumes it.
+
+What a release export would need, from Godot's side: the Android preset's
+`keystore/release`, `keystore/release_user` and `keystore/release_password` options (or the
+`GODOT_ANDROID_KEYSTORE_RELEASE_PATH`, `_USER` and `_PASSWORD` environment variables, which Godot
+reads at export time), native libraries built with `TARGET=template_release`, and a
+`godot --headless --export-release "Android" ../build/project-kaiba-v<version>-<versionCode>-release.apk`
+call. If you put those values in `export_presets.cfg` by hand, remember it is a Godot
+`ConfigFile`: string values are double-quoted and a backslash or quote inside them is written
+`\\` or `\"`. On macOS and Linux keystore paths normally contain neither.
+
 ---
 
 ## The standalone probe

@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `data/` and native build artefacts added; `*.import` no longer ignored, since in Godot 4 those
   files carry resource UIDs and regenerating them breaks `uid://` references.
 
+- APKs are named `build/project-kaiba-v<version>-<versionCode>-<debug|release>.apk`, with the
+  version read from the Android preset's `version/name` and `version/code` (Godot's fallbacks
+  when unset). `make apk-name` prints the name; the preset generator now writes both keys.
+  Only debug exports exist; `docs/BUILD.md` documents packaging and what release signing lacks.
+
 ### Pinned dependencies
 | dependency | commit | notes |
 |---|---|---|

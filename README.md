@@ -42,6 +42,20 @@ Where the project stands and what is next: **[ROADMAP.md](ROADMAP.md)**.
 
 ---
 
+## 📦 Building an APK
+
+```bash
+make android-templates   # one time: Godot 4.6.3 export templates (~1.2 GB)
+make apk                 # debug APK in build/project-kaiba-v<version>-<versionCode>-debug.apk
+make install-apk         # build, install on the attached device and launch
+```
+
+Needs the Android NDK (`make doctor` checks everything). Version and version code come from the
+Android preset in `game/export_presets.cfg`. Only debug APKs can be built; release signing is not
+set up yet. See [docs/BUILD.md](docs/BUILD.md#packaging-an-apk).
+
+---
+
 ## 📖 Documentation
 
 Full technical plan, architecture rationale, and project guides:

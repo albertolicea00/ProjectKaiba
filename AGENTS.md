@@ -127,7 +127,14 @@ make deps        # install scons, init submodules
 make host        # build for this machine (editor)
 make android     # build all 3 Android ABIs
 make selftest    # run the Phase 0 core selftest headless
+make apk         # debug APK -> build/project-kaiba-v<version>-<versionCode>-debug.apk
+make install-apk # debug APK onto the attached device, then launch it
 ```
+
+APK names come from the Android preset's `version/name` and `version/code` in the gitignored
+`game/export_presets.cfg` (fallbacks: `project.godot` `config/version`, else `1.0`; code `1`).
+Only debug exports exist; release export and signing are not wired. Never read or commit
+`keys/`, keystores or the preset's keystore fields. Details: `docs/BUILD.md` "Packaging an APK".
 
 **The ten gates.** There is no CI; these are the suite. Run all of them after a pull, before any
 commit touching more than one layer, and after any `class_name` move:
