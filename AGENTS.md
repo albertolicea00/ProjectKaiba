@@ -130,6 +130,7 @@ make selftest    # run the Phase 0 core selftest headless
 make apk         # debug APK -> build/project-kaiba-v<version>-<versionCode>-debug.apk
 make apk-release # release APK signed with keys/release.properties (tools/sign_apk.py)
 make ipa         # iOS release IPA -> build/ios/project-kaiba-v<version>-<code>-release.ipa
+make dmg         # universal macOS .dmg -> build/macos/project-kaiba-v<version>-<code>-release.dmg
 make install-apk # debug APK onto the attached device, then launch it
 ```
 

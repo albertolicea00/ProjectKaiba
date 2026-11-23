@@ -166,6 +166,10 @@ APK in its global cache and fail with "Could not unzip temporary unaligned APK".
 
 `make ipa` also builds `libkaiba_core.ios.template_release.arm64.dylib` (no flag differs from macOS; section 8.2 is macOS-only upstream and the iOS build compiles without it). Godot wraps it into a framework inside the app.
 
+## macOS
+
+`make dmg` builds `libkaiba_core` in release for arm64 and x86_64 and writes a universal, ad-hoc signed `build/macos/project-kaiba-v<version>-<code>-release.dmg`. `make export-preset` adds the `macOS` preset when missing and writes the version and code into it. There is no Developer ID or notarization, so another Mac opens the app the first time with right-click → Open. Windows and Linux builds need `libkaiba_core` cross-compiled (mingw-w64 / a Linux toolchain) and are not set up yet.
+
 ## The standalone probe
 
 ```bash
