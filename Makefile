@@ -67,6 +67,7 @@ help:
 	@echo "  make install-apk  Build the debug APK, install it on the attached device and launch it"
 	@echo "  make apk-release  Build the release APK signed with keys/release.properties"
 	@echo "  make ipa        Build the iOS release IPA (team from keys/ios.properties)"
+	@echo "  make dmg        Build the universal macOS release .dmg"
 	@echo "  make apk-name   Print the debug APK path without building"
 	@echo "  make selftest   Build and run the headless ocgcore probe"
 	@echo "  make run        Launch the Godot project"
@@ -245,7 +246,7 @@ APK_RELEASE    := $(APK_STEM)-release.apk
 APK_UNSIGNED   := $(APK_STEM)-release-unsigned.apk
 PYTHON         ?= python3
 
-.PHONY: android-templates export-preset apk apk-release ipa install-apk apk-name
+.PHONY: android-templates export-preset apk apk-release ipa dmg install-apk apk-name
 
 android-templates:
 	@if [ -d "$(TEMPLATE_DIR)" ]; then \
@@ -372,6 +373,34 @@ export-preset:
 		  >> $(PRESET); \
 		echo "added the \"iOS\" preset to $(PRESET)"; \
 	fi
+	@if ! grep -q '^name="macOS"$$' $(PRESET); then \
+		n=$$(grep -c '^\[preset\.[0-9][0-9]*\]$$' $(PRESET)); \
+		printf '%s\n' '' \
+		  "[preset.$$n]" '' \
+		  'name="macOS"' \
+		  'platform="macOS"' \
+		  'runnable=false' \
+		  'advanced_options=false' \
+		  'dedicated_server=false' \
+		  'custom_features=""' \
+		  'export_filter="all_resources"' \
+		  'include_filter=""' \
+		  'exclude_filter=""' \
+		  'export_path=""' \
+		  'encryption_include_filters=""' \
+		  'encryption_exclude_filters=""' \
+		  'seed=0' \
+		  'encrypt_pck=false' \
+		  'encrypt_directory=false' \
+		  'script_export_mode=2' \
+		  '' "[preset.$$n.options]" '' \
+		  'binary_format/architecture="universal"' \
+		  'application/bundle_identifier="com.example.projectkaiba"' \
+		  'codesign/codesign=1' \
+		  'notarization/notarization=0' \
+		  >> $(PRESET); \
+		echo "added the \"macOS\" preset to $(PRESET)"; \
+	fi
 	@$(PYTHON) tools/sync_preset_version.py $(PRESET) $(VERSION_NAME) $(VERSION_CODE)
 	@echo "preset version: $(VERSION_NAME) ($(VERSION_CODE))"
 
@@ -404,6 +433,19 @@ ipa: export-preset
 	$(SCONS_ENV) $(SCONS) -C $(NATIVE_DIR) -j$(JOBS) target=template_release disable_exceptions=no platform=ios arch=arm64
 	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
 	GODOT_BIN="$(GODOT)" tools/export_ipa.sh $(GAME_DIR) project-kaiba build/ios
+
+# Builds the optimised macOS library for arm64 and x86_64 and writes a universal, ad-hoc signed
+# build/macos/project-kaiba-v<version>-<code>-release.dmg (no Developer ID: another Mac opens it
+# the first time with right-click → Open).
+DMG := build/macos/project-kaiba-v$(VERSION_NAME)-$(VERSION_CODE)-release.dmg
+dmg: export-preset
+	@test -d "$(TEMPLATE_DIR)" || (echo "export templates missing - run: make android-templates"; exit 1)
+	$(SCONS) -C $(NATIVE_DIR) -j$(JOBS) target=template_release disable_exceptions=no platform=macos arch=arm64
+	$(SCONS) -C $(NATIVE_DIR) -j$(JOBS) target=template_release disable_exceptions=no platform=macos arch=x86_64
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	@mkdir -p build/macos
+	$(GODOT) --headless --path $(GAME_DIR) --export-release "macOS" ../$(DMG)
+	@ls -lh $(DMG)
 
 # Prints the debug APK path `make apk` would write, without building anything.
 apk-name:

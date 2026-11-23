@@ -3,8 +3,8 @@
 
 usage: sync_preset_version.py <export_presets.cfg> <version name> <version code>
 
-Android presets get version/name and version/code; iOS presets get application/short_version
-and application/version. Other presets and every other line are left as they are.
+Android presets get version/name and version/code; iOS and macOS presets get
+application/short_version and application/version. Other presets and every other line are left as they are.
 """
 
 import re
@@ -14,6 +14,7 @@ from pathlib import Path
 KEYS = {
     "Android": {"version/name": '"{name}"', "version/code": "{code}"},
     "iOS": {"application/short_version": '"{name}"', "application/version": '"{code}"'},
+    "macOS": {"application/short_version": '"{name}"', "application/version": '"{code}"'},
 }
 
 
