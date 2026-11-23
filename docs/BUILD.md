@@ -153,6 +153,19 @@ APK in its global cache and fail with "Could not unzip temporary unaligned APK".
 
 ---
 
+## iOS
+
+`make ipa` writes `build/ios/project-kaiba-v<version>-<build>-release.ipa`, signed through Xcode:
+
+1. Godot exports the iOS preset as an Xcode project (release template).
+2. `xcodebuild` archives it in Release and exports the IPA with automatic signing.
+
+- **Team:** `DEVELOPMENT_TEAM` in `keys/ios.properties` (git-ignored; copy `keys/ios.properties.example`), or `TEAM=<id>`. `tools/export_ipa.sh` writes it into the iOS preset only for the export, together with `application/export_project_only=true`, and always restores `game/export_presets.cfg` afterwards, so the team id never reaches git.
+- **Version:** the same `config/version` and `VERSION_CODE` as Android; `make export-preset` adds the `iOS` preset when missing and writes them into `application/short_version` and `application/version` (`tools/sync_preset_version.py`).
+- **Export method:** `IPA_METHOD=debugging` (default with a free personal team), `release-testing` (Ad Hoc) or `app-store-connect` (default with a paid team). A free personal team only allows `debugging`: the IPA installs on your own registered devices and stops opening after 7 days. Ad Hoc, TestFlight and the App Store need the paid Apple Developer Program.
+
+`make ipa` also builds `libkaiba_core.ios.template_release.arm64.dylib` (no flag differs from macOS; section 8.2 is macOS-only upstream and the iOS build compiles without it). Godot wraps it into a framework inside the app.
+
 ## The standalone probe
 
 ```bash

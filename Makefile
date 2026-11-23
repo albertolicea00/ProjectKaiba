@@ -66,6 +66,7 @@ help:
 	@echo "  make apk        Package a debug APK as build/project-kaiba-v<version>-<code>-debug.apk"
 	@echo "  make install-apk  Build the debug APK, install it on the attached device and launch it"
 	@echo "  make apk-release  Build the release APK signed with keys/release.properties"
+	@echo "  make ipa        Build the iOS release IPA (team from keys/ios.properties)"
 	@echo "  make apk-name   Print the debug APK path without building"
 	@echo "  make selftest   Build and run the headless ocgcore probe"
 	@echo "  make run        Launch the Godot project"
@@ -244,7 +245,7 @@ APK_RELEASE    := $(APK_STEM)-release.apk
 APK_UNSIGNED   := $(APK_STEM)-release-unsigned.apk
 PYTHON         ?= python3
 
-.PHONY: android-templates export-preset apk apk-release install-apk apk-name
+.PHONY: android-templates export-preset apk apk-release ipa install-apk apk-name
 
 android-templates:
 	@if [ -d "$(TEMPLATE_DIR)" ]; then \
@@ -342,7 +343,36 @@ export-preset:
 		  >> $(PRESET); \
 		echo "added the unsigned \"Android Release\" preset to $(PRESET)"; \
 	fi
-	@perl -0pi -e 's/^version\/(code|name)=.*\n//mg; s/^(\[preset\.\d+\.options\]\n)/$$1version\/code=$(VERSION_CODE)\nversion\/name="$(VERSION_NAME)"\n/mg' $(PRESET)
+	@if ! grep -q '^name="iOS"$$' $(PRESET); then \
+		n=$$(grep -c '^\[preset\.[0-9][0-9]*\]$$' $(PRESET)); \
+		printf '%s\n' '' \
+		  "[preset.$$n]" '' \
+		  'name="iOS"' \
+		  'platform="iOS"' \
+		  'runnable=false' \
+		  'advanced_options=false' \
+		  'dedicated_server=false' \
+		  'custom_features=""' \
+		  'export_filter="all_resources"' \
+		  'include_filter=""' \
+		  'exclude_filter=""' \
+		  'export_path=""' \
+		  'encryption_include_filters=""' \
+		  'encryption_exclude_filters=""' \
+		  'seed=0' \
+		  'encrypt_pck=false' \
+		  'encrypt_directory=false' \
+		  'script_export_mode=2' \
+		  '' "[preset.$$n.options]" '' \
+		  'application/app_store_team_id=""' \
+		  'application/bundle_identifier="com.example.projectkaiba"' \
+		  'application/export_method_debug=1' \
+		  'application/export_method_release=1' \
+		  'architectures/arm64=true' \
+		  >> $(PRESET); \
+		echo "added the \"iOS\" preset to $(PRESET)"; \
+	fi
+	@$(PYTHON) tools/sync_preset_version.py $(PRESET) $(VERSION_NAME) $(VERSION_CODE)
 	@echo "preset version: $(VERSION_NAME) ($(VERSION_CODE))"
 
 # Builds the native library for arm64 and packages a debug APK.
@@ -365,6 +395,15 @@ apk-release: export-preset
 	$(PYTHON) tools/sign_apk.py $(APK_UNSIGNED) $(APK_RELEASE) keys/release.properties
 	@rm -f $(APK_UNSIGNED)
 	@ls -lh $(APK_RELEASE)
+
+# Builds the optimised iOS arm64 library and writes build/ios/project-kaiba-v<version>-<code>-release.ipa
+# through tools/export_ipa.sh (team from keys/ios.properties; IPA_METHOD=debugging|release-testing|
+# app-store-connect). The team id is written into the preset only during the export.
+ipa: export-preset
+	@test -d "$(TEMPLATE_DIR)" || (echo "export templates missing - run: make android-templates"; exit 1)
+	$(SCONS_ENV) $(SCONS) -C $(NATIVE_DIR) -j$(JOBS) target=template_release disable_exceptions=no platform=ios arch=arm64
+	@test -f $(GAME_DIR)/.godot/extension_list.cfg || $(MAKE) bootstrap-import
+	GODOT_BIN="$(GODOT)" tools/export_ipa.sh $(GAME_DIR) project-kaiba build/ios
 
 # Prints the debug APK path `make apk` would write, without building anything.
 apk-name:
